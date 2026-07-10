@@ -1,0 +1,4 @@
+interface:
+  display_name: "PPT Anything Research"
+  short_description: "Research a topic and turn the evidence into slides"
+  default_prompt: "Use $ppt-anything:ppt-anything-research to research this topic, build a grounded deck, and open the visual result."
