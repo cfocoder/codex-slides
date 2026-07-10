@@ -7,7 +7,9 @@
     "dev": "next dev -p 4311",
     "build": "next build",
     "start": "next start -p 4311",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:mcp": "node --check mcp/server.mjs && node scripts/probe-mcp.mjs",
+    "check:mcp:live": "node scripts/probe-mcp.mjs --live"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
