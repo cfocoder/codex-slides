@@ -19,6 +19,7 @@ import {
   duplicateProjectSlide,
   fileUrl,
   markSlide,
+  saveMarkSource,
   setProjectSlideTransition,
   uploadProjectSlide,
   type UiSlide,
@@ -26,7 +27,7 @@ import {
 import type { SlideTransition } from "@/lib/types";
 
 export type MarkAgentEvent =
-  | { type: "request"; slide: UiSlide; note: string }
+  | { type: "request"; slide: UiSlide; note: string; markedImage: string }
   | { type: "complete"; slide: UiSlide; note: string; image: string }
   | { type: "error"; slide: UiSlide; note: string; error: string };
 
@@ -401,11 +402,12 @@ export default function SlideStage({
     setMarkTarget(null);
     mirroredMarkRequest.current = null;
     setActionError("");
-    onMarkAgentEvent?.({ type: "request", slide, note });
     setBusy(true);
     update(index, { status: "working" });
     try {
-      const image = await markSlide(projectId, index, blob, note);
+      const markedImage = await saveMarkSource(projectId, index, blob);
+      onMarkAgentEvent?.({ type: "request", slide, note, markedImage });
+      const image = await markSlide(projectId, index, markedImage, note);
       update(index, { status: "rendered", image, bust: Date.now() });
       onMarkAgentEvent?.({ type: "complete", slide, note, image });
     } catch (error: any) {

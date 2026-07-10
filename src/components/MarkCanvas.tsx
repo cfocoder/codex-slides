@@ -15,11 +15,12 @@ import {
 
 type Pt = { x: number; y: number };
 type MarkTool = "pen" | "line" | "rect" | "text";
+type TextMark = { kind: "text"; point: Pt; text: string };
 type Mark =
   | { kind: "pen"; points: Pt[] }
   | { kind: "line"; start: Pt; end: Pt }
   | { kind: "rect"; start: Pt; end: Pt }
-  | { kind: "text"; point: Pt; text: string };
+  | TextMark;
 
 const MARK_COLOR = "#ff3b30";
 
@@ -45,10 +46,13 @@ export default function MarkCanvas({
   const redoRef = useRef<Mark[]>([]);
   const draftRef = useRef<Mark | null>(null);
   const drawingRef = useRef(false);
+  const textDragRef = useRef<{ index: number; offset: Pt; origin: Pt } | null>(null);
   const [tool, setToolState] = useState<MarkTool>("pen");
   const [note, setNote] = useState("");
   const [ready, setReady] = useState(false);
   const [, setHistoryVersion] = useState(0);
+  const [hoveredText, setHoveredText] = useState<number | null>(null);
+  const [draggingText, setDraggingText] = useState(false);
   const [textDraft, setTextDraft] = useState<{ point: Pt; value: string } | null>(null);
   // Mirror the draft in a ref so commit always sees the latest value regardless of
   // React closure timing (needed for reliable multi-text placement).
@@ -72,7 +76,46 @@ export default function MarkCanvas({
   /** Switch tools; committing any open text draft first. */
   function setTool(next: MarkTool) {
     if (tool === "text" && next !== "text") commitDraft();
+    if (next !== "text") setHoveredText(null);
     setToolState(next);
+  }
+
+  function setTextStyle(context: CanvasRenderingContext2D, surfaceWidth: number) {
+    const fontSize = Math.max(18, surfaceWidth / 34);
+    context.font = `700 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
+    context.textBaseline = "top";
+    return fontSize;
+  }
+
+  function textBounds(context: CanvasRenderingContext2D, mark: TextMark, surfaceWidth: number) {
+    context.save();
+    const fontSize = setTextStyle(context, surfaceWidth);
+    const width = context.measureText(mark.text).width;
+    context.restore();
+    const hitPadding = Math.max(8, fontSize * 0.22);
+    return {
+      left: mark.point.x - hitPadding,
+      top: mark.point.y - hitPadding,
+      right: mark.point.x + width + hitPadding,
+      bottom: mark.point.y + fontSize + hitPadding,
+      textWidth: width,
+      fontSize,
+    };
+  }
+
+  function textAtPoint(point: Pt): number | null {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return null;
+    for (let index = marksRef.current.length - 1; index >= 0; index--) {
+      const mark = marksRef.current[index];
+      if (mark.kind !== "text") continue;
+      const bounds = textBounds(context, mark, canvas.width);
+      if (point.x >= bounds.left && point.x <= bounds.right && point.y >= bounds.top && point.y <= bounds.bottom) {
+        return index;
+      }
+    }
+    return null;
   }
 
   useEffect(() => {
@@ -142,15 +185,7 @@ export default function MarkCanvas({
       const top = Math.min(mark.start.y, mark.end.y);
       context.strokeRect(left, top, Math.abs(mark.end.x - mark.start.x), Math.abs(mark.end.y - mark.start.y));
     } else {
-      const fontSize = Math.max(18, width / 34);
-      context.font = `700 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
-      context.textBaseline = "top";
-      const paddingX = fontSize * 0.36;
-      const paddingY = fontSize * 0.2;
-      const textWidth = context.measureText(mark.text).width + paddingX * 2;
-      const height = fontSize + paddingY * 2;
-      context.fillStyle = "rgba(255,255,255,0.94)";
-      context.fillRect(mark.point.x - paddingX, mark.point.y - paddingY, textWidth, height);
+      setTextStyle(context, width);
       context.fillStyle = MARK_COLOR;
       context.fillText(mark.text, mark.point.x, mark.point.y);
     }
@@ -180,6 +215,22 @@ export default function MarkCanvas({
     if (busy || !ready) return;
     const point = pointFromEvent(event);
     if (tool === "text") {
+      if (textDraftRef.current) commitDraft();
+      const textIndex = textAtPoint(point);
+      if (textIndex != null) {
+        const mark = marksRef.current[textIndex];
+        if (mark.kind !== "text") return;
+        textDragRef.current = {
+          index: textIndex,
+          offset: { x: point.x - mark.point.x, y: point.y - mark.point.y },
+          origin: { ...mark.point },
+        };
+        redoRef.current = [];
+        setHoveredText(textIndex);
+        setDraggingText(true);
+        event.currentTarget.setPointerCapture(event.pointerId);
+        return;
+      }
       // Defer opening the new draft to the next frame so any currently focused
       // draft input blurs + commits first (otherwise the two setStates race).
       requestAnimationFrame(() => setDraft({ point, value: "" }));
@@ -197,6 +248,25 @@ export default function MarkCanvas({
   }
 
   function onPointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
+    const textDrag = textDragRef.current;
+    if (textDrag) {
+      const canvas = canvasRef.current;
+      const context = canvas?.getContext("2d");
+      const mark = marksRef.current[textDrag.index];
+      if (!canvas || !context || mark?.kind !== "text") return;
+      const point = pointFromEvent(event);
+      const desired = {
+        x: point.x - textDrag.offset.x,
+        y: point.y - textDrag.offset.y,
+      };
+      const bounds = textBounds(context, { ...mark, point: desired }, canvas.width);
+      mark.point = {
+        x: Math.max(0, Math.min(canvas.width - bounds.textWidth, desired.x)),
+        y: Math.max(0, Math.min(canvas.height - bounds.fontSize, desired.y)),
+      };
+      redraw();
+      return;
+    }
     if (!drawingRef.current || !draftRef.current) return;
     const point = pointFromEvent(event);
     if (draftRef.current.kind === "pen") draftRef.current.points.push(point);
@@ -205,6 +275,15 @@ export default function MarkCanvas({
   }
 
   function onPointerUp(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (textDragRef.current) {
+      const index = textDragRef.current.index;
+      textDragRef.current = null;
+      setDraggingText(false);
+      setHoveredText(index);
+      setHistoryVersion((version) => version + 1);
+      redraw();
+      return;
+    }
     const draft = draftRef.current;
     if (!drawingRef.current || !draft) return;
     drawingRef.current = false;
@@ -250,7 +329,10 @@ export default function MarkCanvas({
     marksRef.current = [];
     redoRef.current = [];
     draftRef.current = null;
+    textDragRef.current = null;
     setDraft(null);
+    setHoveredText(null);
+    setDraggingText(false);
     setHistoryVersion((version) => version + 1);
     redraw();
   }
@@ -290,9 +372,15 @@ export default function MarkCanvas({
     <div className="mark-inline" role="region" aria-label={`Mark slide ${slideIndex}`}>
       <canvas
         ref={canvasRef}
-        className={`mark-canvas-overlay tool-${tool}`}
+        className={`mark-canvas-overlay tool-${tool}${hoveredText != null ? " over-text" : ""}${draggingText ? " dragging-text" : ""}`}
         onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
+        onPointerMove={(event) => {
+          if (tool === "text" && !textDragRef.current) setHoveredText(textAtPoint(pointFromEvent(event)));
+          onPointerMove(event);
+        }}
+        onPointerLeave={() => {
+          if (!textDragRef.current) setHoveredText(null);
+        }}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       />
@@ -324,7 +412,7 @@ export default function MarkCanvas({
         <button type="button" className={tool === "pen" ? "active" : ""} onClick={() => setTool("pen")} aria-label="Freehand" aria-pressed={tool === "pen"} title="Freehand"><PencilSimple size={17} /></button>
         <button type="button" className={tool === "line" ? "active" : ""} onClick={() => setTool("line")} aria-label="Straight line" aria-pressed={tool === "line"} title="Straight line"><LineSegment size={17} /></button>
         <button type="button" className={tool === "rect" ? "active" : ""} onClick={() => setTool("rect")} aria-label="Rectangle" aria-pressed={tool === "rect"} title="Rectangle"><Rectangle size={17} /></button>
-        <button type="button" className={tool === "text" ? "active" : ""} onClick={() => setTool("text")} aria-label="Text label" aria-pressed={tool === "text"} title="Text label"><TextT size={17} /></button>
+        <button type="button" className={tool === "text" ? "active" : ""} onClick={() => setTool("text")} aria-label="Text label" aria-pressed={tool === "text"} title="Text label · drag placed text to reposition"><TextT size={17} /></button>
             <span className="mark-tools-sep" />
         <button type="button" onClick={undo} disabled={busy || !canUndo} aria-label="Undo" title="Undo"><ArrowCounterClockwise size={17} /></button>
         <button type="button" onClick={redo} disabled={busy || !canRedo} aria-label="Redo" title="Redo"><ArrowClockwise size={17} /></button>

@@ -110,3 +110,59 @@ export function matchCommunityTemplates(query: string, limit?: number): Communit
     .map((s) => s.t);
   return typeof limit === "number" ? scored.slice(0, limit) : scored;
 }
+
+// ---- inspiration step helpers ------------------------------------------
+
+/** A short, human-readable search query seeded from the deck's requirement/title. */
+export function inspireQueryFor(requirement: string, title?: string): string {
+  const base = (title || requirement || "").trim().replace(/\s+/g, " ");
+  return base.slice(0, 60) || "presentation design";
+}
+
+/** Canonical search phrase for each community group, used for the "Try:" chips. */
+export const GROUP_QUERY: Record<CommunityGroup, string> = {
+  Infographic: "infographic layout",
+  Diagram: "technical diagram",
+  "Data & Map": "data visualization",
+  "Poster & Ad": "bold poster",
+  Product: "product showcase",
+  Editorial: "editorial layout",
+  Illustration: "illustrated style",
+};
+
+/**
+ * Offline "Try:" suggestion chips (like the reference gallery's query hints):
+ * the groups whose templates best match the query, phrased as re-search queries.
+ * Falls back to a sensible popular set when nothing matches (e.g. a CJK query the
+ * English catalog can't score — the codex /api/inspire re-rank refines those).
+ */
+export function inspireChips(query: string, n = 3): string[] {
+  const scored = scoreCommunityTemplates(query)
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score);
+  const groups: CommunityGroup[] = [];
+  for (const s of scored) {
+    if (!groups.includes(s.t.group)) groups.push(s.t.group);
+    if (groups.length >= n) break;
+  }
+  const fill: CommunityGroup[] = ["Infographic", "Data & Map", "Editorial", "Diagram"];
+  for (const g of fill) {
+    if (groups.length >= n) break;
+    if (!groups.includes(g)) groups.push(g);
+  }
+  return groups.slice(0, n).map((g) => GROUP_QUERY[g]);
+}
+
+/** Full catalog reordered so the given ids come first (in order); rest keep catalog order. */
+export function orderedByIds(ids: string[]): CommunityTemplate[] {
+  const seen = new Set<string>();
+  const head: CommunityTemplate[] = [];
+  for (const id of ids) {
+    const t = getCommunityTemplate(id);
+    if (t && !seen.has(t.id)) {
+      head.push(t);
+      seen.add(t.id);
+    }
+  }
+  return [...head, ...COMMUNITY_TEMPLATES.filter((t) => !seen.has(t.id))];
+}

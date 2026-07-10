@@ -72,6 +72,23 @@ export function saveSlideImage(id: string, index: number, bytes: Buffer): string
   return name;
 }
 
+/**
+ * Persist the exact annotated image that was sent to the mark editor.
+ *
+ * Unlike a rendered slide (`04.png`), mark snapshots deliberately use unique
+ * filenames. Chat history can therefore keep showing the user's red marks even
+ * after the canonical slide image is replaced by the generated result.
+ */
+export function saveMarkSnapshot(id: string, index: number, bytes: Buffer): string {
+  const dir = projectDir(id);
+  ensureDir(dir);
+  const page = String(index).padStart(2, "0");
+  const token = Math.random().toString(36).slice(2, 8);
+  const name = `mark-${page}-${Date.now()}-${token}.png`;
+  fs.writeFileSync(path.join(dir, name), bytes);
+  return name;
+}
+
 export function readSlideImage(id: string, name: string): Buffer | null {
   // guard against path traversal
   if (!/^[\w.-]+$/.test(name)) return null;

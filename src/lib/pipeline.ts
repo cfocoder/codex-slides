@@ -26,7 +26,6 @@ import {
 import {
   loadProject,
   newProjectId,
-  readSlideImage,
   replaceProjectPages,
   saveProject,
   saveSlideImage,
@@ -328,13 +327,12 @@ export async function markEditPage(
   const page = project.pages.find((p) => p.index === index);
   if (!page) throw new Error("page not found");
 
-  const refs: Buffer[] = [annotatedPng];
-  const current = page.image ? readSlideImage(id, page.image) : null;
-  if (current) refs.push(current);
-
   const prompt = buildMarkEditPrompt(project.config, note);
   const bytes = await generateSlideImage(prompt, {
-    refImages: refs,
+    // The annotation canvas already contains the complete original slide. A
+    // second, clean copy used to compete with it and frequently made the model
+    // return the untouched original instead of following the red marks.
+    refImages: [annotatedPng],
     aspect: project.config.aspect,
     resolution: project.config.resolution,
     signal,

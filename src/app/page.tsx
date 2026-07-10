@@ -567,7 +567,7 @@ export default function Home() {
         attachment: {
           slideIndex: event.slide.index,
           title: `${event.slide.title} · visual mark`,
-          imageUrl: fileUrl(projectId, event.slide.image, event.slide.bust),
+          imageUrl: fileUrl(projectId, event.markedImage),
         },
       });
       const runId = createAgentRunId("visual-mark");

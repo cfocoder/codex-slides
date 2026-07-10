@@ -217,10 +217,15 @@ export function buildEditImagePrompt(
 /** Instruction wrapper for a mark/annotation-driven edit (cowart-style). */
 export function buildMarkEditPrompt(config: PptConfig, note: string): string {
   return [
-    "The reference image is a slide with hand-drawn MARKS (arrows, boxes, scribbles, underlines) and possibly a note.",
-    "Produce a clean, revised slide that APPLIES what the marks ask for. Do NOT draw the marks themselves in the output.",
-    note ? `The author's note about the marks: ${note}` : "",
-    "Keep everything not touched by a mark identical to the original.",
+    "The ONE input image is the current slide with an annotation layer drawn on top.",
+    "Red strokes, red boxes/lines, and red text are editing instructions, not slide content.",
+    "Make a clearly visible change inside the marked region that follows the annotation and the author's note.",
+    "Never satisfy this request by only erasing the red marks and returning the previous slide unchanged.",
+    note
+      ? `The author's required change is: ${note}`
+      : "If the mark only identifies a region, improve or simplify that region while preserving its role in the slide.",
+    "Return the clean edited slide without any annotation marks, selection boxes, or instruction text.",
+    "Keep everything outside the marked region as visually identical to the input as possible.",
     "",
     "<design_guidelines>",
     `- Keep the strict ${config.aspect} aspect ratio and 4K crispness.`,

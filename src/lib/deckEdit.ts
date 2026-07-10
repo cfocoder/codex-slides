@@ -108,6 +108,39 @@ export async function streamRender(
   await readSSE(resp, onEvent);
 }
 
+/** Inspiration step: codex-rank the community style catalog for this deck. */
+export async function rankInspire(
+  requirement: string,
+  outlineTitles: string[],
+): Promise<{ ranked: string[]; reasons: Record<string, string> }> {
+  const r = await fetch("/api/inspire", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ requirement, outlineTitles }),
+  });
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(d.error || `HTTP ${r.status}`);
+  }
+  return r.json();
+}
+
+/** Apply a picked template/style to the draft before rendering (inspiration step). */
+export async function patchProjectStyle(
+  projectId: string,
+  patch: { template?: string | null; style?: string },
+): Promise<void> {
+  const r = await fetch(`/api/projects/${projectId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(d.error || `HTTP ${r.status}`);
+  }
+}
+
 /** Persist an edited draft outline (title/points/order). */
 export async function saveOutline(projectId: string, pages: OutlinePage[]): Promise<void> {
   const r = await fetch(`/api/projects/${projectId}/outline`, {
@@ -249,17 +282,38 @@ export async function regenerateSlide(
   return d.page.image as string;
 }
 
-/** Submit a marked-up canvas edit for a slide. Returns new image name. */
-export async function markSlide(
+/** Save the exact marked-up canvas so chat and the editor share one immutable input. */
+export async function saveMarkSource(
   projectId: string,
   index: number,
   blob: Blob,
+): Promise<string> {
+  const fd = new FormData();
+  fd.append("index", String(index));
+  fd.append("image", blob, "mark.png");
+  let response: Response;
+  try {
+    response = await fetch(`/api/projects/${projectId}/mark/source`, { method: "POST", body: fd });
+  } catch {
+    throw new Error("Connection to the local server was interrupted.");
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  if (!data.image) throw new Error("The marked image snapshot was not saved.");
+  return String(data.image);
+}
+
+/** Submit a persisted marked-up canvas edit for a slide. Returns new image name. */
+export async function markSlide(
+  projectId: string,
+  index: number,
+  source: string,
   note: string,
 ): Promise<string> {
   const fd = new FormData();
   fd.append("index", String(index));
   fd.append("note", note);
-  fd.append("image", blob, "mark.png");
+  fd.append("source", source);
   let r: Response;
   try {
     r = await fetch(`/api/projects/${projectId}/mark`, { method: "POST", body: fd });

@@ -450,7 +450,7 @@ export default function DeckView({ projectId }: { projectId: string }) {
         attachment: {
           slideIndex: event.slide.index,
           title: `${event.slide.title} · visual mark`,
-          imageUrl: fileUrl(projectId, event.slide.image, event.slide.bust),
+          imageUrl: fileUrl(projectId, event.markedImage),
         },
       });
       const runId = createAgentRunId("visual-mark");
