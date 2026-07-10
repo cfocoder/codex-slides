@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import ChatColumn, { type ChatMsg } from "@/components/ChatColumn";
 import Composer from "@/components/Composer";
-import ForYou from "@/components/ForYou";
 import Community from "@/components/Community";
 import OnboardForm from "@/components/OnboardForm";
 import OutlineBoard from "@/components/OutlineBoard";
@@ -862,7 +861,6 @@ export default function Home() {
         </div>
         <Community selected={config.template} onPick={(id) => patchConfig({ template: config.template === id ? undefined : id })} />
         <RecentProjects />
-        <ForYou selected={config.template} onPick={(id) => patchConfig({ template: config.template === id ? undefined : id })} />
       </main>
     </>
   );

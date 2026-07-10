@@ -59,6 +59,17 @@ body {
 button {
   font-family: inherit;
 }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* ============================ App bar ============================ */
 .appbar {
@@ -710,6 +721,7 @@ button {
   min-width: 0;
   color: var(--text);
   text-decoration: none;
+  transition: opacity 0.16s ease;
 }
 .project-cover {
   position: relative;
@@ -756,6 +768,40 @@ button {
 .project-card:focus-visible .project-open {
   opacity: 1;
   transform: translateY(0);
+}
+.project-grid[aria-busy="true"] .project-card:not(.is-opening) {
+  opacity: 0.48;
+  pointer-events: none;
+}
+.project-card.is-opening .project-cover {
+  transform: translateY(-3px) scale(0.985);
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent), var(--shadow);
+}
+.project-card.is-opening .project-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--accent-soft) 34%, transparent);
+  animation: projectCoverOpening 0.72s ease-in-out infinite alternate;
+}
+.project-card.is-opening .project-open {
+  z-index: 1;
+  opacity: 1;
+  transform: translateY(0);
+  color: var(--accent);
+}
+.project-open-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes projectCoverOpening {
+  from { opacity: 0.18; }
+  to { opacity: 0.62; }
 }
 .project-copy {
   padding: 10px 2px 0;
@@ -1471,6 +1517,174 @@ button {
   position: relative;
   height: 100vh;
 }
+
+/* Project navigation shell. The route-level loading boundary is prefetched by
+   Next and replaces the launcher immediately, while the real workspace data
+   streams from the server in the background. */
+.project-route-loading {
+  animation: projectRouteEnter 0.28s cubic-bezier(0.2, 0.75, 0.2, 1) both;
+}
+.project-loading-agent {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  background: #fff;
+}
+.project-loading-head,
+.project-loading-stage-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 57px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+.project-loading-logo {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 7px;
+  color: #fff;
+  background: var(--text);
+  font-size: 11px;
+}
+.project-loading-line,
+.project-loading-pill,
+.project-loading-action,
+.project-loading-composer,
+.project-loading-thumb {
+  display: block;
+  background: linear-gradient(100deg, var(--panel-2) 20%, #fafbfc 42%, var(--panel-2) 64%);
+  background-size: 220% 100%;
+  animation: projectLoadingShimmer 1.35s ease-in-out infinite;
+}
+.project-loading-line {
+  width: 64%;
+  height: 9px;
+  border-radius: 999px;
+}
+.project-loading-line.wide { width: 78%; }
+.project-loading-line.short { width: 38%; }
+.project-loading-head .project-loading-line { width: 92px; height: 10px; }
+.project-loading-pill {
+  width: 72px;
+  height: 26px;
+  margin-left: auto;
+  border-radius: 999px;
+}
+.project-loading-feed {
+  flex: 1;
+  min-height: 0;
+  padding: 24px 18px;
+}
+.project-loading-message {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-soft);
+}
+.project-loading-composer {
+  height: 88px;
+  margin: 12px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.project-loading-stage {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--workspace-ground);
+}
+.project-loading-stage-head {
+  padding-right: 20px;
+}
+.project-loading-stage-head .title {
+  width: min(240px, 30%);
+  height: 11px;
+  margin-right: auto;
+}
+.project-loading-stage-head .count {
+  width: 58px;
+  height: 24px;
+  margin-left: 0;
+}
+.project-loading-action {
+  width: 70px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+.project-loading-action.long { width: 106px; }
+.project-loading-canvas-wrap {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: clamp(18px, 3vw, 36px);
+}
+.project-loading-canvas {
+  width: min(960px, 100%);
+  aspect-ratio: 16 / 9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text-2);
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.project-loading-canvas strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.project-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--panel-3);
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  animation: spin 0.8s linear infinite;
+}
+.project-loading-filmstrip {
+  display: flex;
+  gap: 10px;
+  padding: 12px 18px 16px;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  background: #fff;
+}
+.project-loading-thumb {
+  width: 128px;
+  aspect-ratio: 16 / 9;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+@keyframes projectRouteEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes projectLoadingShimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
 .deckpane {
   position: relative;
   display: flex;
@@ -1982,6 +2196,37 @@ button {
   .project-ws {
     height: auto;
     min-height: 100vh;
+  }
+  .project-route-loading > .project-loading-agent {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 42vh;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .project-route-loading > .project-loading-stage {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 58vh;
+  }
+}
+
+@media (max-width: 640px) {
+  .project-loading-stage-head .count,
+  .project-loading-stage-head .project-loading-action:nth-last-child(2) {
+    display: none;
+  }
+  .project-loading-stage-head .title {
+    width: 42%;
+  }
+  .project-loading-action {
+    width: 54px;
+  }
+  .project-loading-action.long {
+    width: 78px;
+  }
+  .project-loading-canvas-wrap {
+    padding: 16px 14px;
   }
 }
 
@@ -3713,7 +3958,16 @@ button {
   .preview.slide-enter .slide-empty-state,
   .slide-structure-progress,
   .frame-shell.frame-enter,
-  .frame-shell-adding {
+  .frame-shell-adding,
+  .project-card.is-opening .project-cover::after,
+  .project-open-spinner,
+  .project-route-loading,
+  .project-loading-line,
+  .project-loading-pill,
+  .project-loading-action,
+  .project-loading-composer,
+  .project-loading-thumb,
+  .project-loading-spinner {
     animation: none;
   }
 }

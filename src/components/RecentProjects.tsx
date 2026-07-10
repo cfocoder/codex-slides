@@ -31,6 +31,7 @@ function relativeTime(value: string) {
 export default function RecentProjects() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -74,9 +75,18 @@ export default function RecentProjects() {
           ))}
         </div>
       ) : projects.length ? (
-        <div className="project-grid">
+        <div className="project-grid" aria-busy={Boolean(openingId)}>
           {projects.map((project) => (
-            <Link className="project-card" href={`/project/${project.id}`} key={project.id}>
+            <Link
+              className={`project-card${openingId === project.id ? " is-opening" : ""}`}
+              href={`/project/${project.id}`}
+              key={project.id}
+              onClick={(event) => {
+                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                setOpeningId(project.id);
+              }}
+              aria-label={`Open ${project.title}`}
+            >
               <div className="project-cover" style={{ aspectRatio: project.aspect.replace(":", " / ") }}>
                 {project.cover ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -85,7 +95,7 @@ export default function RecentProjects() {
                   <span className="project-empty-cover">No preview yet</span>
                 )}
                 <span className="project-open" aria-hidden="true">
-                  ↗
+                  {openingId === project.id ? <span className="project-open-spinner" /> : "↗"}
                 </span>
               </div>
               <div className="project-copy">

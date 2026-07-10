@@ -8,3 +8,5 @@ next-env.d.ts
 
 .claude/**
 .claude-sessions/**
+.next-dev/**
+.next/**

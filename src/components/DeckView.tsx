@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowsClockwise, Palette, WarningCircle, X } from "@phosphor-icons/react";
 import ChatColumn, { type ChatMsg } from "@/components/ChatColumn";
 import MaterialTray from "@/components/MaterialTray";
@@ -39,16 +39,57 @@ import {
   stopRunningTools,
 } from "@/lib/agentActivity";
 
-/** Loads a persisted project and shows the agent-native workspace (chat + stage). */
-export default function DeckView({ projectId }: { projectId: string }) {
-  const [project, setProject] = useState<Project | null>(null);
-  const [slides, setSlides] = useState<UiSlide[]>([]);
-  const [loading, setLoading] = useState(true);
+function projectSlides(project: Project): UiSlide[] {
+  const bust = Date.now();
+  return project.pages.map((slide) => ({
+    index: slide.index,
+    title: slide.title,
+    status: (slide.status as UiSlide["status"]) ?? "pending",
+    image: slide.image,
+    error: slide.error,
+    bust,
+    transition: slide.transition ?? "none",
+  }));
+}
+
+function projectOutline(project: Project): OutlinePage[] {
+  return (project.outline?.length ? project.outline : project.pages).map((page) => ({
+    title: page.title,
+    points: [...(page.points ?? [])],
+  }));
+}
+
+function projectChat(project: Project): ChatMsg[] {
+  if (Array.isArray(project.chat) && project.chat.length) {
+    return project.chat as unknown as ChatMsg[];
+  }
+  const rendered = project.pages.filter((slide) => slide.status === "rendered").length;
+  return [
+    project.status === "draft"
+      ? {
+          role: "assistant",
+          content: `这个演示还是草稿——「${project.title}」有 ${project.pages.length} 页大纲，还没出图。你可以在右侧编辑大纲或让我修改，满意后点「生成」逐页出图。`,
+          doc: { title: project.title, subtitle: `大纲 · ${project.pages.length} 页`, icon: "▤" },
+        }
+      : {
+          role: "assistant",
+          content: `I’m the agent for this presentation. “${project.title}” has ${project.pages.length} slides (${rendered} rendered). I can add pages, rewrite content, redraw a selected slide, or optimize the whole deck.`,
+          doc: { title: project.title, subtitle: `${project.config.aspect} · ${project.agent}`, icon: "▤" },
+        },
+  ];
+}
+
+/** Shows a persisted project immediately from server-provided data. */
+export default function DeckView({ projectId, initialProject }: { projectId: string; initialProject: Project }) {
+  const [project, setProject] = useState<Project>(initialProject);
+  const [slides, setSlides] = useState<UiSlide[]>(() => projectSlides(initialProject));
   const [busy, setBusy] = useState(false);
   const [running, setRunning] = useState(false);
-  const [stage, setStage] = useState<"outline" | "inspire" | "deck">("deck");
-  const [outline, setOutline] = useState<OutlinePage[]>([]);
-  const [chat, setChat] = useState<ChatMsg[]>([]);
+  const [stage, setStage] = useState<"outline" | "inspire" | "deck">(
+    initialProject.status === "draft" ? "outline" : "deck",
+  );
+  const [outline, setOutline] = useState<OutlinePage[]>(() => projectOutline(initialProject));
+  const [chat, setChat] = useState<ChatMsg[]>(() => projectChat(initialProject));
   const [queue, setQueue] = useState<ChatRequest[]>([]);
   const [chatContext, setChatContext] = useState<SlideChatContext | null>(null);
   const [chatFocusKey, setChatFocusKey] = useState(0);
@@ -60,66 +101,12 @@ export default function DeckView({ projectId }: { projectId: string }) {
   const markRunRef = useRef<{ id: string; startedAt: number; slideIndex: number } | null>(null);
 
   const [showTune, setShowTune] = useState(false);
-  const [retuneTemplate, setRetuneTemplate] = useState<string | undefined>(undefined);
+  const [retuneTemplate, setRetuneTemplate] = useState<string | undefined>(initialProject.config.template);
   const [retuneMaterialIds, setRetuneMaterialIds] = useState<string[]>([]);
   const [retuning, setRetuning] = useState(false);
   const [retuneProgress, setRetuneProgress] = useState(0);
   const retunePanelRef = useRef<HTMLElement>(null);
   const retuneTriggerRef = useRef<HTMLButtonElement>(null);
-
-  const load = useCallback(async () => {
-    const r = await fetch(`/api/projects/${projectId}`, { cache: "no-store" });
-    if (!r.ok) {
-      setLoading(false);
-      return;
-    }
-    const p: Project = await r.json();
-    setProject(p);
-    setRetuneTemplate(p.config.template);
-    setSlides(
-      p.pages.map((s) => ({
-        index: s.index,
-        title: s.title,
-        status: (s.status as UiSlide["status"]) ?? "pending",
-        image: s.image,
-        error: s.error,
-        bust: Date.now(),
-        transition: s.transition ?? "none",
-      })),
-    );
-    const draft = p.status === "draft";
-    setStage(draft ? "outline" : "deck");
-    setOutline(
-      (p.outline?.length ? p.outline : p.pages).map((o) => ({
-        title: o.title,
-        points: [...(o.points ?? [])],
-      })),
-    );
-    const rendered = p.pages.filter((s) => s.status === "rendered").length;
-    // Restore the saved conversation if we have one; otherwise seed a stage-appropriate intro.
-    if (Array.isArray(p.chat) && p.chat.length) {
-      setChat(p.chat as unknown as ChatMsg[]);
-    } else {
-      setChat([
-        draft
-          ? {
-              role: "assistant",
-              content: `这个演示还是草稿——「${p.title}」有 ${p.pages.length} 页大纲，还没出图。你可以在右侧编辑大纲或让我修改，满意后点「生成」逐页出图。`,
-              doc: { title: p.title, subtitle: `大纲 · ${p.pages.length} 页`, icon: "▤" },
-            }
-          : {
-              role: "assistant",
-              content: `I’m the agent for this presentation. “${p.title}” has ${p.pages.length} slides (${rendered} rendered). I can add pages, rewrite content, redraw a selected slide, or optimize the whole deck.`,
-              doc: { title: p.title, subtitle: `${p.config.aspect} · ${p.agent}`, icon: "▤" },
-            },
-      ]);
-    }
-    setLoading(false);
-  }, [projectId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   useEffect(() => {
     if (!showTune) return;
@@ -167,10 +154,10 @@ export default function DeckView({ projectId }: { projectId: string }) {
 
   // Persist the conversation (debounced) so it survives reloads.
   useEffect(() => {
-    if (loading || !chat.length) return;
+    if (!chat.length) return;
     const t = setTimeout(() => saveChat(projectId, chat), 600);
     return () => clearTimeout(t);
-  }, [chat, projectId, loading]);
+  }, [chat, projectId]);
 
   // --- draft outline stage (编辑大纲 → 确认 → 渲染) ---
 
@@ -265,7 +252,7 @@ export default function DeckView({ projectId }: { projectId: string }) {
       say({ role: "user", content: `选定风格：${tpl?.name ?? templateId}` });
       try {
         await patchProjectStyle(projectId, { template: templateId });
-        setProject((p) => (p ? { ...p, config: { ...p.config, template: templateId } } : p));
+        setProject((p) => ({ ...p, config: { ...p.config, template: templateId } }));
       } catch (e: any) {
         say({ role: "assistant", content: `⚠ 应用风格失败：${e?.message ?? e}` });
       }
@@ -633,17 +620,6 @@ export default function DeckView({ projectId }: { projectId: string }) {
       setBusy(false);
     }
   }
-
-  if (loading) {
-    return (
-      <div style={{ display: "grid", placeItems: "center", height: "60vh" }}>
-        <div className="ph">
-          <div className="spinner" />
-        </div>
-      </div>
-    );
-  }
-  if (!project) return <div className="empty">Project not found.</div>;
 
   const status: GenStatus | null =
     stage === "outline"
