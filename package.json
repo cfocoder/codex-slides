@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start -p 4311",
     "typecheck": "tsc --noEmit",
+    "check:skill": "node --check skills/ppt-anything/scripts/ppt-anything.mjs && node --check skills/ppt-anything/scripts/probe.mjs && node skills/ppt-anything/scripts/probe.mjs",
+    "check:skill:live": "node skills/ppt-anything/scripts/probe.mjs --live",
     "check:mcp": "node --check scripts/start-mcp.mjs && node --check mcp/server.mjs && node scripts/probe-mcp.mjs",
     "check:mcp:live": "node scripts/probe-mcp.mjs --live"
   },

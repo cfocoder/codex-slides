@@ -3,13 +3,15 @@
 import { Paperclip, Plus } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import ContextItems from "@/components/ContextItems";
+import ContextOptionItems from "@/components/ContextOptionItems";
 import {
   CONTEXT_ITEM_ACCEPT,
   mergeContextItems,
   uploadContextItems,
   type ContextItem,
 } from "@/lib/contextItems";
-import type { PptConfig } from "@/lib/types";
+import { shouldSubmitTextarea } from "@/lib/keyboard";
+import type { ContextOptionItem, PptConfig } from "@/lib/types";
 
 interface EngineInfo {
   engine: string;
@@ -54,6 +56,8 @@ export default function Composer({
   materials,
   onAddItems,
   onRemoveMaterial,
+  styleTemplate,
+  onClearStyle,
   onSubmit,
 }: {
   config: PptConfig;
@@ -65,7 +69,10 @@ export default function Composer({
   materials: ContextItem[];
   onAddItems: (items: ContextItem[]) => void;
   onRemoveMaterial: (id: string) => void;
-  onSubmit: () => void;
+  /** Currently chosen deck style (from Community / For you), shown as a chip. */
+  styleTemplate?: { id: string; name: string; cover?: string; palette?: string[]; sub?: string } | null;
+  onClearStyle?: () => void;
+  onSubmit: (contextOptions: ContextOptionItem[]) => void;
 }) {
   const [focus, setFocus] = useState(false);
   const [menu, setMenu] = useState<null | "add" | "model" | "settings">(null);
@@ -96,8 +103,36 @@ export default function Composer({
     setUploading(false);
   }
 
+  const contextOptions: ContextOptionItem[] = [
+    ...(researchMode
+      ? [{ id: "research", kind: "research" as const, label: "Deep research" }]
+      : []),
+    ...(styleTemplate
+      ? [{ id: "style", kind: "style" as const, label: "Design", value: styleTemplate.name }]
+      : []),
+    ...(quality !== "Auto"
+      ? [{ id: "quality", kind: "setting" as const, label: "Quality", value: quality }]
+      : []),
+    ...(aspectSel !== "Auto"
+      ? [{ id: "aspect", kind: "setting" as const, label: "Aspect", value: aspectSel }]
+      : []),
+  ];
+
+  function removeContextOption(id: string) {
+    if (id === "research") setResearchMode(false);
+    else if (id === "style") onClearStyle?.();
+    else if (id === "quality") {
+      setQuality("Auto");
+      setConfig({ resolution: "2K" });
+    } else if (id === "aspect") {
+      setAspectSel("Auto");
+      setConfig({ aspect: "16:9" });
+    }
+  }
+
   return (
     <div className={`composer${focus ? " focus" : ""}`}>
+      <ContextOptionItems items={contextOptions} onRemove={removeContextOption} />
       {materials.length > 0 && (
         <ContextItems items={materials} onRemove={onRemoveMaterial} scrollable />
       )}
@@ -122,9 +157,14 @@ export default function Composer({
           void addFiles(files);
         }}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+          if (shouldSubmitTextarea({
+            key: e.key,
+            shiftKey: e.shiftKey,
+            isComposing: e.nativeEvent.isComposing,
+            keyCode: e.nativeEvent.keyCode,
+          })) {
             e.preventDefault();
-            onSubmit();
+            onSubmit(contextOptions);
           }
         }}
       />
@@ -268,9 +308,9 @@ export default function Composer({
         </button>
         <button
           className="send-btn"
-          title="Generate (⌘↵)"
+          title="Generate (Enter · Shift+Enter for a new line)"
           disabled={running || uploading || (!config.requirement.trim() && !materials.length)}
-          onClick={onSubmit}
+          onClick={() => onSubmit(contextOptions)}
         >
           {running || uploading ? "…" : "↑"}
         </button>

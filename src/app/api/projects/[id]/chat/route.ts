@@ -24,6 +24,14 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       doc: m.doc,
       attachment: m.attachment,
       contextItems: m.contextItems,
+      contextOptions: Array.isArray(m.contextOptions)
+        ? m.contextOptions.slice(0, 12).map((item: any, index: number) => ({
+            id: String(item?.id ?? `option-${index}`),
+            kind: ["research", "style", "setting"].includes(item?.kind) ? item.kind : "setting",
+            label: String(item?.label ?? "Option"),
+            value: item?.value ? String(item.value) : undefined,
+          }))
+        : undefined,
       suggestions: Array.isArray(m.suggestions) ? m.suggestions.map(String) : undefined,
       process: m.process && typeof m.process === "object"
         ? {

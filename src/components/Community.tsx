@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { COMMUNITY_GROUPS, COMMUNITY_TEMPLATES } from "@/lib/community";
 
 function lum(hex: string): number {
@@ -14,8 +14,8 @@ function lum(hex: string): number {
 }
 
 /** Home "Community" gallery — reusable slide styles distilled from the Nano
- *  Banana Pro community, shown as a scrolling multi-row grid. Picking one seeds
- *  config.template (styleBlock). */
+ *  Banana Pro community. A "For you"-style horizontal strip (with group chips),
+ *  placed right under the composer. Picking one seeds config.template. */
 export default function Community({
   selected,
   onPick,
@@ -23,6 +23,7 @@ export default function Community({
   selected?: string;
   onPick: (id: string) => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [group, setGroup] = useState<string>("all");
 
   const cards = useMemo(() => {
@@ -30,12 +31,24 @@ export default function Community({
     return list.map((t) => ({ t, ground: [...t.palette].sort((a, b) => lum(a) - lum(b))[0] }));
   }, [group]);
 
+  function nudge(dir: number) {
+    scrollRef.current?.scrollBy({ left: dir * 440, behavior: "smooth" });
+  }
+
   return (
     <section className="foryou community" aria-labelledby="community-heading">
       <div className="section-head foryou-head">
         <div>
           <h2 id="community-heading">✦ Community</h2>
-          <p>Reusable visual styles from the Nano Banana Pro community · {COMMUNITY_TEMPLATES.length} styles</p>
+          <p>Reusable visual styles from the Nano Banana Pro community</p>
+        </div>
+        <div className="foryou-nav">
+          <button className="round-btn" onClick={() => nudge(-1)} aria-label="Scroll left">
+            ‹
+          </button>
+          <button className="round-btn" onClick={() => nudge(1)} aria-label="Scroll right">
+            ›
+          </button>
         </div>
       </div>
       <div className="community-groups" role="tablist" aria-label="Filter by style group">
@@ -62,7 +75,7 @@ export default function Community({
           );
         })}
       </div>
-      <div className="community-grid">
+      <div className="foryou-scroll" ref={scrollRef}>
         {cards.map(({ t, ground }) => (
           <button
             key={t.id}

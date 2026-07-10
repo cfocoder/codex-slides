@@ -447,6 +447,86 @@ button {
   line-height: 1.35;
 }
 
+/* Non-file choices share the same visual language as attached context. */
+.context-option-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 9px;
+}
+.context-option-item {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 240px;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text-2);
+  background: var(--panel-2);
+}
+.context-option-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--accent-ink);
+}
+.context-option-label,
+.context-option-value {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.context-option-label {
+  color: var(--accent-ink);
+  font-weight: 620;
+}
+.context-option-value {
+  color: var(--text-2);
+  font-weight: 540;
+}
+.context-option-value::before {
+  content: "·";
+  margin-right: 5px;
+  color: var(--faint);
+}
+.context-option-item > button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  margin: 0 -3px 0 1px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+.context-option-item > button:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.72);
+}
+.context-option-item > button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.context-option-items.compact {
+  justify-content: flex-end;
+  gap: 5px;
+  margin: 0 0 6px;
+}
+.context-option-items.compact .context-option-item {
+  min-height: 28px;
+  padding: 3px 7px;
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 56%, #fff);
+}
+
 /* ---- popover / menu ---- */
 .pop {
   position: absolute;
@@ -918,14 +998,6 @@ button {
   opacity: 0.5;
   font-variant-numeric: tabular-nums;
   margin-left: 1px;
-}
-
-/* Community gallery: scrolling multi-row grid (not a single strip). */
-.community-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
-  gap: 24px 18px;
-  padding: 2px 1px 6px;
 }
 
 /* --- Inspiration step (参考灵感): community-style picker after the outline --- */
@@ -2016,12 +2088,27 @@ button {
 .msg.user {
   align-self: flex-end;
   max-width: 88%;
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  color: var(--text);
+}
+.msg-user-bubble {
+  max-width: 100%;
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 14px 14px 4px 14px;
   padding: 10px 14px;
   color: var(--text);
   box-shadow: var(--shadow-sm);
+}
+.msg.user > .context-items.compact {
+  justify-content: flex-end;
+  margin: 0 0 6px;
+}
+.msg.user > .slide-attachment {
+  max-width: 100%;
+  margin: 0 0 6px;
 }
 .msg.assistant {
   color: var(--text-2);
@@ -2584,6 +2671,8 @@ button {
 /* queued follow-up bubbles */
 .msg.user.queued {
   opacity: 0.72;
+}
+.msg.user.queued .msg-user-bubble {
   border-style: dashed;
   background: var(--bg-soft);
 }

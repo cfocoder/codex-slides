@@ -38,7 +38,13 @@ import {
   inspireQueryFor,
   matchCommunityTemplates,
 } from "@/lib/community";
-import { DEFAULT_CONFIG, type OutlinePage, type PptConfig, type ProgressEvent } from "@/lib/types";
+import {
+  DEFAULT_CONFIG,
+  type ContextOptionItem,
+  type OutlinePage,
+  type PptConfig,
+  type ProgressEvent,
+} from "@/lib/types";
 import {
   createAgentRunId,
   elapsedRunLabel,
@@ -131,16 +137,16 @@ export default function Home() {
 
   // ---------------- step 1: clarify ----------------
 
-  function submit() {
+  function submit(contextOptions: ContextOptionItem[]) {
     if (running || busy || clarifyBusy) return;
     if (!config.requirement.trim() && !materials.length) return;
     const cfg = config.requirement.trim()
       ? config
       : { ...config, requirement: "Create a presentation from the attached context." };
-    beginClarify(cfg);
+    beginClarify(cfg, contextOptions);
   }
 
-  async function beginClarify(cfg: PptConfig) {
+  async function beginClarify(cfg: PptConfig, contextOptions: ContextOptionItem[]) {
     setConfig(cfg);
     setPhase("work");
     setStage("clarify");
@@ -156,16 +162,12 @@ export default function Home() {
     setQueue([]);
     setQuestions([]);
 
-    const tplName = getTemplate(cfg.template)?.name ?? getCommunityTemplate(cfg.template)?.name;
-    const note: string[] = [];
-    if (tplName) note.push(`模板：${tplName}`);
-    if (researchMode) note.push("深度研究");
-    if (cfg.materialIds?.length) note.push(`${cfg.materialIds.length} 项资料`);
     setChat([
       {
         role: "user",
-        content: cfg.requirement + (note.length ? `\n\n· ${note.join(" · ")}` : ""),
+        content: cfg.requirement,
         contextItems: materials,
+        contextOptions,
       },
       { role: "assistant", content: "先在右侧确认几个问题，我就开始写大纲。" },
     ]);
@@ -825,6 +827,13 @@ export default function Home() {
   }
 
   // ---------------- LAUNCHER ----------------
+  const communityStyle = getCommunityTemplate(config.template);
+  const curatedStyle = communityStyle ? undefined : getTemplate(config.template);
+  const selectedStyle = communityStyle
+    ? { id: communityStyle.id, name: communityStyle.name, cover: communityStyle.cover, sub: communityStyle.group }
+    : curatedStyle
+      ? { id: curatedStyle.id, name: curatedStyle.name, palette: curatedStyle.palette, sub: "Preset style" }
+      : null;
   return (
     <>
       <TopBar codexReady={codexReady} agentLabel={agentLabel} />
@@ -846,12 +855,14 @@ export default function Home() {
             materials={materials}
             onAddItems={onAddItems}
             onRemoveMaterial={onRemoveMaterial}
+            styleTemplate={selectedStyle}
+            onClearStyle={() => patchConfig({ template: undefined })}
             onSubmit={submit}
           />
         </div>
+        <Community selected={config.template} onPick={(id) => patchConfig({ template: config.template === id ? undefined : id })} />
         <RecentProjects />
         <ForYou selected={config.template} onPick={(id) => patchConfig({ template: config.template === id ? undefined : id })} />
-        <Community selected={config.template} onPick={(id) => patchConfig({ template: config.template === id ? undefined : id })} />
       </main>
     </>
   );

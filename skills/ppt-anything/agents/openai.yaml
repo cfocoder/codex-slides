@@ -1,0 +1,4 @@
+interface:
+  display_name: "PPT Anything"
+  short_description: "Create and edit decks through scripts and Codex Browser"
+  default_prompt: "Use $ppt-anything to create or edit my presentation and show the result in the Codex Browser."

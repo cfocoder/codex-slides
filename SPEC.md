@@ -64,7 +64,7 @@ Legend: ✅ done & verified · 🟡 partial · ❌ missing
 | **R1.5** | In-project: **preview / conversational edit / play / upload materials to tune** | ✅ | ✅ preview + per-slide regen + mark; ✅ **chat edit** (`lib/chat.ts` + `/api/projects/[id]/chat` + `ChatEditPanel`); ✅ **Play** fullscreen (`PlayMode`); ✅ **re-tune in workspace** (iter-9): `TemplatePicker` + `MaterialTray` + `PATCH /api/projects/[id]` + "Apply & regenerate all". Verified: chat "第2页更暖"→[2] / "restyle whole deck"→[1,2]; template switch Swiss→Editorial-Ink visibly transformed a slide. |
 | **R2.1** | Codex **daemon** detects codex & integrates (not only standalone web) | ✅ | `mcp/server.mjs` `ensureServer()` auto-builds when needed and auto-boots `next start` (port 4311) if unreachable. `scripts/probe-mcp.mjs` verifies the tool contract. |
 | **R2.2** | Open in Codex **in-editor browser** | ✅ | `open_ppt_anything` returns a typed HTML resource link; the bundled `ppt-anything-browser` skill requires Codex to navigate it in the in-editor Browser instead of merely printing a URL. |
-| **R2.3** | Operate via Codex directly (MCP tools + skills), fully inside Codex | ✅ | Repo-root plugin structure (`.codex-plugin/plugin.json`, `.mcp.json`, `mcp/`, `skills/`) exposes 20 tools covering onboarding, research, outline, inspiration, render, natural-language edit, restyle, slide structure/transition, uploads, mark edit, preview, and export. |
+| **R2.3** | Operate via Codex directly (MCP tools + skills), fully inside Codex | ✅ | Repo-root plugin structure exposes both a self-contained Agent Skill (`skills/ppt-anything/`, portable CLI, no MCP dependency) and 20 MCP tools. Both cover onboarding, research, outline, inspiration, render, natural-language edit, restyle, slide structure/transition, uploads, mark edit, preview, and export through the same HTTP API. |
 | **R4.1** | **Deep-research mode** toggle | ✅ | home checkbox → `ResearchPanel`; `PptConfig.mode`. |
 | **R4.2** | Research → **markdown editor** doc → outline | ✅ | `ResearchPanel` editable markdown brief; `buildOutlinePrompt` takes `researchDoc` as `<research_document>` context; `Project.researchDoc` stored. |
 | **R4.3** | Search via **DuckDuckGo** or codex built-in search | ✅ | **Codex built-in `web_search`** (primary, zero-config) — verified 19 real source URLs. DDG HTML/Lite bot-block servers (HTTP 202); `ddgSearch()` kept as documented fallback. |
@@ -90,7 +90,8 @@ repo root (Next.js + Codex plugin)
 .codex-plugin/plugin.json        installable plugin manifest
 .mcp.json                        registers the ppt-anything MCP server
 mcp/server.mjs                   complete 20-tool web-app bridge + daemon
-skills/ppt-anything-*/SKILL.md   browser + deck + research workflows
+skills/ppt-anything/             canonical Agent Skill + portable CLI/reference
+skills/ppt-anything-*/SKILL.md   compatibility browser + deck + research entries
 scripts/start-mcp.mjs            repairs cached dependencies, then starts MCP
 scripts/probe-mcp.mjs            contract and live integration probe
 ```

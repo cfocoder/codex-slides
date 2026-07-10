@@ -71,6 +71,14 @@ export interface SlidePage {
  */
 export type ProjectStatus = "draft" | "rendering" | "ready";
 
+/** A non-file choice attached to a user turn, displayed like other context. */
+export interface ContextOptionItem {
+  id: string;
+  kind: "research" | "style" | "setting";
+  label: string;
+  value?: string;
+}
+
 /** A persisted conversation turn (mirrors the client ChatMsg, JSON-safe). */
 export interface StoredChatMessage {
   id?: string;
@@ -80,6 +88,7 @@ export interface StoredChatMessage {
   doc?: { title: string; subtitle: string; icon?: string };
   attachment?: { slideIndex: number; title: string; imageUrl?: string };
   contextItems?: { id: string; name: string; url?: string; kind?: string }[];
+  contextOptions?: ContextOptionItem[];
   suggestions?: string[];
   process?: {
     state: "running" | "complete" | "error";

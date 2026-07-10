@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import ContextItems from "@/components/ContextItems";
+import ContextOptionItems from "@/components/ContextOptionItems";
 import ImagePreviewDialog from "@/components/ImagePreviewDialog";
 import {
   CONTEXT_ITEM_ACCEPT,
@@ -23,6 +24,8 @@ import {
 import type { ChatRequest, GenStatus, SlideChatContext } from "@/lib/deckEdit";
 import type { AgentProcess } from "@/lib/agentActivity";
 import { getCommunityTemplate } from "@/lib/community";
+import { shouldSubmitTextarea } from "@/lib/keyboard";
+import type { ContextOptionItem } from "@/lib/types";
 
 export interface ChatMsg {
   id?: string;
@@ -32,6 +35,7 @@ export interface ChatMsg {
   doc?: { title: string; subtitle: string; icon?: string };
   attachment?: SlideChatContext;
   contextItems?: ContextItem[];
+  contextOptions?: ContextOptionItem[];
   /** Clickable next-step chips (step 6 guidance); clicking sends the text as a follow-up. */
   suggestions?: string[];
   process?: AgentProcess;
@@ -366,7 +370,16 @@ export default function ChatColumn({
         {messages.map((m, i) => (
           <div key={m.id ?? i} className={`msg ${m.role}${m.process ? " with-process" : ""}`}>
             {m.ran && <div className="ran">{m.ran} ›</div>}
-            {m.content && <div style={{ whiteSpace: "pre-wrap" }}>{m.content}</div>}
+            {m.role === "user" && m.contextOptions?.length ? (
+              <ContextOptionItems items={m.contextOptions} compact />
+            ) : null}
+            {m.role === "user" && m.contextItems?.length ? <ContextItems items={m.contextItems} compact /> : null}
+            {m.role === "user" && m.attachment ? <SlideAttachment slide={m.attachment} onSelectSlide={onSelectSlide} /> : null}
+            {m.content && (
+              <div className={m.role === "user" ? "msg-user-bubble" : undefined} style={{ whiteSpace: "pre-wrap" }}>
+                {m.content}
+              </div>
+            )}
             {m.process && <AgentProcessCard process={m.process} />}
             {m.doc && (
               <div className="doc-card">
@@ -377,9 +390,9 @@ export default function ChatColumn({
                 </div>
               </div>
             )}
-            {m.attachment && <SlideAttachment slide={m.attachment} onSelectSlide={onSelectSlide} />}
+            {m.role !== "user" && m.attachment && <SlideAttachment slide={m.attachment} onSelectSlide={onSelectSlide} />}
             {m.inspiration && <InspirationCard inspiration={m.inspiration} onInspire={onInspire} />}
-            {m.contextItems?.length ? <ContextItems items={m.contextItems} compact /> : null}
+            {m.role !== "user" && m.contextItems?.length ? <ContextItems items={m.contextItems} compact /> : null}
             {m.suggestions?.length ? (
               <div className="suggest-row">
                 {m.suggestions.map((s, k) => (
@@ -413,9 +426,9 @@ export default function ChatColumn({
         {queued.map((q, i) => (
           <div key={`q${i}`} className="msg user queued" title="Queued — runs when the current work finishes">
             <span className="queued-tag">⏳ queued</span>
-            <div style={{ whiteSpace: "pre-wrap" }}>{q.message}</div>
             {q.context && <SlideAttachment slide={q.context} compact onSelectSlide={onSelectSlide} />}
             {q.attachments?.length ? <ContextItems items={q.attachments} compact /> : null}
+            <div className="msg-user-bubble" style={{ whiteSpace: "pre-wrap" }}>{q.message}</div>
           </div>
         ))}
       </div>
@@ -457,7 +470,12 @@ export default function ChatColumn({
                 void addFiles(files);
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (shouldSubmitTextarea({
+                  key: e.key,
+                  shiftKey: e.shiftKey,
+                  isComposing: e.nativeEvent.isComposing,
+                  keyCode: e.nativeEvent.keyCode,
+                })) {
                   e.preventDefault();
                   submit();
                 }

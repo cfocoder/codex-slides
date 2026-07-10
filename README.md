@@ -18,8 +18,8 @@ No API key, no `.env` — if you can run `codex`, you can make a deck. Full-TS: 
   right slides; or draw arrows/notes on a slide and send the screenshot back for an assisted edit (cowart-style).
 - **Play** — fullscreen slideshow (←/→/Space/Esc).
 - **Export** — PDF (pdf-lib) and PPTX (pptxgenjs).
-- **Codex-native** — a Codex plugin (MCP + skills) lets you do all of the above *inside Codex*, previewing in the
-  in-editor browser.
+- **Codex-native** — one portable Agent Skill plus 20 MCP tools let Codex do all of the above *inside Codex*,
+  previewing in the in-editor Browser. The Skill works without MCP; both paths share the same local API.
 
 ## Zero-config, how
 
@@ -41,7 +41,7 @@ npm run start        # http://127.0.0.1:4311   (or: npm run dev)
 # prerequisite: `codex login` (Sign in with ChatGPT) once
 ```
 
-## Use inside Codex (plugin)
+## Use inside Codex (Agent Skill + MCP)
 
 This repository is itself the plugin root (`.codex-plugin/plugin.json`,
 `.mcp.json`, `skills/`, and `mcp/`). Install it in the personal marketplace,
@@ -53,21 +53,37 @@ Research the 2026 humanoid robot market, build a 6-slide deck, and show me the p
 Add a summary after slide 5, restyle the deck, and open the result.
 ```
 
-The plugin exposes 20 MCP tools covering the complete product chain:
+The plugin exposes two complete, equivalent entry points:
+
+- `skills/ppt-anything/` is an [Agent Skills](https://agentskills.io/specification)-style, self-contained skill.
+  Its Node CLI uses only the local HTTP API and works even when MCP is unavailable.
+- `mcp/server.mjs` exposes 20 typed MCP tools for structured discovery and calls.
+
+The portable Skill can be invoked directly:
+
+```bash
+node skills/ppt-anything/scripts/ppt-anything.mjs capabilities
+node skills/ppt-anything/scripts/ppt-anything.mjs open
+node skills/ppt-anything/scripts/ppt-anything.mjs create \
+  --json '{"topic":"2026 humanoid robot market","pages":6,"research":true}'
+```
+
+The 20 MCP tools cover the same complete product chain:
 
 - open/discover: `open_ppt_anything`, `get_capabilities`, `list_projects`, `get_project`, `list_templates`
 - plan/research: `get_onboarding_questions`, `deep_research`, `create_outline`, `revise_outline`, `rank_inspiration`
 - create/edit: `create_deck`, `render_deck`, `edit_deck`, `restyle_deck`, `manage_slide`, `regenerate_slide`
 - files/output: `upload_material`, `upload_slide_image`, `mark_edit_slide`, `export_deck`
 
-`open_ppt_anything` starts the local app when needed and returns a Browser
-resource link. The bundled browser skill tells Codex to navigate that link in
-the in-editor Browser immediately, so the app is agent-operable as well as
-manually usable. Personal-marketplace installs run against the stable
+`open_ppt_anything` and Skill command `open` start the local app when needed and
+return a Browser target. The bundled Skill tells Codex to navigate it in the
+in-editor Browser immediately, so the app is agent-operable as well as manually
+usable. Personal-marketplace installs run against the stable
 `~/plugins/ppt-anything` source checkout, so projects and builds survive Codex
 plugin cache upgrades.
 
-Validate the integration with `npm run check:mcp`; with the app running, use
+Validate both contracts with `npm run check:skill` and `npm run check:mcp`.
+With the app running, use `npm run check:skill:live` and
 `npm run check:mcp:live` to verify the API, template catalog, and Browser link.
 
 ## Layout
@@ -88,8 +104,8 @@ src/app/          home · /project/[id] · api/{agents,generate,research,onboard
 src/components/   OnboardForm · ResearchPanel · TemplatePicker · MaterialTray · DeckView · ChatEditPanel · PlayMode · MarkCanvas
 .codex-plugin/    installable Codex plugin manifest
 .mcp.json + mcp/  20-tool MCP server + auto-start bridge
-skills/           browser · deck · research Codex workflows
-scripts/          cache-safe MCP launcher + inventory/live integration probe
+skills/           canonical Agent Skill + compatibility browser/deck/research entries
+scripts/          portable Skill CLI/probe + cache-safe MCP launcher/probe
 SPEC.md           living plan/spec + requirement matrix (source of truth)
 ```
 
