@@ -1,0 +1,28 @@
+{
+  "name": "ppt-anything-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zero-config PPT generation via image generation, driven by your local Codex agent.",
+  "scripts": {
+    "dev": "next dev -p 4311",
+    "build": "next build",
+    "start": "next start -p 4311",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "next": "14.2.33",
+    "pdf-lib": "^1.17.1",
+    "pptxgenjs": "^3.12.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "typescript": "^5.5.0"
+  }
+}

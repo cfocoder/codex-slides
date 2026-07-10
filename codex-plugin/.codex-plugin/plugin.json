@@ -1,0 +1,26 @@
+{
+  "name": "ppt-anything",
+  "version": "0.1.0",
+  "description": "Zero-config slide decks by image generation, driven by Codex. Build, preview, edit, research and export decks without leaving the editor.",
+  "author": { "name": "ppt-anything" },
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "PPT Anything",
+    "shortDescription": "Make slide decks by image generation, inside Codex.",
+    "longDescription": "PPT Anything turns a prompt into a slide deck where every slide is an image drawn by Codex — no API key. From Codex you can create a deck (optionally deep-research-backed), open a live preview in the in-editor browser, regenerate or mark-edit slides, and export to PDF/PPTX.",
+    "category": "Productivity",
+    "capabilities": [
+      "AI slide generation",
+      "Deep research",
+      "In-editor preview",
+      "Conversational + mark editing",
+      "PDF / PPTX export"
+    ],
+    "defaultPrompt": [
+      "Make a 6-slide deck about our Q3 roadmap and open the preview.",
+      "Deep-research the 2026 humanoid robot market, then build a deck from it.",
+      "Regenerate slide 3 of my latest deck to be warmer."
+    ]
+  }
+}
