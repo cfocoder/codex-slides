@@ -1517,6 +1517,9 @@ button {
   overflow: hidden;
   background: var(--workspace-ground);
 }
+.ws:has(> .chatcol.collapsed) {
+  grid-template-columns: 58px minmax(0, 1fr);
+}
 .ws > .chatcol {
   grid-column: 1;
   grid-row: 1;
@@ -2202,6 +2205,9 @@ button {
     padding: 0;
     overflow: visible;
   }
+  .ws:has(> .chatcol.collapsed) {
+    grid-template-columns: 1fr;
+  }
   .ws > .chatcol,
   .ws > .stage,
   .ws > .deckpane {
@@ -2215,6 +2221,9 @@ button {
     min-height: 60vh;
     border-right: 0;
     border-bottom: 1px solid var(--border);
+  }
+  .chatcol.collapsed {
+    min-height: 57px;
   }
   .project-ws {
     height: auto;
@@ -2279,6 +2288,42 @@ button {
   align-items: center;
   gap: 10px;
   min-width: 0;
+}
+.chatcol-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.chatcol-collapse {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-2);
+  background: transparent;
+  cursor: pointer;
+}
+.chatcol-collapse:hover {
+  color: var(--text);
+  background: var(--bg-soft);
+}
+.chatcol-collapse:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.chatcol.collapsed .chatcol-head {
+  justify-content: center;
+  padding-inline: 12px;
+}
+.chatcol.collapsed .chatcol-head-main,
+.chatcol.collapsed .chatcol-live,
+.chatcol.collapsed .chatfeed,
+.chatcol.collapsed .chatcol-composer {
+  display: none;
 }
 .workspace-home {
   display: inline-flex;

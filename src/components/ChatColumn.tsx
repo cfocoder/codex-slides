@@ -7,6 +7,7 @@ import {
   CircleNotch,
   CrosshairSimple,
   Plus,
+  SidebarSimple,
   Wrench,
   XCircle,
 } from "@phosphor-icons/react";
@@ -307,6 +308,7 @@ export default function ChatColumn({
   /** Inspiration card actions: open the Browse popup, or skip the style step. */
   onInspire?: (action: "browse" | "skip") => void;
 }) {
+  const [collapsed, setCollapsed] = useState(false);
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<ContextItem[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -349,7 +351,7 @@ export default function ChatColumn({
   const waiting = busy && !status && messages[messages.length - 1]?.role === "user";
 
   return (
-    <aside className="chatcol">
+    <aside className={`chatcol${collapsed ? " collapsed" : ""}`}>
       <div className="chatcol-head">
         <div className="chatcol-head-main">
           {homeHref && (
@@ -363,7 +365,19 @@ export default function ChatColumn({
           )}
           <span className="chatcol-title">▦ {label}</span>
         </div>
-        {busy && <span className="chatcol-live">working</span>}
+        <div className="chatcol-head-actions">
+          {busy && <span className="chatcol-live">working</span>}
+          <button
+            type="button"
+            className="chatcol-collapse"
+            onClick={() => setCollapsed((value) => !value)}
+            aria-label={collapsed ? "Expand conversation panel" : "Collapse conversation panel"}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Expand conversation" : "Collapse conversation"}
+          >
+            <SidebarSimple size={18} weight={collapsed ? "fill" : "regular"} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       <div className="chatfeed" ref={feedRef}>

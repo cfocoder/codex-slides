@@ -19,7 +19,7 @@ object. Success responses contain `"ok": true`; failures contain
 | `open` | `open_ppt_anything` | optional `projectId` |
 | `onboard` | `get_onboarding_questions` | `topic` |
 | `research` | `deep_research` | `topic`, optional `rounds` |
-| `create` | `create_deck` | `topic`; optional `pages`, `aspect`, `language`, `style`, `template`, `resolution`, `materialIds`, `research`, `researchDoc`, `rounds` |
+| `create` | `create_deck` | `topic`; optional `pages`, `aspect`, `language`, `style`, `template`, `resolution`, `materialIds`, `fast`, `research`, `researchDoc`, `rounds` |
 | `outline` | `create_outline` | same planning inputs as `create` |
 | `revise-outline` | `revise_outline` | `projectId` plus `instruction` or `pages` |
 | `inspiration` | `rank_inspiration` | `topic` or `outlineTitles` |

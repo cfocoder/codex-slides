@@ -5,6 +5,17 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
+function attachmentName(base: string, extension: "pdf" | "pptx") {
+  const unicodeName = `${base}.${extension}`;
+  const fallback = base
+    .normalize("NFKD")
+    .replace(/[^\x20-\x7E]+/g, "-")
+    .replace(/["\\]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "presentation";
+  return `attachment; filename="${fallback}.${extension}"; filename*=UTF-8''${encodeURIComponent(unicodeName)}`;
+}
+
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const project = loadProject(params.id);
   if (!project) return new Response("not found", { status: 404 });
@@ -18,7 +29,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         headers: {
           "Content-Type":
             "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-          "Content-Disposition": `attachment; filename="${base}.pptx"`,
+          "Content-Disposition": attachmentName(base, "pptx"),
         },
       });
     }
@@ -26,7 +37,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     return new Response(new Uint8Array(buf), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${base}.pdf"`,
+        "Content-Disposition": attachmentName(base, "pdf"),
       },
     });
   } catch (e: any) {

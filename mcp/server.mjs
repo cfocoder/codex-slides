@@ -375,6 +375,7 @@ const deckConfigShape = {
   template: z.string().optional().describe("Template id from list_templates"),
   resolution: z.enum(["1K", "2K", "4K"]).optional(),
   materialIds: z.array(z.string()).optional().describe("Reference ids returned by upload_material"),
+  fast: z.boolean().optional().describe("Render slide images concurrently with rate-limit-aware queuing"),
   research: z.boolean().optional(),
   researchDoc: z.string().optional().describe("An already-reviewed research brief"),
 };
@@ -408,6 +409,7 @@ register(
       resolution: args.resolution ?? "2K",
       materialIds: args.materialIds ?? [],
       engine: "codex",
+      ...(args.fast ? { fast: true } : {}),
       ...(researchDoc ? { mode: "research", researchDoc } : {}),
     }, (event) => {
       if (event.type === "project") projectId = event.id;
@@ -447,6 +449,7 @@ register(
       resolution: args.resolution ?? "2K",
       materialIds: args.materialIds ?? [],
       engine: "codex",
+      ...(args.fast ? { fast: true } : {}),
       ...(args.research || researchDoc ? { mode: "research", researchDoc: researchDoc || undefined } : {}),
     }, (event) => {
       if (event.type === "project") projectId = event.id;

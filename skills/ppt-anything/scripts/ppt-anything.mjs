@@ -236,6 +236,7 @@ function deckConfig(input, researchDoc) {
     resolution: input.resolution ?? "2K",
     materialIds: input.materialIds ?? [],
     engine: "codex",
+    ...(input.fast ? { fast: true } : {}),
     ...(researchDoc ? { mode: "research", researchDoc } : {}),
   };
 }
@@ -245,7 +246,7 @@ async function parseInput(args) {
   if (jsonIndex >= 0) {
     const raw = args[jsonIndex + 1];
     if (!raw) throw new Error("--json requires a JSON object or '-'.");
-    return JSON.parse(raw === "-" ? await readFile(0, "utf8") : raw);
+    return JSON.parse(raw === "-" ? readFileSync(0, "utf8") : raw);
   }
   const fileIndex = args.findIndex((arg) => arg === "--input-file");
   if (fileIndex >= 0) return JSON.parse(await readFile(resolve(args[fileIndex + 1]), "utf8"));

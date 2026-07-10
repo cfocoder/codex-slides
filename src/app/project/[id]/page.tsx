@@ -6,7 +6,16 @@ export const dynamic = "force-dynamic";
 
 /** Project workspace: chat feed + live slide preview + filmstrip (per-page editing). */
 export default function ProjectPage({ params }: { params: { id: string } }) {
-  const project = loadProject(params.id);
+  // Next's page params can retain percent-encoding for non-ASCII slugs even
+  // though route-handler params are decoded. Normalize here so decks created
+  // with Chinese/Japanese/etc. titles can be reopened from their preview URL.
+  let projectId = params.id;
+  try {
+    projectId = decodeURIComponent(projectId);
+  } catch {
+    // A malformed URL is not a valid project id; loadProject will return null.
+  }
+  const project = loadProject(projectId);
   if (!project) notFound();
-  return <DeckView key={project.id} projectId={params.id} initialProject={project} />;
+  return <DeckView key={project.id} projectId={projectId} initialProject={project} />;
 }
