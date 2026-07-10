@@ -1524,6 +1524,16 @@ button {
 .project-route-loading {
   animation: projectRouteEnter 0.28s cubic-bezier(0.2, 0.75, 0.2, 1) both;
 }
+.project-opening-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  overflow: hidden;
+  background: var(--workspace-ground);
+}
+.project-opening-overlay .project-route-loading {
+  height: 100vh;
+}
 .project-loading-agent {
   grid-column: 1;
   grid-row: 1;

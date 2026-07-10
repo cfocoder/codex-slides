@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import ProjectLoadingShell from "@/components/ProjectLoadingShell";
 
 interface ProjectSummary {
   id: string;
@@ -32,6 +33,7 @@ export default function RecentProjects() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [openingId, setOpeningId] = useState<string | null>(null);
+  const openingProject = projects.find((project) => project.id === openingId);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -116,6 +118,11 @@ export default function RecentProjects() {
             <strong>Your projects will live here</strong>
             <p>Describe a presentation above to create the first one.</p>
           </div>
+        </div>
+      )}
+      {openingProject && (
+        <div className="project-opening-overlay">
+          <ProjectLoadingShell title={openingProject.title} />
         </div>
       )}
     </section>

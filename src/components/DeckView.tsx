@@ -40,7 +40,9 @@ import {
 } from "@/lib/agentActivity";
 
 function projectSlides(project: Project): UiSlide[] {
-  const bust = Date.now();
+  // Stable across server render + hydration; avoids changing every image URL
+  // while React attaches to the server-rendered workspace.
+  const bust = new Date(project.updatedAt).getTime();
   return project.pages.map((slide) => ({
     index: slide.index,
     title: slide.title,

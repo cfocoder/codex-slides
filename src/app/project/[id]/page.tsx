@@ -8,5 +8,5 @@ export const dynamic = "force-dynamic";
 export default function ProjectPage({ params }: { params: { id: string } }) {
   const project = loadProject(params.id);
   if (!project) notFound();
-  return <DeckView projectId={params.id} initialProject={project} />;
+  return <DeckView key={project.id} projectId={params.id} initialProject={project} />;
 }
