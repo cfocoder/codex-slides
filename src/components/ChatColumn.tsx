@@ -22,6 +22,7 @@ import {
 } from "@/lib/contextItems";
 import type { ChatRequest, GenStatus, SlideChatContext } from "@/lib/deckEdit";
 import type { AgentProcess } from "@/lib/agentActivity";
+import { getCommunityTemplate } from "@/lib/community";
 
 export interface ChatMsg {
   id?: string;
@@ -34,6 +35,15 @@ export interface ChatMsg {
   /** Clickable next-step chips (step 6 guidance); clicking sends the text as a follow-up. */
   suggestions?: string[];
   process?: AgentProcess;
+  /** Inspiration step (参考灵感): an in-chat card with a Browse button that opens
+   *  the style picker popup, or resolves to a chosen/skipped state after render. */
+  inspiration?: {
+    query: string;
+    coverIds: string[];
+    total: number;
+    chosen?: string;
+    resolved?: boolean;
+  };
   ts?: number;
 }
 
@@ -87,6 +97,62 @@ function SlideAttachment({
           subtitle={showTitle ? slide.title : undefined}
           onClose={() => setPreviewOpen(false)}
         />
+      )}
+    </div>
+  );
+}
+
+/** In-chat inspiration card (Image #10): topic-matched cover thumbnails + a
+ *  Browse button that opens the style popup. After the user picks or skips it
+ *  collapses to a resolved summary line. */
+function InspirationCard({
+  inspiration,
+  onInspire,
+}: {
+  inspiration: NonNullable<ChatMsg["inspiration"]>;
+  onInspire?: (action: "browse" | "skip") => void;
+}) {
+  const { query, coverIds, total, chosen, resolved } = inspiration;
+  const chosenName = chosen ? getCommunityTemplate(chosen)?.name : undefined;
+  const extra = Math.max(0, total - coverIds.length);
+  return (
+    <div className={`inspo-card${resolved ? " resolved" : ""}`}>
+      <div className="inspo-head">
+        <span className="inspo-ic" aria-hidden="true">
+          ✦
+        </span>
+        <span className="inspo-copy">
+          <b>视觉参考灵感</b>
+          <small>
+            {resolved
+              ? chosen
+                ? `已选：${chosenName ?? "自定义风格"}`
+                : "已跳过 · 使用默认风格"
+              : `${total} 个风格 · 匹配「${query}」`}
+          </small>
+        </span>
+        {!resolved && onInspire && (
+          <button type="button" className="inspo-browse" onClick={() => onInspire("browse")}>
+            浏览
+          </button>
+        )}
+      </div>
+      <div className="inspo-thumbs" aria-hidden="true">
+        {coverIds.map((id) => {
+          const t = getCommunityTemplate(id);
+          return t ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={id} src={t.cover} alt="" loading="lazy" />
+          ) : null;
+        })}
+        {extra > 0 && <span className="inspo-more">+{extra}</span>}
+      </div>
+      {!resolved && onInspire && (
+        <div className="inspo-actions">
+          <button type="button" className="inspo-skip" onClick={() => onInspire("skip")}>
+            跳过
+          </button>
+        </div>
       )}
     </div>
   );
@@ -214,6 +280,7 @@ export default function ChatColumn({
   onClearContext,
   focusKey = 0,
   onSelectSlide,
+  onInspire,
 }: {
   label?: string;
   messages: ChatMsg[];
@@ -233,6 +300,8 @@ export default function ChatColumn({
   focusKey?: number;
   /** Select and reveal a slide when a chat attachment is clicked. */
   onSelectSlide?: (index: number) => void;
+  /** Inspiration card actions: open the Browse popup, or skip the style step. */
+  onInspire?: (action: "browse" | "skip") => void;
 }) {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<ContextItem[]>([]);
@@ -309,6 +378,7 @@ export default function ChatColumn({
               </div>
             )}
             {m.attachment && <SlideAttachment slide={m.attachment} onSelectSlide={onSelectSlide} />}
+            {m.inspiration && <InspirationCard inspiration={m.inspiration} onInspire={onInspire} />}
             {m.contextItems?.length ? <ContextItems items={m.contextItems} compact /> : null}
             {m.suggestions?.length ? (
               <div className="suggest-row">

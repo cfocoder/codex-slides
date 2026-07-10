@@ -5,7 +5,7 @@
       "description": "Create, research, preview, edit, present, and export slide decks from Codex.",
       "command": "node",
       "args": [
-        "./mcp/server.mjs"
+        "./scripts/start-mcp.mjs"
       ],
       "cwd": "."
     }

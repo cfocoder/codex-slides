@@ -5,10 +5,15 @@ import { ArrowsClockwise, Palette, WarningCircle, X } from "@phosphor-icons/reac
 import ChatColumn, { type ChatMsg } from "@/components/ChatColumn";
 import MaterialTray from "@/components/MaterialTray";
 import OutlineBoard from "@/components/OutlineBoard";
-import InspireBoard from "@/components/InspireBoard";
+import InspireDialog from "@/components/InspireDialog";
 import SlideStage, { type MarkAgentEvent } from "@/components/SlideStage";
 import TemplatePicker from "@/components/TemplatePicker";
-import { getCommunityTemplate } from "@/lib/community";
+import {
+  COMMUNITY_TEMPLATES,
+  getCommunityTemplate,
+  inspireQueryFor,
+  matchCommunityTemplates,
+} from "@/lib/community";
 import {
   addProjectSlide,
   deriveStatus,
@@ -49,6 +54,8 @@ export default function DeckView({ projectId }: { projectId: string }) {
   const [chatFocusKey, setChatFocusKey] = useState(0);
   const [focusSlideIndex, setFocusSlideIndex] = useState<number | null>(null);
   const [focusSlideKey, setFocusSlideKey] = useState(0);
+  const [inspireOpen, setInspireOpen] = useState(false);
+  const [inspireMsgId, setInspireMsgId] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const markRunRef = useRef<{ id: string; startedAt: number; slideIndex: number } | null>(null);
 
@@ -219,19 +226,40 @@ export default function DeckView({ projectId }: { projectId: string }) {
       return;
     }
     if (!project?.config.template) {
+      // Detour to the inspiration step: pending skeleton deck + an in-chat card
+      // whose Browse button opens the style popup. Render waits for pick/skip.
+      setSlides(outline.map((o, i) => ({ index: i + 1, title: o.title, status: "pending" })));
       setStage("inspire");
+      const matchQuery = [project?.config.requirement ?? "", ...outline.map((o) => o.title)]
+        .filter(Boolean)
+        .join(" ");
+      const msgId = createAgentRunId("inspire");
+      setInspireMsgId(msgId);
       say({
+        id: msgId,
         role: "assistant",
-        content: "大纲定了。右侧挑一个视觉风格，我就按它逐页出图——也可以跳过用默认风格。",
+        content: "出图前，先挑一个视觉参考风格吧——我按你的主题和大纲排好了。点「浏览」挑一个，或跳过用默认风格。",
+        inspiration: {
+          query: inspireQueryFor(project?.config.requirement ?? "", outline[0]?.title),
+          coverIds: matchCommunityTemplates(matchQuery, 4).map((t) => t.id),
+          total: COMMUNITY_TEMPLATES.length,
+        },
       });
       return;
     }
     renderNow();
   }
 
+  /** Browse opens the popup; skip resolves the step with the default style. */
+  function onInspire(action: "browse" | "skip") {
+    if (action === "browse") setInspireOpen(true);
+    else void handleInspireGenerate(undefined);
+  }
+
   /** Apply an inspiration pick (or skip) then render. */
   async function handleInspireGenerate(templateId?: string) {
     if (running || busy) return;
+    setInspireOpen(false);
     if (templateId) {
       const tpl = getCommunityTemplate(templateId);
       say({ role: "user", content: `选定风格：${tpl?.name ?? templateId}` });
@@ -243,6 +271,14 @@ export default function DeckView({ projectId }: { projectId: string }) {
       }
     } else {
       say({ role: "user", content: "跳过风格，用默认风格生成。" });
+    }
+    if (inspireMsgId) {
+      updateChatMessage(inspireMsgId, (m) => ({
+        ...m,
+        inspiration: m.inspiration
+          ? { ...m.inspiration, chosen: templateId, resolved: true }
+          : undefined,
+      }));
     }
     renderNow();
   }
@@ -634,11 +670,12 @@ export default function DeckView({ projectId }: { projectId: string }) {
         onClearContext={() => setChatContext(null)}
         focusKey={chatFocusKey}
         onSelectSlide={locateChatSlide}
+        onInspire={onInspire}
         placeholder={
           stage === "outline"
             ? "告诉 agent 怎么改大纲，或直接在右侧编辑…"
             : stage === "inspire"
-              ? "右侧挑个视觉风格，或跳过用默认风格…"
+              ? "点「浏览」挑个视觉风格，或跳过用默认风格…"
               : "Ask the deck agent to add, rewrite, restyle, or optimize…"
         }
       />
@@ -653,16 +690,9 @@ export default function DeckView({ projectId }: { projectId: string }) {
           streaming={false}
           researchDoc={project.researchDoc}
         />
-      ) : stage === "inspire" ? (
-        <InspireBoard
-          requirement={project.config.requirement}
-          outlineTitles={outline.map((o) => o.title).filter(Boolean)}
-          pages={outline.length}
-          aspect={project.config.aspect}
-          busy={running}
-          onGenerate={handleInspireGenerate}
-        />
       ) : (
+        // Both "inspire" (pending skeleton deck while picking a style) and
+        // "deck" render the SlideStage; the in-chat card + popup drive the pick.
         <div className="deckpane">
           <SlideStage
             projectId={projectId}
@@ -672,12 +702,13 @@ export default function DeckView({ projectId }: { projectId: string }) {
             onSlides={(u) => setSlides(u)}
             busy={busy}
             setBusy={setBusy}
-            streaming={running}
+            streaming={stage === "inspire" || running}
             onAskSlide={askAboutSlide}
             onMarkAgentEvent={mirrorMarkToChat}
             focusSlideIndex={focusSlideIndex}
             focusSlideKey={focusSlideKey}
             headerExtra={
+              stage !== "inspire" ? (
               <button
                 ref={retuneTriggerRef}
                 className={`iconbtn restyle-trigger${showTune ? " active" : ""}`}
@@ -690,6 +721,7 @@ export default function DeckView({ projectId }: { projectId: string }) {
                 <Palette size={16} weight="regular" aria-hidden="true" />
                 Restyle deck
               </button>
+              ) : undefined
             }
           />
           {showTune && (
@@ -740,6 +772,16 @@ export default function DeckView({ projectId }: { projectId: string }) {
             </>
           )}
         </div>
+      )}
+      {inspireOpen && (
+        <InspireDialog
+          requirement={project.config.requirement}
+          outlineTitles={outline.map((o) => o.title).filter(Boolean)}
+          selected={project.config.template}
+          onClose={() => setInspireOpen(false)}
+          onSkip={() => handleInspireGenerate(undefined)}
+          onSubmit={(id) => handleInspireGenerate(id)}
+        />
       )}
     </div>
   );

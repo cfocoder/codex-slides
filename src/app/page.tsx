@@ -7,7 +7,7 @@ import ForYou from "@/components/ForYou";
 import Community from "@/components/Community";
 import OnboardForm from "@/components/OnboardForm";
 import OutlineBoard from "@/components/OutlineBoard";
-import InspireBoard from "@/components/InspireBoard";
+import InspireDialog from "@/components/InspireDialog";
 import RecentProjects from "@/components/RecentProjects";
 import SlideStage, { type MarkAgentEvent } from "@/components/SlideStage";
 import TopBar from "@/components/TopBar";
@@ -32,7 +32,12 @@ import {
 import { mergeContextItems, type ContextItem } from "@/lib/contextItems";
 import type { QuestionSpec } from "@/lib/onboard";
 import { getTemplate } from "@/lib/templates";
-import { getCommunityTemplate } from "@/lib/community";
+import {
+  COMMUNITY_TEMPLATES,
+  getCommunityTemplate,
+  inspireQueryFor,
+  matchCommunityTemplates,
+} from "@/lib/community";
 import { DEFAULT_CONFIG, type OutlinePage, type PptConfig, type ProgressEvent } from "@/lib/types";
 import {
   createAgentRunId,
@@ -80,6 +85,8 @@ export default function Home() {
   const [chatFocusKey, setChatFocusKey] = useState(0);
   const [focusSlideIndex, setFocusSlideIndex] = useState<number | null>(null);
   const [focusSlideKey, setFocusSlideKey] = useState(0);
+  const [inspireOpen, setInspireOpen] = useState(false);
+  const [inspireMsgId, setInspireMsgId] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const markRunRef = useRef<{ id: string; startedAt: number; slideIndex: number } | null>(null);
 
@@ -287,19 +294,40 @@ export default function Home() {
       return;
     }
     if (!config.template) {
+      // Detour to the inspiration step: show the pending deck + an in-chat card
+      // whose Browse button opens the style popup. Render waits for the pick/skip.
+      setSlides(outline.map((o, i) => ({ index: i + 1, title: o.title, status: "pending" })));
       setStage("inspire");
+      const matchQuery = [config.requirement, ...outline.map((o) => o.title)]
+        .filter(Boolean)
+        .join(" ");
+      const msgId = createAgentRunId("inspire");
+      setInspireMsgId(msgId);
       say({
+        id: msgId,
         role: "assistant",
-        content: "大纲定了。右侧挑一个视觉风格，我就按它逐页出图——也可以跳过用默认风格。",
+        content: "出图前，先挑一个视觉参考风格吧——我按你的主题和大纲排好了。点「浏览」挑一个，或跳过用默认风格。",
+        inspiration: {
+          query: inspireQueryFor(config.requirement, title),
+          coverIds: matchCommunityTemplates(matchQuery, 4).map((t) => t.id),
+          total: COMMUNITY_TEMPLATES.length,
+        },
       });
       return;
     }
     renderNow();
   }
 
+  /** Browse opens the popup; skip resolves the step with the default style. */
+  function onInspire(action: "browse" | "skip") {
+    if (action === "browse") setInspireOpen(true);
+    else void handleInspireGenerate(undefined);
+  }
+
   /** Apply an inspiration pick (or skip) then render. */
   async function handleInspireGenerate(templateId?: string) {
     if (!projectId || running || busy) return;
+    setInspireOpen(false);
     if (templateId) {
       const tpl = getCommunityTemplate(templateId);
       patchConfig({ template: templateId });
@@ -311,6 +339,14 @@ export default function Home() {
       }
     } else {
       say({ role: "user", content: "跳过风格，用默认风格生成。" });
+    }
+    if (inspireMsgId) {
+      updateChatMessage(inspireMsgId, (m) => ({
+        ...m,
+        inspiration: m.inspiration
+          ? { ...m.inspiration, chosen: templateId, resolved: true }
+          : undefined,
+      }));
     }
     renderNow();
   }
@@ -684,7 +720,7 @@ export default function Home() {
         : stage === "outline"
           ? "告诉 agent 怎么改大纲，或直接在右侧编辑…"
           : stage === "inspire"
-            ? "右侧挑个视觉风格，或跳过用默认风格…"
+            ? "点「浏览」挑个视觉风格，或跳过用默认风格…"
             : "让 agent 增删、改写、换风格或优化…";
     return (
       <div className="ws project-ws">
@@ -700,6 +736,7 @@ export default function Home() {
           onClearContext={() => setChatContext(null)}
           focusKey={chatFocusKey}
           onSelectSlide={locateChatSlide}
+          onInspire={onInspire}
           placeholder={placeholder}
         />
         {stage === "clarify" ? (
@@ -754,16 +791,10 @@ export default function Home() {
             streaming={running && outline.length === 0}
             researchDoc={researchDoc}
           />
-        ) : stage === "inspire" ? (
-          <InspireBoard
-            requirement={config.requirement}
-            outlineTitles={outline.map((o) => o.title).filter(Boolean)}
-            pages={outline.length}
-            aspect={config.aspect}
-            busy={running}
-            onGenerate={handleInspireGenerate}
-          />
         ) : (
+          // Both "inspire" (pending skeleton deck while picking a style) and
+          // "deck" render the SlideStage. During inspire, streaming keeps the
+          // pages as skeletons; the in-chat card + popup drive the style pick.
           <SlideStage
             projectId={projectId}
             aspect={config.aspect}
@@ -772,11 +803,21 @@ export default function Home() {
             onSlides={(u) => setSlides(u)}
             busy={busy}
             setBusy={setBusy}
-            streaming={running}
+            streaming={stage === "inspire" || running}
             onAskSlide={askAboutSlide}
             onMarkAgentEvent={mirrorMarkToChat}
             focusSlideIndex={focusSlideIndex}
             focusSlideKey={focusSlideKey}
+          />
+        )}
+        {inspireOpen && (
+          <InspireDialog
+            requirement={config.requirement}
+            outlineTitles={outline.map((o) => o.title).filter(Boolean)}
+            selected={config.template}
+            onClose={() => setInspireOpen(false)}
+            onSkip={() => handleInspireGenerate(undefined)}
+            onSubmit={(id) => handleInspireGenerate(id)}
           />
         )}
       </div>

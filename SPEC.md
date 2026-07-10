@@ -62,18 +62,18 @@ Legend: ✅ done & verified · 🟡 partial · ❌ missing
 | **R1.3** | Gen-UI form supports **uploading image materials** for consumption | ✅ | `lib/materials.ts`, `/api/materials` (+`/[id]`), `components/MaterialTray.tsx` in config panel; `config.materialIds` threaded through `pipeline.ts` → copied into project + passed as `refImages` + prompt note. Verified iter-3: uploaded the indigo brand card → generated "Our Company" slide adopted its palette/type/layout. |
 | **R1.4** | **Project system**: input → create project → enter project | ✅ | `/api/projects` (list), `/project/[id]` workspace (`app/project/[id]/page.tsx` + `components/DeckView.tsx`), recent-projects strip + "Open workspace" link on home; persistence `lib/store.ts`. Verified iter-1. |
 | **R1.5** | In-project: **preview / conversational edit / play / upload materials to tune** | ✅ | ✅ preview + per-slide regen + mark; ✅ **chat edit** (`lib/chat.ts` + `/api/projects/[id]/chat` + `ChatEditPanel`); ✅ **Play** fullscreen (`PlayMode`); ✅ **re-tune in workspace** (iter-9): `TemplatePicker` + `MaterialTray` + `PATCH /api/projects/[id]` + "Apply & regenerate all". Verified: chat "第2页更暖"→[2] / "restyle whole deck"→[1,2]; template switch Swiss→Editorial-Ink visibly transformed a slide. |
-| **R2.1** | Codex **daemon** detects codex & integrates (not only standalone web) | ✅ | `codex-plugin/mcp/server.mjs` `ensureServer()` auto-boots `next start` (port 4311) if unreachable. Verified: MCP probe initialize + tools/list + tools/call. |
-| **R2.2** | Open in Codex **in-editor browser** | ✅ | `open_preview` / `create_deck` return `/project/<id>` URLs Codex opens in-editor. |
-| **R2.3** | Operate via Codex directly (MCP tools + skills), fully inside Codex | ✅ | `codex-plugin/` = `.codex-plugin/plugin.json` + `.mcp.json` + `mcp/server.mjs` (6 tools: create_deck/deep_research/list_projects/open_preview/regenerate_slide/export_deck) + `skills/{ppt-anything-deck,ppt-anything-research}`. Install via `codex plugin add`. |
+| **R2.1** | Codex **daemon** detects codex & integrates (not only standalone web) | ✅ | `mcp/server.mjs` `ensureServer()` auto-builds when needed and auto-boots `next start` (port 4311) if unreachable. `scripts/probe-mcp.mjs` verifies the tool contract. |
+| **R2.2** | Open in Codex **in-editor browser** | ✅ | `open_ppt_anything` returns a typed HTML resource link; the bundled `ppt-anything-browser` skill requires Codex to navigate it in the in-editor Browser instead of merely printing a URL. |
+| **R2.3** | Operate via Codex directly (MCP tools + skills), fully inside Codex | ✅ | Repo-root plugin structure (`.codex-plugin/plugin.json`, `.mcp.json`, `mcp/`, `skills/`) exposes 20 tools covering onboarding, research, outline, inspiration, render, natural-language edit, restyle, slide structure/transition, uploads, mark edit, preview, and export. |
 | **R4.1** | **Deep-research mode** toggle | ✅ | home checkbox → `ResearchPanel`; `PptConfig.mode`. |
 | **R4.2** | Research → **markdown editor** doc → outline | ✅ | `ResearchPanel` editable markdown brief; `buildOutlinePrompt` takes `researchDoc` as `<research_document>` context; `Project.researchDoc` stored. |
 | **R4.3** | Search via **DuckDuckGo** or codex built-in search | ✅ | **Codex built-in `web_search`** (primary, zero-config) — verified 19 real source URLs. DDG HTML/Lite bot-block servers (HTTP 202); `ddgSearch()` kept as documented fallback. |
-| **R4.4** | Deep research shipped as an **out-of-the-box skill** | ✅ | `web/codex-plugin/skills/ppt-anything-research/SKILL.md` (web_search-first loop, runnable natively in Codex; part of the M6 plugin). |
+| **R4.4** | Deep research shipped as an **out-of-the-box skill** | ✅ | `skills/ppt-anything-research/SKILL.md` (source-backed research → reviewed brief → outline → render → Browser verification). |
 
 ## 3. Target architecture
 
 ```
-web/ (Next.js)
+repo root (Next.js + Codex plugin)
   app/
     page.tsx                     home: input + gen-UI onboarding + recent projects
     project/[id]/page.tsx        project workspace: preview · play · chat edit · materials
@@ -87,11 +87,12 @@ web/ (Next.js)
   components/ DeckView, ProjectWorkspace, OnboardForm, ChatEditPanel, PlayMode, MarkdownEditor, MaterialTray, MarkCanvas[done]
   lib/ (codex-*, agents, prompts, pipeline, store, assemble) [done] + research.ts, onboard.ts, materials.ts
 
-codex-plugin/ (R2)
-  .codex-plugin/plugin.json      declares skills + mcpServers
-  .mcp.json                      registers the ppt-anything MCP server
-  mcp/server.mjs                 tools: create_project, generate_deck, open_preview, regenerate_slide, mark_edit, export_deck
-  skills/ppt-anything-*/SKILL.md ppt generation + deep-research skills (out-of-the-box)
+.codex-plugin/plugin.json        installable plugin manifest
+.mcp.json                        registers the ppt-anything MCP server
+mcp/server.mjs                   complete 20-tool web-app bridge + daemon
+skills/ppt-anything-*/SKILL.md   browser + deck + research workflows
+scripts/start-mcp.mjs            repairs cached dependencies, then starts MCP
+scripts/probe-mcp.mjs            contract and live integration probe
 ```
 
 Data model (extends current `Project`): add `materials: {id,name,path,role}[]`, `mode: "direct"|"research"`,
@@ -114,7 +115,7 @@ Data model (extends current `Project`): add `materials: {id,name,path,role}[]`, 
 - **M5 — Deep research skill**: `research.ts` (DuckDuckGo HTML fetch + codex synthesis loop) → markdown doc in a
   markdown editor → outline; toggle on home; also a `skills/ppt-anything-research/SKILL.md`.
   *Accept*: toggle research on a topic → citations-backed markdown → outline derived from it.
-- **M6 — Codex plugin / daemon / in-editor**: `codex-plugin/` with `.codex-plugin/plugin.json`, `.mcp.json`,
+- **M6 — Codex plugin / daemon / in-editor**: repo-root `.codex-plugin/plugin.json`, `.mcp.json`,
   MCP server + skills; the web app opens in codex in-editor browser; codex can drive the full flow via tools.
   *Accept*: `codex plugin add` then ask codex "make a 6-slide deck about X" → deck produced & previewable.
 - **M7 — Template catalog** ✅ **DONE & verified.** `lib/templates.ts`: 15-category taxonomy (genspark §5) +
@@ -141,8 +142,8 @@ The product is feature-complete per this spec. Remaining loop ticks = **polish +
 4. ✅ **Docs** (iter-8): `web/README.md` rewritten to cover onboarding, research, projects, templates, materials,
    editing, play, export, and the codex plugin.
 
-### (done) M6 — Codex plugin/daemon/in-editor. `codex-plugin/` (plugin.json + .mcp.json + mcp/server.mjs, 6 tools) +
-### skills (deck + research) + ensureServer daemon. Verified via MCP probe (initialize/tools-list/tools-call).
+### (done) M6 — Codex plugin/daemon/in-editor. Repo-root plugin, 20 MCP tools,
+### browser/deck/research skills, and ensureServer daemon. Verified via MCP probe, live API calls, and the Browser resource link.
 
 ### (done) M5 — Deep research mode + skill. Toggle on home; iterative
 research loop (query → search → read → synthesize → gap-check → repeat) into a **markdown research doc**, show it
@@ -155,6 +156,34 @@ Codex-synthesis fallback (no key). Ship it **out-of-the-box as a skill**: `skill
 outline derived from it. Ref patterns: dzhng/deep-research, Alibaba-NLP/DeepResearch, langchain-ai/open_deep_research.
 
 ## 6. Changelog
+
+- community-styles + inspiration-step (2026-07-10): curated 22 reusable slide
+  **community styles** from the YouMind "Awesome Nano Banana Pro Prompts" gallery
+  (PPT-relevant only; pure-person portraits dropped). Each is a subject-free
+  `styleBlock` distilled from the source prompt + a downloaded cover, in
+  `lib/community.ts`; covers live in `public/community/*.jpg` (served at `/community/…`).
+  `buildImagePrompt` now resolves a community-template id → `communityStyleBlock`
+  (alongside curated `lib/templates.ts`). New home **Community** gallery
+  (`Community.tsx`, scrolling multi-row grid + group-filter chips, below "For you").
+  New **inspiration step** in the staged flow — order is now
+  **clarify → outline → inspire → render**, where `inspire` shows ONLY when no
+  template was picked: `InspireBoard.tsx` ranks the catalog against the topic+outline
+  via `POST /api/inspire` (codex, `lib/inspire.ts`) with an instant offline keyword
+  fallback (`matchCommunityTemplates`); the pick is applied with
+  `PATCH /api/projects/[id]` (template) before `renderProject` reads it. Wired into
+  both `app/page.tsx` (home flow) and `DeckView.tsx` (draft resume). `OnboardForm`
+  clarify questions now also take **per-question reference images** (upload → shared
+  materials → consumed as refImages), plus the existing free-text custom answers.
+  Helpers `rankInspire` / `patchProjectStyle` in `deckEdit`. Verified: `tsc` clean;
+  Community grid live in the running app. (NOTE: `web/` prefix in git status is a
+  stale alias — the buildable app is the **repo root**: `src/`, `public/`, `package.json`.)
+
+- codex-browser-integration (2026-07-10): promoted the repository itself to a
+  valid installable plugin root; replaced the 6-tool partial MCP bridge with 20
+  tools covering every product workflow; added typed Browser resource links,
+  a mandatory browser-opening skill, template discovery API, auto-build/start,
+  a cache-safe dependency launcher, and static/live MCP probes. Installed
+  through the personal marketplace and verified from its installed cache.
 
 - staged-flow (2026-07-10): reshaped the homepage→deck chain into the 6-step staged flow
   (§0.1). Split `runGeneration` into `planOutline` + `renderProject` (+ `reviseOutline`);

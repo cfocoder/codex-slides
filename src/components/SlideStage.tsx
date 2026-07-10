@@ -132,7 +132,6 @@ export default function SlideStage({
   const uploadRef = useRef<HTMLInputElement>(null);
   const uploadTarget = useRef<number | null>(null);
   const userPicked = useRef(false);
-  const mirroredMarkRequest = useRef<number | null>(null);
   const stageRef = useRef<HTMLElement>(null);
 
   const arCss = useMemo(() => aspect.replace(":", " / "), [aspect]);
@@ -388,7 +387,6 @@ export default function SlideStage({
     if (!slide?.image) return;
     pick(index);
     setActionError("");
-    mirroredMarkRequest.current = null;
     setMarkTarget(index);
   }
 
@@ -397,23 +395,29 @@ export default function SlideStage({
     const index = markTarget;
     const slide = slides.find((item) => item.index === index);
     if (!slide) return;
-    // Close the mark overlay + clear the drawn marks from the stage right away; the
-    // edit runs in the background and progress shows in the left conversation.
-    setMarkTarget(null);
-    mirroredMarkRequest.current = null;
     setActionError("");
     setBusy(true);
-    update(index, { status: "working" });
+    let requestMirrored = false;
     try {
+      // Keep the live canvas mounted until its immutable snapshot is safely on
+      // disk. If this quick upload fails, the user's marks remain available for
+      // the Retry button instead of disappearing.
       const markedImage = await saveMarkSource(projectId, index, blob);
+      setMarkTarget(null);
+      update(index, { status: "working" });
       onMarkAgentEvent?.({ type: "request", slide, note, markedImage });
+      requestMirrored = true;
       const image = await markSlide(projectId, index, markedImage, note);
       update(index, { status: "rendered", image, bust: Date.now() });
       onMarkAgentEvent?.({ type: "complete", slide, note, image });
     } catch (error: any) {
       const message = String(error?.message ?? error);
-      update(index, { status: "rendered", error: undefined });
-      onMarkAgentEvent?.({ type: "error", slide, note, error: message });
+      if (requestMirrored) {
+        update(index, { status: "rendered", error: undefined });
+        onMarkAgentEvent?.({ type: "error", slide, note, error: message });
+      } else {
+        setActionError(message);
+      }
     } finally {
       setBusy(false);
     }

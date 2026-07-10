@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start -p 4311",
     "typecheck": "tsc --noEmit",
-    "check:mcp": "node --check mcp/server.mjs && node scripts/probe-mcp.mjs",
+    "check:mcp": "node --check scripts/start-mcp.mjs && node --check mcp/server.mjs && node scripts/probe-mcp.mjs",
     "check:mcp:live": "node scripts/probe-mcp.mjs --live"
   },
   "dependencies": {

@@ -46,7 +46,7 @@ export default function MarkCanvas({
   const redoRef = useRef<Mark[]>([]);
   const draftRef = useRef<Mark | null>(null);
   const drawingRef = useRef(false);
-  const textDragRef = useRef<{ index: number; offset: Pt; origin: Pt } | null>(null);
+  const textDragRef = useRef<{ index: number; offset: Pt } | null>(null);
   const [tool, setToolState] = useState<MarkTool>("pen");
   const [note, setNote] = useState("");
   const [ready, setReady] = useState(false);
@@ -223,7 +223,6 @@ export default function MarkCanvas({
         textDragRef.current = {
           index: textIndex,
           offset: { x: point.x - mark.point.x, y: point.y - mark.point.y },
-          origin: { ...mark.point },
         };
         redoRef.current = [];
         setHoveredText(textIndex);

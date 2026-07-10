@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { COMMUNITY_GROUPS, COMMUNITY_TEMPLATES } from "@/lib/community";
 
 function lum(hex: string): number {
@@ -13,8 +13,9 @@ function lum(hex: string): number {
   return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
 }
 
-/** Home "Community" gallery — reusable slide styles distilled from the
- *  Nano Banana Pro community. Picking one seeds config.template (styleBlock). */
+/** Home "Community" gallery — reusable slide styles distilled from the Nano
+ *  Banana Pro community, shown as a scrolling multi-row grid. Picking one seeds
+ *  config.template (styleBlock). */
 export default function Community({
   selected,
   onPick,
@@ -22,35 +23,19 @@ export default function Community({
   selected?: string;
   onPick: (id: string) => void;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const [group, setGroup] = useState<string>("all");
 
   const cards = useMemo(() => {
     const list = group === "all" ? COMMUNITY_TEMPLATES : COMMUNITY_TEMPLATES.filter((t) => t.group === group);
-    return list.map((t) => {
-      const ground = [...t.palette].sort((a, b) => lum(a) - lum(b))[0]; // darkest for letterboxing
-      return { t, ground };
-    });
+    return list.map((t) => ({ t, ground: [...t.palette].sort((a, b) => lum(a) - lum(b))[0] }));
   }, [group]);
-
-  function nudge(dir: number) {
-    scrollRef.current?.scrollBy({ left: dir * 440, behavior: "smooth" });
-  }
 
   return (
     <section className="foryou community" aria-labelledby="community-heading">
       <div className="section-head foryou-head">
         <div>
           <h2 id="community-heading">✦ Community</h2>
-          <p>Reusable visual styles from the Nano Banana Pro community</p>
-        </div>
-        <div className="foryou-nav">
-          <button className="round-btn" onClick={() => nudge(-1)} aria-label="Scroll left">
-            ‹
-          </button>
-          <button className="round-btn" onClick={() => nudge(1)} aria-label="Scroll right">
-            ›
-          </button>
+          <p>Reusable visual styles from the Nano Banana Pro community · {COMMUNITY_TEMPLATES.length} styles</p>
         </div>
       </div>
       <div className="community-groups" role="tablist" aria-label="Filter by style group">
@@ -60,21 +45,24 @@ export default function Community({
           aria-selected={group === "all"}
           onClick={() => setGroup("all")}
         >
-          All
+          All <span className="group-count">{COMMUNITY_TEMPLATES.length}</span>
         </button>
-        {COMMUNITY_GROUPS.map((g) => (
-          <button
-            key={g}
-            className={`group-chip ${group === g ? "on" : ""}`}
-            role="tab"
-            aria-selected={group === g}
-            onClick={() => setGroup(g)}
-          >
-            {g}
-          </button>
-        ))}
+        {COMMUNITY_GROUPS.map((g) => {
+          const n = COMMUNITY_TEMPLATES.filter((t) => t.group === g).length;
+          return (
+            <button
+              key={g}
+              className={`group-chip ${group === g ? "on" : ""}`}
+              role="tab"
+              aria-selected={group === g}
+              onClick={() => setGroup(g)}
+            >
+              {g} <span className="group-count">{n}</span>
+            </button>
+          );
+        })}
       </div>
-      <div className="foryou-scroll" ref={scrollRef}>
+      <div className="community-grid">
         {cards.map(({ t, ground }) => (
           <button
             key={t.id}
@@ -95,7 +83,11 @@ export default function Community({
                 <div className="tpl-meta">{t.name}</div>
                 <div className="tpl-cat">{t.group}</div>
               </div>
-              <span className="tpl-arrow" aria-hidden="true">↗</span>
+              <span className="inspire-palette" aria-hidden="true">
+                {t.palette.slice(0, 4).map((c) => (
+                  <span key={c} style={{ background: c }} />
+                ))}
+              </span>
             </div>
           </button>
         ))}

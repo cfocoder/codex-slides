@@ -34,7 +34,7 @@ const expected = [
 
 const transport = new StdioClientTransport({
   command: process.execPath,
-  args: [resolve(root, "mcp/server.mjs")],
+  args: [resolve(root, "scripts/start-mcp.mjs")],
   cwd: root,
   env: {
     ...process.env,

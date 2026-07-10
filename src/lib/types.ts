@@ -93,6 +93,13 @@ export interface StoredChatMessage {
       state: "pending" | "running" | "complete" | "error";
     }[];
   };
+  inspiration?: {
+    query: string;
+    coverIds: string[];
+    total: number;
+    chosen?: string;
+    resolved?: boolean;
+  };
   ts?: number;
 }
 
