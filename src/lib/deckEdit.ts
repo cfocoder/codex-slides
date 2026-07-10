@@ -35,17 +35,24 @@ export function deriveStatus(
   const { streaming, editing, note } = opts;
   if (!streaming && !editing) return null;
   const done = slides.filter((s) => s.status === "rendered").length;
-  const working = slides.find((s) => s.status === "working");
+  const workingList = slides.filter((s) => s.status === "working");
+  const working = workingList[0];
   if (streaming && slides.length === 0) {
     return { phase: "outlining", total: 0, done: 0 };
   }
+  // Fast mode draws several pages at once; surface that instead of a single
+  // "Drawing slide N" line so the card matches what the filmstrip shows.
+  const parallelNote =
+    !note && !editing && workingList.length > 1
+      ? `并行绘制 ${workingList.length} 页中…`
+      : note;
   return {
     phase: editing && !streaming ? "editing" : "rendering",
     total: slides.length,
     done,
     current: working?.index,
     currentTitle: working?.title,
-    note,
+    note: parallelNote,
   };
 }
 

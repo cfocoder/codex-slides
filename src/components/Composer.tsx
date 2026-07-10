@@ -107,6 +107,9 @@ export default function Composer({
     ...(researchMode
       ? [{ id: "research", kind: "research" as const, label: "Deep research" }]
       : []),
+    ...(config.fast
+      ? [{ id: "fast", kind: "speed" as const, label: "Fast", value: "并行生成" }]
+      : []),
     ...(styleTemplate
       ? [{ id: "style", kind: "style" as const, label: "Design", value: styleTemplate.name }]
       : []),
@@ -120,6 +123,7 @@ export default function Composer({
 
   function removeContextOption(id: string) {
     if (id === "research") setResearchMode(false);
+    else if (id === "fast") setConfig({ fast: false });
     else if (id === "style") onClearStyle?.();
     else if (id === "quality") {
       setQuality("Auto");
@@ -196,6 +200,22 @@ export default function Composer({
                 <span className="ic">🔍</span>
                 <span className="grow">Deep research</span>
                 <span className={`toggle ${researchMode ? "on" : ""}`} />
+              </button>
+              <button
+                className="pop-item"
+                onClick={() => setConfig({ fast: !config.fast })}
+                title="Draw every page at once instead of one by one"
+              >
+                <span className="ic">⚡</span>
+                <span className="grow">
+                  Fast mode
+                  <span className="pop-sub">
+                    {config.fast
+                      ? "所有页面并行生成，超出的自动排队"
+                      : "所有页面并行生成，更快出稿"}
+                  </span>
+                </span>
+                <span className={`toggle ${config.fast ? "on" : ""}`} />
               </button>
             </div>
           )}

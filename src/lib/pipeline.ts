@@ -91,6 +91,35 @@ export interface RunOptions {
   signal?: AbortSignal;
 }
 
+/**
+ * How many slides render concurrently in fast mode. The Codex Responses endpoint
+ * rate-limits (HTTP 429) under heavy fan-out, so we cap in-flight work and let the
+ * rest queue; `postCodexResponses` already retries 429/5xx with backoff, so any
+ * page that still trips a limit recovers instead of failing the deck. Kept modest
+ * because each page is TWO calls (copy + image).
+ */
+export const FAST_CONCURRENCY = 4;
+
+/**
+ * Run `worker` over `items` with at most `limit` in flight at once (the rest
+ * queue). Resolves when every item has settled; individual failures are the
+ * worker's responsibility (each per-page worker isolates its own errors).
+ */
+async function runPool<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const item = items[cursor++];
+      await worker(item);
+    }
+  });
+  await Promise.all(runners);
+}
+
 function outlineToPages(outline: OutlinePage[]): SlidePage[] {
   return outline.map((o, i) => ({
     index: i + 1,
@@ -177,9 +206,18 @@ export async function renderProject(
   saveProject(project);
 
   const total = project.pages.length;
-  for (const page of project.pages) {
+
+  // One slide's full copy→image chain, isolated so one failure never sinks the
+  // deck. Every page reads the SAME `config` (requirement, style, template,
+  // materials), so whether pages run serially or in parallel the deck stays on a
+  // single unified requirement / style / brand — parallelism only reorders when
+  // the identical work happens, never what it produces. Mutates the shared
+  // `project`; `saveProject` is a synchronous full-state write, so concurrent
+  // per-page saves in fast mode each persist everyone's latest status without
+  // losing updates.
+  const renderPage = async (page: SlidePage): Promise<void> => {
     if (signal?.aborted) throw new Error("aborted");
-    if (page.status === "rendered") continue;
+    if (page.status === "rendered") return;
     emit({ type: "page_start", index: page.index, total, title: page.title });
     try {
       const descPrompt = buildPageDescriptionPrompt(config, project.outline, page, page.index, total);
@@ -209,6 +247,24 @@ export async function renderProject(
       page.error = String(e?.message ?? e);
       saveProject(project);
       emit({ type: "page_error", index: page.index, error: page.error });
+    }
+  };
+
+  const pending = project.pages.filter((p) => p.status !== "rendered");
+  if (config.fast) {
+    // Fast mode: fan every page out at once, capped at FAST_CONCURRENCY in flight
+    // (the overflow queues) so we accelerate the deck without tripping rate limits.
+    emit({
+      type: "log",
+      message: `Fast mode: rendering ${pending.length} pages in parallel (up to ${FAST_CONCURRENCY} at once)`,
+    });
+    await runPool(pending, FAST_CONCURRENCY, renderPage);
+    if (signal?.aborted) throw new Error("aborted");
+  } else {
+    // Default: one page at a time.
+    for (const page of pending) {
+      if (signal?.aborted) throw new Error("aborted");
+      await renderPage(page);
     }
   }
 

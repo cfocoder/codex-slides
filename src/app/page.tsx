@@ -360,7 +360,12 @@ export default function Home() {
     try {
       setSlides(outline.map((o, i) => ({ index: i + 1, title: o.title, status: "pending" })));
       setStage("deck");
-      say({ role: "assistant", content: `开始逐页生成 ${outline.length} 页幻灯片，每页约 30s…` });
+      say({
+        role: "assistant",
+        content: config.fast
+          ? `⚡ Fast 模式：${outline.length} 页并行生成（超出并发的会自动排队），风格与需求保持统一…`
+          : `开始逐页生成 ${outline.length} 页幻灯片，每页约 30s…`,
+      });
       let rendered = 0;
       await streamRender(projectId, (ev) => {
         if (ev.type === "page_rendered") rendered++;

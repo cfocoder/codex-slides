@@ -20,6 +20,7 @@ export interface PptConfig {
   materialIds?: string[]; // staged context-item ids (images and supported documents)
   mode?: "direct" | "research"; // deep-research mode seeds the outline from a research doc
   researchDoc?: string; // markdown research brief used as outline context (research mode)
+  fast?: boolean; // fast mode: render every page in parallel (rate-limit-queued) instead of one-by-one
 }
 
 export interface MaterialRecord {
@@ -74,7 +75,7 @@ export type ProjectStatus = "draft" | "rendering" | "ready";
 /** A non-file choice attached to a user turn, displayed like other context. */
 export interface ContextOptionItem {
   id: string;
-  kind: "research" | "style" | "setting";
+  kind: "research" | "style" | "setting" | "speed";
   label: string;
   value?: string;
 }

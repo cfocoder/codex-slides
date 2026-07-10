@@ -1,11 +1,12 @@
 "use client";
 
-import { MagnifyingGlass, Palette, SlidersHorizontal, X } from "@phosphor-icons/react";
+import { Lightning, MagnifyingGlass, Palette, SlidersHorizontal, X } from "@phosphor-icons/react";
 import type { ContextOptionItem } from "@/lib/types";
 
 function OptionIcon({ kind }: { kind: ContextOptionItem["kind"] }) {
   if (kind === "research") return <MagnifyingGlass size={13} />;
   if (kind === "style") return <Palette size={13} />;
+  if (kind === "speed") return <Lightning size={13} weight="fill" />;
   return <SlidersHorizontal size={13} />;
 }
 

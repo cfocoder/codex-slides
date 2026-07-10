@@ -581,6 +581,14 @@ button {
 .pop-item .grow {
   flex: 1;
 }
+.pop-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.3;
+  color: var(--muted);
+}
 .pop-sep {
   height: 1px;
   background: var(--border);
@@ -929,6 +937,9 @@ button {
   min-width: 0;
   scroll-snap-align: start;
 }
+.tpl-card:focus-visible {
+  outline: none;
+}
 .tpl-cover {
   aspect-ratio: 16 / 9;
   border-radius: 12px;
@@ -946,8 +957,14 @@ button {
   border-color: var(--border-strong);
 }
 .tpl-card.on .tpl-cover {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--accent), var(--shadow-sm);
+}
+.tpl-card:focus-visible .tpl-cover {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent), var(--shadow-sm);
 }
 .tpl-cover img {
   width: 100%;
@@ -1102,10 +1119,6 @@ button {
 .inspire-card {
   display: flex;
   flex-direction: column;
-}
-.inspire-card.on .tpl-cover {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 .inspire-badge {
   position: absolute;
