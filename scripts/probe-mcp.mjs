@@ -1,13 +1,27 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const manifest = JSON.parse(readFileSync(join(root, ".codex-plugin", "plugin.json"), "utf8"));
+const sourceCandidate = process.env.PPT_ANYTHING_PLUGIN_SOURCE || join(homedir(), "plugins", manifest.name);
+const runtimeRoot = (() => {
+  try {
+    const candidate = realpathSync(resolve(sourceCandidate));
+    if (existsSync(join(candidate, "node_modules", "@modelcontextprotocol", "sdk"))) return candidate;
+  } catch {
+    // Fall back to this plugin root for repository and archive installs.
+  }
+  return root;
+})();
+const sdkRoot = join(runtimeRoot, "node_modules", "@modelcontextprotocol", "sdk", "dist", "esm", "client");
+const { Client } = await import(pathToFileURL(join(sdkRoot, "index.js")).href);
+const { StdioClientTransport } = await import(pathToFileURL(join(sdkRoot, "stdio.js")).href);
+
 const live = process.argv.includes("--live");
 const expected = [
   "get_capabilities",

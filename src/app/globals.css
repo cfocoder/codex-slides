@@ -2199,6 +2199,7 @@ button {
 @media (max-width: 900px) {
   .ws {
     grid-template-columns: 1fr;
+    grid-template-rows: max-content max-content;
     height: auto;
     min-height: calc(100vh - 61px);
     gap: 0;
@@ -2213,8 +2214,12 @@ button {
   .ws > .deckpane {
     grid-column: 1;
   }
+  .ws > .chatcol {
+    grid-row: 1;
+  }
   .ws > .stage,
   .ws > .deckpane {
+    grid-row: 2;
     min-height: 64vh;
   }
   .chatcol {
