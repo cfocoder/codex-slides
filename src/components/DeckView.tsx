@@ -5,13 +5,16 @@ import { ArrowsClockwise, Palette, WarningCircle, X } from "@phosphor-icons/reac
 import ChatColumn, { type ChatMsg } from "@/components/ChatColumn";
 import MaterialTray from "@/components/MaterialTray";
 import OutlineBoard from "@/components/OutlineBoard";
+import InspireBoard from "@/components/InspireBoard";
 import SlideStage, { type MarkAgentEvent } from "@/components/SlideStage";
 import TemplatePicker from "@/components/TemplatePicker";
+import { getCommunityTemplate } from "@/lib/community";
 import {
   addProjectSlide,
   deriveStatus,
   fileUrl,
   generateSingleSlide,
+  patchProjectStyle,
   planChatEdit,
   regenerateSlide,
   reviseOutlineChat,
@@ -38,7 +41,7 @@ export default function DeckView({ projectId }: { projectId: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [running, setRunning] = useState(false);
-  const [stage, setStage] = useState<"outline" | "deck">("deck");
+  const [stage, setStage] = useState<"outline" | "inspire" | "deck">("deck");
   const [outline, setOutline] = useState<OutlinePage[]>([]);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [queue, setQueue] = useState<ChatRequest[]>([]);
@@ -205,12 +208,48 @@ export default function DeckView({ projectId }: { projectId: string }) {
     }
   }
 
-  async function confirmAndRender() {
+  /** Outline confirmed. Detour to the inspiration step if no style is chosen. */
+  async function confirmOutline() {
     if (running || busy || !outline.length) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    setRunning(true);
     try {
       await saveOutline(projectId, outline);
+    } catch (e: any) {
+      say({ role: "assistant", content: `⚠ ${e?.message ?? e}` });
+      return;
+    }
+    if (!project?.config.template) {
+      setStage("inspire");
+      say({
+        role: "assistant",
+        content: "大纲定了。右侧挑一个视觉风格，我就按它逐页出图——也可以跳过用默认风格。",
+      });
+      return;
+    }
+    renderNow();
+  }
+
+  /** Apply an inspiration pick (or skip) then render. */
+  async function handleInspireGenerate(templateId?: string) {
+    if (running || busy) return;
+    if (templateId) {
+      const tpl = getCommunityTemplate(templateId);
+      say({ role: "user", content: `选定风格：${tpl?.name ?? templateId}` });
+      try {
+        await patchProjectStyle(projectId, { template: templateId });
+        setProject((p) => (p ? { ...p, config: { ...p.config, template: templateId } } : p));
+      } catch (e: any) {
+        say({ role: "assistant", content: `⚠ 应用风格失败：${e?.message ?? e}` });
+      }
+    } else {
+      say({ role: "user", content: "跳过风格，用默认风格生成。" });
+    }
+    renderNow();
+  }
+
+  async function renderNow() {
+    setRunning(true);
+    try {
       setSlides(outline.map((o, i) => ({ index: i + 1, title: o.title, status: "pending" })));
       setStage("deck");
       say({ role: "assistant", content: `开始逐页生成 ${outline.length} 页幻灯片，每页约 30s…` });
@@ -598,7 +637,9 @@ export default function DeckView({ projectId }: { projectId: string }) {
         placeholder={
           stage === "outline"
             ? "告诉 agent 怎么改大纲，或直接在右侧编辑…"
-            : "Ask the deck agent to add, rewrite, restyle, or optimize…"
+            : stage === "inspire"
+              ? "右侧挑个视觉风格，或跳过用默认风格…"
+              : "Ask the deck agent to add, rewrite, restyle, or optimize…"
         }
       />
       {stage === "outline" ? (
@@ -607,10 +648,19 @@ export default function DeckView({ projectId }: { projectId: string }) {
           aspect={project.config.aspect}
           outline={outline}
           onChange={onOutlineChange}
-          onConfirm={confirmAndRender}
+          onConfirm={confirmOutline}
           busy={running && outline.length > 0}
           streaming={false}
           researchDoc={project.researchDoc}
+        />
+      ) : stage === "inspire" ? (
+        <InspireBoard
+          requirement={project.config.requirement}
+          outlineTitles={outline.map((o) => o.title).filter(Boolean)}
+          pages={outline.length}
+          aspect={project.config.aspect}
+          busy={running}
+          onGenerate={handleInspireGenerate}
         />
       ) : (
         <div className="deckpane">

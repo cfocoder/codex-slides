@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "ppt_anything": {
+      "title": "PPT Anything",
+      "description": "Create, research, preview, edit, present, and export slide decks from Codex.",
+      "command": "node",
+      "args": [
+        "./mcp/server.mjs"
+      ],
+      "cwd": "."
+    }
+  }
+}

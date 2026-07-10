@@ -1,0 +1,38 @@
+{
+  "name": "ppt-anything",
+  "version": "0.2.0",
+  "description": "Create, research, edit, present, and export image-native slide decks from Codex with a live in-editor Browser workspace.",
+  "author": {
+    "name": "PPT Anything"
+  },
+  "keywords": [
+    "presentations",
+    "slides",
+    "image-generation",
+    "research",
+    "browser"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "PPT Anything",
+    "shortDescription": "Build and edit complete slide decks inside Codex.",
+    "longDescription": "PPT Anything gives Codex the full presentation workflow: research, onboarding, outline creation, visual inspiration, image-native slide generation, conversational and mark-based editing, slide structure controls, restyling, live Browser preview, presenting, and PDF/PPTX export.",
+    "developerName": "PPT Anything",
+    "category": "Productivity",
+    "capabilities": [
+      "In-editor Browser workspace",
+      "AI slide generation",
+      "Deep research and outlines",
+      "Conversational and mark editing",
+      "Slide structure and transitions",
+      "PDF and PPTX export"
+    ],
+    "brandColor": "#6D5EF8",
+    "defaultPrompt": [
+      "Open PPT Anything in the Codex Browser.",
+      "Research this topic, build a deck, and open the live preview.",
+      "Edit my latest deck and show the result in the Browser."
+    ]
+  }
+}

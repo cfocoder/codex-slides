@@ -7,6 +7,7 @@ import ForYou from "@/components/ForYou";
 import Community from "@/components/Community";
 import OnboardForm from "@/components/OnboardForm";
 import OutlineBoard from "@/components/OutlineBoard";
+import InspireBoard from "@/components/InspireBoard";
 import RecentProjects from "@/components/RecentProjects";
 import SlideStage, { type MarkAgentEvent } from "@/components/SlideStage";
 import TopBar from "@/components/TopBar";
@@ -17,6 +18,7 @@ import {
   generateSingleSlide,
   planChatEdit,
   regenerateSlide,
+  patchProjectStyle,
   reviseOutlineChat,
   saveChat,
   saveOutline,
@@ -48,7 +50,7 @@ interface EngineInfo {
 /** Full chain: idle (launcher) → work. Within work the right pane walks
  *  clarify → outline → deck, so there is no separate full-page step. */
 type Phase = "idle" | "work";
-type Stage = "clarify" | "outline" | "deck";
+type Stage = "clarify" | "outline" | "inspire" | "deck";
 
 export default function Home() {
   const [config, setConfig] = useState<PptConfig>({ ...DEFAULT_CONFIG, requirement: "" });
@@ -271,14 +273,54 @@ export default function Home() {
     }
   }
 
-  // ---------------- step 4+5: confirm → render ----------------
+  // ---------------- step 4: confirm → (inspire) → render ----------------
 
-  async function confirmAndRender() {
+  /** Outline confirmed. If no style is chosen yet, detour to the inspiration
+   *  step; otherwise render straight away. */
+  async function confirmOutline() {
     if (!projectId || running || busy || !outline.length) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    setRunning(true);
     try {
       await saveOutline(projectId, outline);
+    } catch (e: any) {
+      say({ role: "assistant", content: `⚠ ${e?.message ?? e}` });
+      return;
+    }
+    if (!config.template) {
+      setStage("inspire");
+      say({
+        role: "assistant",
+        content: "大纲定了。右侧挑一个视觉风格，我就按它逐页出图——也可以跳过用默认风格。",
+      });
+      return;
+    }
+    renderNow();
+  }
+
+  /** Apply an inspiration pick (or skip) then render. */
+  async function handleInspireGenerate(templateId?: string) {
+    if (!projectId || running || busy) return;
+    if (templateId) {
+      const tpl = getCommunityTemplate(templateId);
+      patchConfig({ template: templateId });
+      say({ role: "user", content: `选定风格：${tpl?.name ?? templateId}` });
+      try {
+        await patchProjectStyle(projectId, { template: templateId });
+      } catch (e: any) {
+        say({ role: "assistant", content: `⚠ 应用风格失败：${e?.message ?? e}` });
+      }
+    } else {
+      say({ role: "user", content: "跳过风格，用默认风格生成。" });
+    }
+    renderNow();
+  }
+
+  // ---------------- step 5: render ----------------
+
+  async function renderNow() {
+    if (!projectId) return;
+    setRunning(true);
+    try {
       setSlides(outline.map((o, i) => ({ index: i + 1, title: o.title, status: "pending" })));
       setStage("deck");
       say({ role: "assistant", content: `开始逐页生成 ${outline.length} 页幻灯片，每页约 30s…` });
@@ -641,7 +683,9 @@ export default function Home() {
         ? "有其它要求可以先告诉我，确认问题后开始写大纲…"
         : stage === "outline"
           ? "告诉 agent 怎么改大纲，或直接在右侧编辑…"
-          : "让 agent 增删、改写、换风格或优化…";
+          : stage === "inspire"
+            ? "右侧挑个视觉风格，或跳过用默认风格…"
+            : "让 agent 增删、改写、换风格或优化…";
     return (
       <div className="ws project-ws">
         <ChatColumn
@@ -705,10 +749,19 @@ export default function Home() {
             aspect={config.aspect}
             outline={outline}
             onChange={onOutlineChange}
-            onConfirm={confirmAndRender}
+            onConfirm={confirmOutline}
             busy={running && outline.length > 0}
             streaming={running && outline.length === 0}
             researchDoc={researchDoc}
+          />
+        ) : stage === "inspire" ? (
+          <InspireBoard
+            requirement={config.requirement}
+            outlineTitles={outline.map((o) => o.title).filter(Boolean)}
+            pages={outline.length}
+            aspect={config.aspect}
+            busy={running}
+            onGenerate={handleInspireGenerate}
           />
         ) : (
           <SlideStage
