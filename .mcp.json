@@ -2,7 +2,7 @@
   "mcpServers": {
     "ppt_anything": {
       "title": "PPT Anything",
-      "description": "Operate scenario workflows, project Design Files, brand systems, creation, research, preview, editing, presenting, and export from Codex.",
+      "description": "Run a Browser-first guided deck workflow with durable projects, checkpoints, Design Files, brand systems, editing, presenting, and export from Codex.",
       "command": "node",
       "args": [
         "./scripts/start-mcp.mjs"

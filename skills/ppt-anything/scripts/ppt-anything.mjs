@@ -15,7 +15,7 @@ const BASE = (process.env.PPT_ANYTHING_URL || "http://127.0.0.1:4311").replace(/
 const LOG_PATH = process.env.PPT_ANYTHING_LOG || join(tmpdir(), "ppt-anything-server.log");
 
 const COMMANDS = [
-  "capabilities", "open", "onboard", "research", "create", "outline",
+  "capabilities", "open", "start-project", "onboard", "research", "create", "outline",
   "revise-outline", "inspiration", "render", "list", "get", "templates",
   "edit", "restyle", "slide", "regenerate", "upload-material",
   "upload-slide", "mark-edit", "export", "scenarios", "design-files",
@@ -25,6 +25,7 @@ const COMMANDS = [
 
 const CAPABILITIES = [
   ["Open the full workspace", "open", "Browser"],
+  ["Start a durable guided project before generation", "start-project", "script + Browser"],
   ["Generate tailored onboarding questions", "onboard", "script"],
   ["Run source-backed deep research", "research", "script"],
   ["Create and render a complete deck", "create", "script + Browser"],
@@ -66,6 +67,12 @@ function browserUrl(projectId, { view, filePath, scenarioId } = {}) {
   if (view && view !== "workspace") url.searchParams.set("view", view);
   if (filePath) url.searchParams.set("file", filePath);
   if (scenarioId) url.searchParams.set("scenario", scenarioId);
+  return url.toString();
+}
+
+function interactiveProjectUrl(projectId) {
+  const url = new URL(BASE);
+  url.searchParams.set("resume", projectId);
   return url.toString();
 }
 
@@ -315,6 +322,21 @@ async function run(command, input) {
       projectId: targetProjectId || null,
       view,
       browserAction: "navigate",
+    };
+  }
+  if (command === "start-project") {
+    if (!input.topic) throw new Error("topic is required.");
+    const project = await postJson("/api/projects", {
+      title: input.title,
+      config: deckConfig(input, input.researchDoc),
+    });
+    return {
+      projectId: project.id,
+      title: project.title,
+      workflowStage: project.workflow?.stage || "clarify",
+      url: interactiveProjectUrl(project.id),
+      browserAction: "navigate",
+      interactionMode: "browser-guided",
     };
   }
   if (command === "onboard") {

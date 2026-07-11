@@ -17,6 +17,7 @@ object. Success responses contain `"ok": true`; failures contain
 |---|---|---|
 | `capabilities` | `get_capabilities` | none |
 | `open` | `open_ppt_anything` | optional `projectId`, `view`, `filePath`, `scenarioId` |
+| `start-project` | `start_project` | `topic`; optional deck configuration; creates only a durable project shell and Browser continuation URL |
 | `onboard` | `get_onboarding_questions` | `topic`; optional `scenarioId`, `uiLocale` |
 | `research` | `deep_research` | `topic`, optional `rounds`, `scenarioId` |
 | `create` | `create_deck` | `topic`; optional `scenarioId`, `pages`, `aspect`, `language`, `style`, `template`, `resolution`, `materialIds`, `materialContexts`, `designSystem`, `fast`, `research`, `researchDoc`, `rounds` |
@@ -45,6 +46,28 @@ object. Success responses contain `"ok": true`; failures contain
 
 ## Examples
 
+Open the product before starting a normal interactive workflow:
+
+```bash
+node <skill-dir>/scripts/ppt-anything.mjs open
+```
+
+Navigate the returned URL in the Codex Browser, submit the request in the home
+composer, and continue through clarification, outline confirmation, style
+selection, and rendering there. If UI submission needs a deterministic
+fallback, create only the project shell and immediately navigate its URL:
+
+```bash
+node <skill-dir>/scripts/ppt-anything.mjs start-project --json '{
+  "topic": "2026 humanoid robot market",
+  "pages": 6,
+  "language": "zh"
+}'
+```
+
+The `create` command below is an explicit unattended/headless fast path, not the
+default Codex user experience.
+
 Discover scenarios, stage required files, and create with semantic roles:
 
 ```bash
@@ -64,7 +87,7 @@ node <skill-dir>/scripts/ppt-anything.mjs outline --json '{
 }'
 ```
 
-Create a researched six-slide deck:
+Create a researched six-slide deck without interactive checkpoints:
 
 ```bash
 node <skill-dir>/scripts/ppt-anything.mjs create --json '{

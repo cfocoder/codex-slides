@@ -231,6 +231,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   const [running, setRunning] = useState(false);
   const [stage, setStage] = useState<"outline" | "inspire" | "deck">(() => {
     if (initialProject.workflow?.stage === "inspire") return "inspire";
+    if (initialProject.workflow?.stage === "rendering" || initialProject.workflow?.stage === "deck") return "deck";
     if (initialProject.workflow?.stage === "outline" || initialProject.status === "draft") return "outline";
     return "deck";
   });

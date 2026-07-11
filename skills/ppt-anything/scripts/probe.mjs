@@ -22,11 +22,11 @@ function call(command, input = {}) {
 }
 
 const capabilities = call("capabilities");
-if (capabilities.commands.length !== 27) {
-  throw new Error(`Expected 27 commands, got ${capabilities.commands.length}.`);
+if (capabilities.commands.length !== 28) {
+  throw new Error(`Expected 28 commands, got ${capabilities.commands.length}.`);
 }
-if (capabilities.capabilities.length < 27) {
-  throw new Error(`Expected at least 27 capability surfaces, got ${capabilities.capabilities.length}.`);
+if (capabilities.capabilities.length < 28) {
+  throw new Error(`Expected at least 28 capability surfaces, got ${capabilities.capabilities.length}.`);
 }
 
 const summary = {

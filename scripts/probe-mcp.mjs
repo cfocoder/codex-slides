@@ -26,6 +26,7 @@ const live = process.argv.includes("--live");
 const expected = [
   "get_capabilities",
   "open_ppt_anything",
+  "start_project",
   "get_onboarding_questions",
   "deep_research",
   "create_deck",
@@ -76,10 +77,13 @@ try {
   assert.ok(createDeck?.inputSchema?.properties?.designSystem, "create_deck must expose designSystem");
   const openTool = listed.tools.find((tool) => tool.name === "open_ppt_anything");
   assert.ok(openTool?.inputSchema?.properties?.view, "open_ppt_anything must expose Browser views");
+  const startProject = listed.tools.find((tool) => tool.name === "start_project");
+  assert.ok(startProject?.inputSchema?.properties?.topic, "start_project must expose topic");
+  assert.match(startProject?.description || "", /does not research|does not.*render/i, "start_project must remain a project-shell operation");
 
   const capabilities = await client.callTool({ name: "get_capabilities", arguments: {} });
   assert.equal(capabilities.isError, undefined);
-  assert.equal(capabilities.structuredContent?.capabilities?.length, 29);
+  assert.equal(capabilities.structuredContent?.capabilities?.length, 30);
   assert.ok(capabilities.content.some((item) => item.type === "resource_link"));
 
   if (live) {

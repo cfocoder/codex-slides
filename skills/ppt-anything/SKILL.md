@@ -5,10 +5,43 @@ description: Create, research, revise, restyle, present, inspect, and export PPT
 
 # PPT Anything
 
-Run the complete presentation workflow from Codex. This skill is self-contained:
-its bundled CLI talks to the local PPT Anything HTTP API and does not require
-MCP. When the `ppt_anything` MCP tools are available, they provide the same
-operations as typed tool calls.
+Run PPT Anything as an interactive product inside Codex. The live Browser
+workspace is the primary experience; MCP and the bundled CLI are transports
+for opening the workspace and performing deterministic operations, not a reason
+to hide the presentation workflow in a long-running Codex turn.
+
+## Browser-first default
+
+For every new deck request, unless the user explicitly asks for a headless,
+unattended, one-call, or CLI-only run:
+
+1. Call `open_ppt_anything` / CLI `open` **without** a project id, immediately
+   navigate the returned URL in Codex's in-editor Browser, and verify that the
+   PPT Anything home/create screen is visible.
+2. Keep the Browser open. Enter the user's request in the home composer, attach
+   or assign source files in the UI, and submit it there. This creates a durable
+   project before clarification starts. If UI submission is not reliable, use
+   `start_project` / CLI `start-project` only as a deterministic fallback, then
+   navigate its returned project URL immediately.
+3. Continue in the live project workspace. Let PPT Anything show and own each
+   checkpoint: requirements/clarifying questions, research progress, editable
+   outline confirmation, visual-inspiration or style selection, and rendering.
+   Answer or manipulate each step in the Browser; when a choice materially
+   changes the result and the user's prompt does not resolve it, leave that
+   checkpoint visible and ask the user.
+4. During research and rendering, keep the project workspace visible so the
+   user sees progress and can steer. Do not leave Codex showing only a generic
+   "working" message while a hidden tool completes the whole deck.
+5. After rendering, inspect the deck in the same Browser workspace. Use its
+   agent composer, slide controls, mark mode, Play, Design Files, and brand
+   system for follow-up work. Export only after visual review.
+
+Do not call `deep_research`, `create_outline`, `rank_inspiration`,
+`render_deck`, or `create_deck` before opening the Browser for a normal deck
+request. Do not default to `create_deck`; it is the explicit unattended fast
+path. A user's request such as "make a six-slide deck and show me" still uses
+the Browser-first guided flow unless they specifically ask Codex to finish it
+in the background without checkpoints.
 
 ## Choose a transport
 
@@ -42,9 +75,17 @@ auditing a newly added product feature or changing the Browser/CLI/MCP contract.
   `materialIds` and `materialContexts` (`id`, `name`, `role`). Required slots
   must be satisfied before creation. Keep content sources, datasets, brand
   assets, templates, and visual references in their declared roles.
-- Use `create` / `create_deck` for the fast path from topic to rendered deck.
-- Use the staged path when review matters: `onboard`, optional `research`,
-  `outline`, optional `revise-outline` and `inspiration`, then `render`.
+- Use the Browser-first guided flow above by default. The Browser UI drives the
+  staged `clarify -> outline -> inspire -> deck` state and persists the project
+  before expensive work starts.
+- Use `start-project` / `start_project` only when Codex needs a deterministic
+  fallback to create the same durable project shell before returning to the UI.
+- Use `create` / `create_deck` only when the user explicitly requests an
+  unattended one-call result or the current Codex surface has no Browser.
+- The lower-level `onboard`, `research`, `outline`, `revise-outline`,
+  `inspiration`, and `render` operations are for CLI automation, recovery, and
+  deterministic mutations. Keep the corresponding Browser project open when
+  using them interactively.
 - Preserve the Markdown research brief and its source links. Do not call a
   brief source-backed when it contains no source links.
 - Upload logos, screenshots, PDFs, or other references with `upload-material`
@@ -92,10 +133,10 @@ named and multiple projects exist, inspect the recent list before choosing.
 
 ## Open and verify in Codex Browser
 
-After creation or any visual mutation, run `open` / `open_ppt_anything` with the
-project id. Navigate the returned `url` or resource link in Codex's in-editor
-Browser and inspect the visible result. Do not stop after printing the URL when
-the Browser capability is available.
+Open the Browser **before** creating a new deck and keep it open throughout the
+workflow. After any programmatic mutation, navigate or reload the project URL
+and inspect the visible result. Do not stop after printing the URL when the
+Browser capability is available.
 
 Use Browser view `scenarios` for the workflow catalog, `design-files` for the
 file workspace, and `brand-system` for the visual-system editor. Use the normal

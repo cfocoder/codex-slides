@@ -17,10 +17,17 @@ This specialized skill remains for compatibility. The canonical
    files, or `view:"brand-system"` plus `projectId` for the brand editor.
 2. Navigate the returned resource link in the Codex in-editor Browser. Do not
    stop after printing the URL and do not ask the user to open it manually.
-3. Keep the Browser visible and operate the requested UI flow. Use direct MCP
-   MCP tools or the canonical skill CLI for deterministic data mutations, then
-   reload or inspect the Browser result.
-4. Verify the visible outcome before reporting completion.
+3. For a new deck, always open and verify the home/create screen before any
+   research, outline, or rendering call. Submit the topic in that UI so it
+   creates a durable project and opens the guided workspace. Use
+   `start_project` / CLI `start-project` only if UI submission needs a
+   deterministic fallback, then navigate its project resource immediately.
+4. Keep the Browser visible and operate the checkpoints in order: clarify,
+   outline review, inspiration/style selection, render, deck review. Do not run
+   the entire workflow invisibly in the Codex conversation.
+5. Use direct MCP tools or the canonical skill CLI for deterministic recovery
+   and mutations, then reload or inspect the Browser result.
+6. Verify the visible outcome before reporting completion.
 
 Use the Browser for scenario/slot selection, `@` Design File references, brand
 system editing, Play/presentation mode, slide navigation, direct on-canvas

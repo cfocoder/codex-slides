@@ -26,6 +26,7 @@ const manifest = JSON.parse(
 
 const CAPABILITIES = [
   ["Open and operate the full workspace", "open_ppt_anything", "Browser"],
+  ["Start a durable guided project before generation", "start_project", "MCP + Browser"],
   ["Discover every Codex-callable workflow", "get_capabilities", "MCP"],
   ["Generate topic-specific onboarding questions", "get_onboarding_questions", "MCP"],
   ["Run source-backed deep research", "deep_research", "MCP"],
@@ -61,9 +62,11 @@ const server = new McpServer(
   {
     instructions: [
       "PPT Anything is a Codex-native presentation workspace backed by a local web app.",
-      "When a user asks to open, launch, preview, view, play, or interact with PPT Anything, call open_ppt_anything and then immediately navigate the returned resource link in the Codex in-editor Browser. Do not merely print the URL or ask the user to open it manually.",
-      "Use MCP tools for deterministic deck mutations. Keep the Browser open for visual inspection, direct manipulation, presentation mode, and final verification.",
-      "For multi-step creation, prefer create_outline -> revise_outline/rank_inspiration -> render_deck. Use create_deck for a one-call result.",
+      "For every normal new-deck request, call open_ppt_anything without a project id first, immediately navigate the returned resource link in the Codex in-editor Browser, verify the home/create screen, and keep that Browser visible for the entire workflow.",
+      "Submit the topic and sources through the Browser UI so PPT Anything creates a durable project and owns the clarify, outline, inspiration, render, and review checkpoints. If UI submission is unreliable, use start_project only as a deterministic fallback and immediately navigate its returned project link.",
+      "Do not run research, outline generation, inspiration ranking, rendering, or complete-deck creation invisibly before opening the Browser. Do not leave the user watching only a Codex working message while a hidden end-to-end call runs.",
+      "Use MCP tools for deterministic recovery and deck mutations while keeping the Browser project open for progress, confirmation, direct manipulation, presentation mode, and verification.",
+      "Use create_deck only when the user explicitly asks for a headless, unattended, one-call result or the current Codex surface has no Browser.",
       "Use list_scenarios before scenario-led work, preserve required source-slot roles in materialContexts, and pass scenarioId through onboarding, research, and creation.",
       "Use list/read/write/upload Design File tools for the project file workspace; pass designFilePaths to outline or deck edits when those files are evidence.",
       "Use get_brand_design_system before update_brand_design_system. Brand updates are always-on project context; redraw existing slides only when requested.",
@@ -157,6 +160,12 @@ function browserUrl(projectId, { view, filePath, scenarioId } = {}) {
   if (view && view !== "workspace") url.searchParams.set("view", view);
   if (filePath) url.searchParams.set("file", filePath);
   if (scenarioId) url.searchParams.set("scenario", scenarioId);
+  return url.toString();
+}
+
+function interactiveProjectUrl(projectId) {
+  const url = new URL(BASE);
+  url.searchParams.set("resume", projectId);
   return url.toString();
 }
 
@@ -492,10 +501,46 @@ function deckRequest(args, researchDoc) {
 }
 
 register(
+  "start_project",
+  {
+    title: "Start an interactive PPT Anything project",
+    description: "Create only the durable project shell at the clarification stage and return its live Browser workspace. This is the deterministic fallback after opening the PPT Anything home screen; it does not research, outline, choose a style, or render slides.",
+    inputSchema: {
+      ...deckConfigShape,
+      title: z.string().optional().describe("Optional project title; defaults to the first line of the topic."),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+  },
+  async (args, extra) => {
+    const project = await postJson("/api/projects", {
+      title: args.title,
+      config: deckRequest(args, args.researchDoc),
+    }, extra.signal);
+    const uri = interactiveProjectUrl(project.id);
+    return ok(
+      `Started “${project.title}” at the clarification checkpoint. Navigate this resource now and continue every confirmation step in the Codex Browser.`,
+      {
+        projectId: project.id,
+        title: project.title,
+        workflowStage: project.workflow?.stage || "clarify",
+        url: uri,
+        browserAction: "navigate",
+        interactionMode: "browser-guided",
+      },
+      [{
+        uri,
+        name: "Continue project in PPT Anything",
+        description: "Open the live clarification workspace and continue the guided deck workflow.",
+      }],
+    );
+  },
+);
+
+register(
   "create_deck",
   {
-    title: "Create and render a complete deck",
-    description: "Generate a complete image-native deck. Returns a project resource link that should be opened in the Codex Browser.",
+    title: "Create a complete deck unattended",
+    description: "Explicit headless fast path: research as requested, generate the outline, and render the complete deck without interactive Browser checkpoints. Do not use for a normal creation request; open the Browser and use its guided project workflow instead.",
     inputSchema: deckConfigShape,
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   },

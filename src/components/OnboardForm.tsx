@@ -77,6 +77,19 @@ export default function OnboardForm({
   }, [onStateChange]);
 
   useEffect(() => {
+    setAnswers((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const question of questions) {
+        if (question.id in next) continue;
+        next[question.id] = question.type === "multi" ? [] : question.recommended ?? "";
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [questions]);
+
+  useEffect(() => {
     onStateChangeRef.current?.({
       answers,
       custom,

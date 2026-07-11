@@ -10,7 +10,11 @@ The canonical `ppt-anything` sibling skill owns the complete workflow. Use
 `../ppt-anything/scripts/ppt-anything.mjs`. Preserve its Markdown and citations
 so the user can review or edit the evidence before slide generation.
 
-For the staged workflow:
+For the default interactive workflow, first open the PPT Anything home screen
+in the Codex Browser, submit the research request there, and keep the created
+project visible while its research, outline, style, and render checkpoints
+advance. Use the lower-level sequence below only for CLI automation, recovery,
+or a user-requested headless workflow:
 
 1. If a research workflow fits, call `list_scenarios` / CLI `scenarios` and
    pass the selected `scenarioId` into `deep_research` / CLI `research` with
@@ -22,5 +26,6 @@ For the staged workflow:
 5. Call `open_ppt_anything` / CLI `open` and navigate the returned project
    resource or URL in the in-editor Browser for visual verification.
 
-For a fast path, call `create_deck` with `research: true`. Do not claim a brief
-is source-backed when its returned Markdown has no source links.
+For an explicitly requested unattended fast path, call `create_deck` with
+`research: true`. Do not claim a brief is source-backed when its returned
+Markdown has no source links.

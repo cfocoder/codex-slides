@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import ProjectLoadingShell from "@/components/ProjectLoadingShell";
 import { useI18n } from "@/i18n/I18nProvider";
 import { translate, type UiLocale } from "@/i18n/messages";
@@ -93,23 +93,12 @@ export default function RecentProjects() {
         </div>
       ) : projects.length ? (
         <div className="project-grid" aria-busy={Boolean(openingId)}>
-          {projects.map((project) => (
-            <Link
-              className={`project-card${openingId === project.id ? " is-opening" : ""}`}
-              href={project.workflowStage === "clarify" || project.workflowStage === "outlining"
-                ? `/?resume=${encodeURIComponent(project.id)}`
-                : `/project/${encodeURIComponent(project.id)}`}
-              key={project.id}
-              onClick={(event) => {
-                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                setOpeningId(project.id);
-                if (project.workflowStage === "clarify" || project.workflowStage === "outlining") {
-                  event.preventDefault();
-                  window.location.assign(`/?resume=${encodeURIComponent(project.id)}`);
-                }
-              }}
-              aria-label={t("projects.open", { title: project.title })}
-            >
+          {projects.map((project) => {
+            const resumeOnHome = project.workflowStage === "clarify" || project.workflowStage === "outlining";
+            const href = resumeOnHome
+              ? `/?resume=${encodeURIComponent(project.id)}`
+              : `/project/${encodeURIComponent(project.id)}`;
+            const content = <>
               <div className="project-cover" style={{ aspectRatio: project.aspect.replace(":", " / ") }}>
                 {project.cover ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -129,8 +118,34 @@ export default function RecentProjects() {
                   {relativeTime(project.updatedAt ?? project.createdAt, locale)}
                 </span>
               </div>
-            </Link>
-          ))}
+            </>;
+            const className = `project-card${openingId === project.id ? " is-opening" : ""}`;
+            const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              setOpeningId(project.id);
+            };
+            return resumeOnHome ? (
+              <a
+                className={className}
+                href={href}
+                key={project.id}
+                onClick={onClick}
+                aria-label={t("projects.open", { title: project.title })}
+              >
+                {content}
+              </a>
+            ) : (
+              <Link
+                className={className}
+                href={href}
+                key={project.id}
+                onClick={onClick}
+                aria-label={t("projects.open", { title: project.title })}
+              >
+                {content}
+              </Link>
+            );
+          })}
         </div>
       ) : (
         <div className="project-empty">

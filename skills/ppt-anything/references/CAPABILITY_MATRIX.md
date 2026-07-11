@@ -8,6 +8,7 @@ CLI + MCP operation.
 | Product capability | Codex Browser entry | Skill CLI | MCP tool |
 |---|---|---|---|
 | Open create or project workspace | `open`, view `workspace` | `open` | `open_ppt_anything` |
+| Start durable project before clarification | Home composer or `?resume=<id>` | `start-project` | `start_project` |
 | Browse 24 scenarios in 6 groups | `open`, view `scenarios` | `scenarios` | `list_scenarios` |
 | Preselect a scenario and apply its defaults | `scenarioId` deep link | `create` / `outline` with `scenarioId` | `create_deck` / `create_outline` with `scenarioId` |
 | Generate scenario-aware onboarding | Scenario composer | `onboard` with `scenarioId` | `get_onboarding_questions` with `scenarioId` |
@@ -15,7 +16,8 @@ CLI + MCP operation.
 | Run scenario-aware sourced research | Research UI | `research` with `scenarioId` | `deep_research` with `scenarioId` |
 | Create or revise an outline | Outline workspace | `outline`, `revise-outline` | `create_outline`, `revise_outline` |
 | Rank and choose visual inspiration | Inspiration dialog | `inspiration` | `rank_inspiration` |
-| Render a draft or one-call deck | Live project workspace | `render` / `create` | `render_deck` / `create_deck` |
+| Render a confirmed draft | Live project workspace | `render` | `render_deck` |
+| Explicit unattended one-call deck | Open result after completion | `create` | `create_deck` |
 | List and inspect projects | Home and project workspace | `list` / `get` | `list_projects` / `get_project` |
 | Browse templates | Community/template UI | `templates` | `list_templates` |
 | Open project Design Files | `open`, view `design-files` | `design-files` | `list_design_files` |

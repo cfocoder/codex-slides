@@ -64,7 +64,7 @@ Legend: ✅ done & verified · 🟡 partial · ❌ missing
 | **R1.5** | In-project: **preview / conversational edit / play / upload materials to tune** | ✅ | ✅ preview + per-slide regen + mark; ✅ **chat edit** (`lib/chat.ts` + `/api/projects/[id]/chat` + `ChatEditPanel`); ✅ **Play** fullscreen (`PlayMode`); ✅ **re-tune in workspace** (iter-9): `TemplatePicker` + `MaterialTray` + `PATCH /api/projects/[id]` + "Apply & regenerate all". Verified: chat "第2页更暖"→[2] / "restyle whole deck"→[1,2]; template switch Swiss→Editorial-Ink visibly transformed a slide. |
 | **R2.1** | Codex **daemon** detects codex & integrates (not only standalone web) | ✅ | `mcp/server.mjs` `ensureServer()` auto-builds when needed and auto-boots `next start` (port 4311) if unreachable. `scripts/probe-mcp.mjs` verifies the tool contract. |
 | **R2.2** | Open in Codex **in-editor browser** | ✅ | `open_ppt_anything` returns typed HTML resource links for the normal workspace plus scenario catalog, Design Files, and brand-system deep links; the bundled `ppt-anything-browser` skill requires Codex to navigate them instead of merely printing a URL. |
-| **R2.3** | Operate via Codex directly (MCP tools + skills), fully inside Codex | ✅ | Repo-root plugin structure exposes both a self-contained Agent Skill (`skills/ppt-anything/`, portable CLI, no MCP dependency) and 27 MCP tools. The shared contract now covers 24 scenarios and semantic source slots, Design Files list/read/write/upload plus `@`-equivalent edit context, always-on brand systems, onboarding, research, outline, inspiration, render, edits, slide controls, uploads, mark edit, preview, and export. See `skills/ppt-anything/references/CAPABILITY_MATRIX.md`. |
+| **R2.3** | Operate via Codex directly (MCP tools + skills), fully inside Codex | ✅ | Repo-root plugin structure exposes both a self-contained Agent Skill (`skills/ppt-anything/`, portable CLI, no MCP dependency) and 28 MCP tools. The default contract is Browser-first: open the product, create a durable project shell, then keep clarification, research, outline confirmation, inspiration, render, editing, preview, and export visible and steerable. Headless one-call generation remains opt-in. See `skills/ppt-anything/references/CAPABILITY_MATRIX.md`. |
 | **R4.1** | **Deep-research mode** toggle | ✅ | home checkbox → `ResearchPanel`; `PptConfig.mode`. |
 | **R4.2** | Research → **markdown editor** doc → outline | ✅ | `ResearchPanel` editable markdown brief; `buildOutlinePrompt` takes `researchDoc` as `<research_document>` context; `Project.researchDoc` stored. |
 | **R4.3** | Search via **DuckDuckGo** or codex built-in search | ✅ | **Codex built-in `web_search`** (primary, zero-config) — verified 19 real source URLs. DDG HTML/Lite bot-block servers (HTTP 202); `ddgSearch()` kept as documented fallback. |
@@ -143,7 +143,7 @@ The product is feature-complete per this spec. Remaining loop ticks = **polish +
 4. ✅ **Docs** (iter-8): `web/README.md` rewritten to cover onboarding, research, projects, templates, materials,
    editing, play, export, and the codex plugin.
 
-### (done) M6 — Codex plugin/daemon/in-editor. Repo-root plugin, 27 MCP tools,
+### (done) M6 — Codex plugin/daemon/in-editor. Repo-root plugin, 28 MCP tools,
 ### browser/deck/research skills, scenario/Design Files/brand-system parity, and ensureServer daemon. Verified via MCP probe, production build, API route checks, and Browser resource-link contracts.
 
 ### (done) M5 — Deep research mode + skill. Toggle on home; iterative

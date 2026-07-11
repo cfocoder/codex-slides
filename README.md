@@ -24,8 +24,9 @@ No API key, no `.env` — if you can run `codex`, you can make a deck. Full-TS: 
   right slides; or draw arrows/notes on a slide and send the screenshot back for an assisted edit (cowart-style).
 - **Play** — fullscreen slideshow (←/→/Space/Esc).
 - **Export** — PDF (pdf-lib) and PPTX (pptxgenjs).
-- **Codex-native** — one portable Agent Skill plus 27 MCP tools let Codex do all of the above *inside Codex*,
-  previewing in the in-editor Browser. The Skill works without MCP; both paths share the same local API.
+- **Codex-native and Browser-first** — one portable Agent Skill plus 28 MCP tools open the product before
+  generation, create a durable project, and keep clarification, outline approval, style selection, rendering,
+  and editing visible in the in-editor Browser. The Skill works without MCP; both paths share the same local API.
 
 ## Zero-config, how
 
@@ -54,8 +55,8 @@ This repository is itself the plugin root (`.codex-plugin/plugin.json`,
 start a new Codex conversation, then ask:
 
 ```text
-Open PPT Anything in the Codex Browser.
-Research the 2026 humanoid robot market, build a 6-slide deck, and show me the preview.
+Open PPT Anything in the Codex Browser and keep it visible while we work.
+Create a project for the 2026 humanoid robot market, then guide me through questions, outline review, style selection, and rendering in the Browser.
 Add a summary after slide 5, restyle the deck, and open the result.
 Show the scenario catalog, then use my Design Files and brand system to build the deck.
 ```
@@ -64,20 +65,23 @@ The plugin exposes two complete, equivalent entry points:
 
 - `skills/ppt-anything/` is an [Agent Skills](https://agentskills.io/specification)-style, self-contained skill.
   Its Node CLI uses only the local HTTP API and works even when MCP is unavailable.
-- `mcp/server.mjs` exposes 27 typed MCP tools for structured discovery and calls.
+- `mcp/server.mjs` exposes 28 typed MCP tools for structured discovery and calls.
 
 The portable Skill can be invoked directly:
 
 ```bash
 node skills/ppt-anything/scripts/ppt-anything.mjs capabilities
 node skills/ppt-anything/scripts/ppt-anything.mjs open
+node skills/ppt-anything/scripts/ppt-anything.mjs start-project \
+  --json '{"topic":"2026 humanoid robot market","pages":6,"research":true}'
+# Explicit unattended/headless fast path only:
 node skills/ppt-anything/scripts/ppt-anything.mjs create \
   --json '{"topic":"2026 humanoid robot market","pages":6,"research":true}'
 ```
 
-The 27 MCP tools cover the same complete product chain:
+The 28 MCP tools cover the same complete product chain:
 
-- open/discover: `open_ppt_anything`, `get_capabilities`, `list_projects`, `get_project`, `list_templates`
+- open/discover: `open_ppt_anything`, `start_project`, `get_capabilities`, `list_projects`, `get_project`, `list_templates`
 - scenarios/context: `list_scenarios`, `list_design_files`, `read_design_file`, `write_design_file`, `upload_design_file`
 - brand system: `get_brand_design_system`, `update_brand_design_system`
 - plan/research: `get_onboarding_questions`, `deep_research`, `create_outline`, `revise_outline`, `rank_inspiration`
@@ -114,7 +118,7 @@ src/lib/
 src/app/          home · /project/[id] · api/{agents,generate,research,onboard,materials,templates,projects/*}
 src/components/   OnboardForm · ResearchPanel · TemplatePicker · MaterialTray · DeckView · ChatEditPanel · PlayMode · MarkCanvas
 .codex-plugin/    installable Codex plugin manifest
-.mcp.json + mcp/  27-tool MCP server + auto-start bridge
+.mcp.json + mcp/  28-tool MCP server + auto-start bridge
 skills/           canonical Agent Skill + compatibility browser/deck/research entries
 scripts/          portable Skill CLI/probe + cache-safe MCP launcher/probe
 SPEC.md           living plan/spec + requirement matrix (source of truth)

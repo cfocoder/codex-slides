@@ -138,7 +138,7 @@ export default function Home() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const checkpointTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestCheckpointRef = useRef<ProjectCheckpointPatch | null>(null);
-  const resumeAttempted = useRef(false);
+  const creatingProjectRef = useRef(false);
   const markRunRef = useRef<{ id: string; startedAt: number; slideIndex: number } | null>(null);
 
   useEffect(() => {
@@ -287,8 +287,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (resumeAttempted.current) return;
-    resumeAttempted.current = true;
     const resumeId = new URLSearchParams(window.location.search).get("resume")?.trim();
     if (!resumeId) return;
     let cancelled = false;
@@ -372,12 +370,13 @@ export default function Home() {
     contextOptions: ContextOptionItem[],
     materialContexts: Array<{ id: string; name: string; role: string }> = [],
   ) {
-    if (running || busy || clarifyBusy) return;
+    if (running || busy || clarifyBusy || creatingProjectRef.current) return;
     if (!config.requirement.trim() && !materials.length) return;
     const cfg = config.requirement.trim()
       ? { ...config, materialContexts }
       : { ...config, requirement: t("flow.attachedRequirement"), materialContexts };
-    beginClarify(cfg, contextOptions);
+    creatingProjectRef.current = true;
+    void beginClarify(cfg, contextOptions);
   }
 
   async function beginClarify(cfg: PptConfig, contextOptions: ContextOptionItem[]) {
@@ -420,6 +419,8 @@ export default function Home() {
     } catch (error: any) {
       say({ role: "assistant", content: `⚠ ${error?.message ?? error}` });
       setClarifyBusy(false);
+    } finally {
+      creatingProjectRef.current = false;
     }
   }
 

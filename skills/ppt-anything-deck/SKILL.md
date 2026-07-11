@@ -12,12 +12,21 @@ in the in-editor Browser whenever visual review helps.
 
 ## Choose the flow
 
+- Default to the live Browser workflow: open the PPT Anything home screen,
+  submit the request there, then operate the created project through clarify,
+  outline confirmation, style selection, rendering, and review. Keep the
+  Browser visible throughout.
+- If Browser UI submission fails, use `start_project` / CLI `start-project` to
+  create the durable project shell, immediately open its returned URL, and
+  continue in the UI.
+
 - Use `list_scenarios` / CLI `scenarios` when a named workflow such as business
   report, document-to-deck, data insights, brand application, localization, or
   batch generation fits. Upload required slot files and pass `scenarioId`,
   `materialIds`, and `materialContexts` into creation.
-- For a fast one-call result, call `create_deck` or CLI command `create`.
-- For a reviewable workflow, call `create_outline`, optionally
+- Only when the user explicitly requests an unattended/headless one-call
+  result, call `create_deck` or CLI command `create`.
+- For CLI automation or recovery, call `create_outline`, optionally
   `revise_outline` and `rank_inspiration`, then `render_deck`; the CLI commands
   are `outline`, `revise-outline`, `inspiration`, and `render`.
 - For an existing deck, use `list_projects` or `get_project`, then choose the
@@ -42,10 +51,10 @@ in the in-editor Browser whenever visual review helps.
 
 ## Show and verify
 
-After a creation or visual mutation, call `open_ppt_anything` or CLI command
-`open` with the project id and navigate its resource link or URL in the Codex
-in-editor Browser. Inspect the changed slide or flow there; do not make the
-user open the URL manually.
+Open `open_ppt_anything` / CLI `open` before a new creation and keep the live
+workspace visible. After a programmatic mutation, navigate or reload its
+resource link and inspect the changed slide or flow; do not make the user open
+the URL manually.
 
 Use `export_deck` only after the requested visual result is ready. Browser-only
 controls such as fullscreen Play, slide navigation, and direct on-canvas

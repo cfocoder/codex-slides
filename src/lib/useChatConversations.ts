@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { ChatMsg } from "@/components/ChatColumn";
+import type { GlobalTodoItem } from "@/lib/agentActivity";
 import type { StoredConversation } from "@/lib/types";
 
 export interface ChatConversation {
@@ -10,6 +11,8 @@ export interface ChatConversation {
   createdAt: number;
   updatedAt: number;
   messages: ChatMsg[];
+  /** Project-wide checklist that persists across turns in this conversation. */
+  todos: GlobalTodoItem[];
 }
 
 export interface ConversationSummary {
@@ -60,6 +63,7 @@ function makeConversation(messages: ChatMsg[], title: string): ChatConversation 
     createdAt: now,
     updatedAt: now,
     messages: stampMessages(messages, [], now),
+    todos: [],
   };
 }
 
