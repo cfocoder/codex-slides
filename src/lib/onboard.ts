@@ -5,6 +5,7 @@
 import { codexJson } from "./codex-text";
 import { CATEGORIES } from "./templates";
 import type { UiLocale } from "@/i18n/messages";
+import { scenarioPromptContext } from "./scenarios";
 
 export type QuestionType = "single" | "multi" | "text" | "number";
 export type ConfigField = "pages" | "aspect" | "language" | "style" | "category" | null;
@@ -23,12 +24,17 @@ export interface QuestionSpec {
   field?: ConfigField; // maps to a config field, or null = content preference
 }
 
-export function buildOnboardPrompt(requirement: string, uiLocale: UiLocale = "zh-CN"): string {
+export function buildOnboardPrompt(
+  requirement: string,
+  uiLocale: UiLocale = "zh-CN",
+  scenarioId?: string,
+): string {
   const cats = CATEGORIES.map((c) => `${c.id} (${c.labelEn})`).join(", ");
   const responseLanguage = uiLocale === "zh-CN" ? "Simplified Chinese" : "English";
   return [
     "You are an onboarding assistant for an AI slide-deck generator.",
     "Given the user's topic, produce 4-6 SHORT clarifying questions that will make the deck much better.",
+    scenarioPromptContext(scenarioId),
     "",
     "Return ONLY a JSON array of question objects with this shape:",
     `{"id": "kebab-id", "question": "...", "type": "single|multi|text|number", "options": [{"value":"...","label":"..."}], "recommended": "optionValue", "field": "pages|aspect|language|style|category|null"}`,
@@ -41,6 +47,7 @@ export function buildOnboardPrompt(requirement: string, uiLocale: UiLocale = "zh
     "  a visual-style question (field:\"style\", type:\"single\", 3-4 style options TAILORED to the topic, each label a vivid short phrase, value = a concise style descriptor).",
     `- Include ONE category question (field:\"category\", type:\"single\") choosing among: ${cats}. Pick the 3-4 most relevant as options, recommended the best fit.`,
     "- Add 1-2 topic-specific CONTENT questions (field:null) that clarify audience, goal, or emphasis; type single or text.",
+    "- Adapt the content questions to the selected presentation scenario. Ask only what improves that workflow and do not ask the user to repeat information already present in the scenario or attached-source request.",
     "- Keep questions crisp. Options must be mutually exclusive. Every single-type question needs a recommended value.",
     "",
     "User topic:",
@@ -92,7 +99,8 @@ export async function generateOnboardQuestions(
   requirement: string,
   signal?: AbortSignal,
   uiLocale: UiLocale = "zh-CN",
+  scenarioId?: string,
 ): Promise<QuestionSpec[]> {
-  const raw = await codexJson<any>(buildOnboardPrompt(requirement, uiLocale), { signal });
+  const raw = await codexJson<any>(buildOnboardPrompt(requirement, uiLocale, scenarioId), { signal });
   return normalizeQuestions(raw);
 }

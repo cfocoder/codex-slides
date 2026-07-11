@@ -1,6 +1,6 @@
 "use client";
 
-import { Paperclip, Plus } from "@phosphor-icons/react";
+import { Check, Paperclip, Plus, UploadSimple } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import ContextItems from "@/components/ContextItems";
 import ContextOptionItems from "@/components/ContextOptionItems";
@@ -11,6 +11,11 @@ import {
   type ContextItem,
 } from "@/lib/contextItems";
 import { shouldSubmitTextarea } from "@/lib/keyboard";
+import {
+  scenarioText,
+  type PresentationScenario,
+  type ScenarioInputSlot,
+} from "@/lib/scenarios";
 import type { ContextOptionItem, PptConfig } from "@/lib/types";
 import { useI18n } from "@/i18n/I18nProvider";
 
@@ -53,6 +58,18 @@ function useOutside(ref: React.RefObject<HTMLElement>, close: () => void, active
   }, [ref, close, active]);
 }
 
+function matchesScenarioSlot(item: ContextItem, slot: ScenarioInputSlot): boolean {
+  const name = item.name.toLocaleLowerCase();
+  const mime = item.mimeType.toLocaleLowerCase();
+  return slot.accept.split(",").some((raw) => {
+    const token = raw.trim().toLocaleLowerCase();
+    if (!token) return false;
+    if (token.startsWith(".")) return name.endsWith(token);
+    if (token.endsWith("/*")) return mime.startsWith(token.slice(0, -1));
+    return mime === token;
+  });
+}
+
 /** Agent-native launcher input: textarea + toolbar (add / model / settings / send). */
 export default function Composer({
   config,
@@ -66,6 +83,8 @@ export default function Composer({
   onRemoveMaterial,
   styleTemplate,
   onClearStyle,
+  scenario,
+  onClearScenario,
   onSubmit,
 }: {
   config: PptConfig;
@@ -80,16 +99,24 @@ export default function Composer({
   /** Currently chosen deck style (from Community / For you), shown as a chip. */
   styleTemplate?: { id: string; name: string; cover?: string; palette?: string[]; sub?: string } | null;
   onClearStyle?: () => void;
-  onSubmit: (contextOptions: ContextOptionItem[]) => void;
+  scenario?: PresentationScenario | null;
+  onClearScenario?: () => void;
+  onSubmit: (
+    contextOptions: ContextOptionItem[],
+    materialContexts: Array<{ id: string; name: string; role: string }>,
+  ) => void;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [focus, setFocus] = useState(false);
   const [menu, setMenu] = useState<null | "add" | "model" | "settings">(null);
   const [quality, setQuality] = useState<QualityId>("auto");
   const [aspectSel, setAspectSel] = useState<PptConfig["aspect"] | "auto">("auto");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [slotAssignments, setSlotAssignments] = useState<Record<string, string[]>>({});
   const fileRef = useRef<HTMLInputElement>(null);
+  const slotFileRef = useRef<HTMLInputElement>(null);
+  const activeSlotRef = useRef<string | null>(null);
   const addRef = useRef<HTMLDivElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
   const setRef = useRef<HTMLDivElement>(null);
@@ -103,18 +130,54 @@ export default function Composer({
   const qualityLabel = t(QUALITY_KEYS[quality]);
   const aspectLabel = aspectSel === "auto" ? t("composer.auto") : aspectSel;
 
-  async function addFiles(files: Iterable<File>) {
+  useEffect(() => setSlotAssignments({}), [scenario?.id]);
+
+  useEffect(() => {
+    setSlotAssignments((current) => {
+      if (!scenario) return {};
+      const materialIds = new Set(materials.map((item) => item.id));
+      const next: Record<string, string[]> = {};
+      for (const [slotId, ids] of Object.entries(current)) {
+        const kept = ids.filter((id) => materialIds.has(id));
+        if (kept.length) next[slotId] = kept;
+      }
+      const assigned = new Set(Object.values(next).flat());
+      for (const item of materials) {
+        if (assigned.has(item.id)) continue;
+        const target = scenario.slots.find((candidate) =>
+          candidate.required && !next[candidate.id]?.length && matchesScenarioSlot(item, candidate),
+        );
+        if (!target) continue;
+        next[target.id] = [...(next[target.id] ?? []), item.id];
+        assigned.add(item.id);
+      }
+      return next;
+    });
+  }, [materials, scenario]);
+
+  async function addFiles(files: Iterable<File>, slotId?: string | null) {
     const selected = Array.from(files);
     if (!selected.length) return;
     setUploading(true);
     setUploadError("");
     const result = await uploadContextItems(selected);
-    if (result.items.length) onAddItems(mergeContextItems(materials, result.items));
+    if (result.items.length) {
+      onAddItems(mergeContextItems(materials, result.items));
+      if (slotId) {
+        setSlotAssignments((current) => ({
+          ...current,
+          [slotId]: [...new Set([...(current[slotId] ?? []), ...result.items.map((item) => item.id)])],
+        }));
+      }
+    }
     if (result.errors.length) setUploadError(result.errors.join(" · "));
     setUploading(false);
   }
 
   const contextOptions: ContextOptionItem[] = [
+    ...(scenario
+      ? [{ id: "scenario", kind: "scenario" as const, label: t("scenario.context"), value: scenarioText(scenario.name, locale) }]
+      : []),
     ...(researchMode
       ? [{ id: "research", kind: "research" as const, label: t("composer.research") }]
       : []),
@@ -133,7 +196,8 @@ export default function Composer({
   ];
 
   function removeContextOption(id: string) {
-    if (id === "research") setResearchMode(false);
+    if (id === "scenario") onClearScenario?.();
+    else if (id === "research") setResearchMode(false);
     else if (id === "fast") setConfig({ fast: false });
     else if (id === "style") onClearStyle?.();
     else if (id === "quality") {
@@ -145,9 +209,88 @@ export default function Composer({
     }
   }
 
+  const missingRequiredSlots = scenario?.slots.filter((slot) =>
+    slot.required && !slotAssignments[slot.id]?.some((id) => materials.some((item) => item.id === id)),
+  ) ?? [];
+  const submitDisabled = running || uploading || missingRequiredSlots.length > 0 || (!config.requirement.trim() && !materials.length);
+
+  function submitComposer() {
+    if (submitDisabled) return;
+    const materialContexts = scenario
+      ? scenario.slots.flatMap((slot) =>
+          (slotAssignments[slot.id] ?? []).flatMap((id) => {
+            const item = materials.find((candidate) => candidate.id === id);
+            return item ? [{ id: item.id, name: item.name, role: slot.label.en }] : [];
+          }),
+        )
+      : [];
+    onSubmit(contextOptions, materialContexts);
+  }
+
+  function openScenarioSlot(slot: ScenarioInputSlot) {
+    const input = slotFileRef.current;
+    if (!input) return;
+    activeSlotRef.current = slot.id;
+    input.accept = slot.accept;
+    input.multiple = slot.multiple !== false;
+    input.click();
+  }
+
   return (
     <div className={`composer${focus ? " focus" : ""}`}>
       <ContextOptionItems items={contextOptions} onRemove={removeContextOption} />
+      {scenario && (
+        <div className="scenario-composer-context">
+          <div className="scenario-context-output">
+            <span>{t("scenario.expectedOutput")}</span>
+            <strong>{scenarioText(scenario.output, locale)}</strong>
+          </div>
+          {scenario.slots.length > 0 && (
+            <div className="scenario-context-materials">
+              <span className="scenario-context-label">{t("scenario.suggestedMaterial")}</span>
+              <div className="scenario-context-slots">
+                {scenario.slots.map((slot) => {
+                  const count = (slotAssignments[slot.id] ?? []).filter((id) => materials.some((item) => item.id === id)).length;
+                  return (
+                    <button
+                      type="button"
+                      key={slot.id}
+                      className={`scenario-context-slot${count ? " added" : ""}${slot.required && !count ? " required" : ""}`}
+                      onClick={() => openScenarioSlot(slot)}
+                      title={scenarioText(slot.detail, locale)}
+                      aria-label={t("scenario.addMaterial", { name: scenarioText(slot.label, locale) })}
+                    >
+                      <span className="scenario-slot-icon" aria-hidden="true">
+                        {count ? <Check size={13} weight="bold" /> : <UploadSimple size={14} />}
+                      </span>
+                      <span className="scenario-slot-copy">
+                        <strong>{scenarioText(slot.label, locale)}</strong>
+                        <small>{count ? `${t("scenario.added")}${count > 1 ? ` · ${count}` : ""}` : scenarioText(slot.detail, locale)}</small>
+                      </span>
+                      <em>{slot.required ? t("scenario.required") : t("scenario.optional")}</em>
+                    </button>
+                  );
+                })}
+              </div>
+              {missingRequiredSlots.length > 0 && (
+                <div className="scenario-context-missing" role="status">
+                  {t("scenario.missingMaterial")} {missingRequiredSlots.map((slot) => scenarioText(slot.label, locale)).join(" · ")}
+                </div>
+              )}
+            </div>
+          )}
+          <input
+            ref={slotFileRef}
+            type="file"
+            hidden
+            onChange={(event) => {
+              void addFiles(Array.from(event.target.files ?? []), activeSlotRef.current);
+              event.target.value = "";
+              activeSlotRef.current = null;
+            }}
+          />
+        </div>
+      )}
       {materials.length > 0 && (
         <ContextItems items={materials} onRemove={onRemoveMaterial} scrollable />
       )}
@@ -155,7 +298,7 @@ export default function Composer({
 
       <textarea
         rows={1}
-        placeholder={t("composer.placeholder")}
+        placeholder={scenario ? scenarioText(scenario.starter, locale) : t("composer.placeholder")}
         value={config.requirement}
         onFocus={() => setFocus(true)}
         onBlur={() => setFocus(false)}
@@ -179,7 +322,7 @@ export default function Composer({
             keyCode: e.nativeEvent.keyCode,
           })) {
             e.preventDefault();
-            onSubmit(contextOptions);
+            submitComposer();
           }
         }}
       />
@@ -339,9 +482,9 @@ export default function Composer({
         </button>
         <button
           className="send-btn"
-          title={t("composer.generateHint")}
-          disabled={running || uploading || (!config.requirement.trim() && !materials.length)}
-          onClick={() => onSubmit(contextOptions)}
+          disabled={submitDisabled}
+          onClick={submitComposer}
+          title={missingRequiredSlots.length ? t("scenario.missingMaterial") : t("composer.generateHint")}
         >
           {running || uploading ? "…" : "↑"}
         </button>

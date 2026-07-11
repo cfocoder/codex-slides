@@ -1,7 +1,7 @@
 {
   "name": "ppt-anything",
-  "version": "0.2.0+codex.20260711000049",
-  "description": "Create, research, edit, present, and export image-native slide decks from Codex with a live in-editor Browser workspace.",
+  "version": "0.3.0+codex.20260711",
+  "description": "Create, research, edit, and export image-native slide decks from Codex with scenario workflows, Design Files, brand systems, and a live in-editor Browser workspace.",
   "author": {
     "name": "PPT Anything"
   },
@@ -10,20 +10,29 @@
     "slides",
     "image-generation",
     "research",
-    "browser"
+    "browser",
+    "scenarios",
+    "design-files",
+    "brand-system"
   ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "PPT Anything",
-    "shortDescription": "Build and edit complete slide decks inside Codex.",
-    "longDescription": "PPT Anything gives Codex the full presentation workflow through both a portable Agent Skill and 20 typed MCP tools: research, onboarding, outline creation, visual inspiration, image-native slide generation, conversational and mark-based editing, slide structure controls, restyling, live Browser preview, presenting, and PDF/PPTX export.",
+    "shortDescription": "Operate complete, scenario- and brand-aware slide workflows in Codex.",
+    "longDescription": "PPT Anything gives Codex the full presentation workflow through both a portable Agent Skill and 27 typed MCP tools: 24 scenario presets with semantic source slots, research and onboarding, outline creation, project Design Files, always-on brand design systems, visual inspiration, image-native slide generation, conversational and mark-based editing, slide structure controls, live Browser preview, presenting, and PDF/PPTX export.",
     "developerName": "PPT Anything",
     "category": "Productivity",
     "capabilities": [
       "In-editor Browser workspace",
       "Portable Agent Skill CLI",
-      "20 typed MCP tools",
+      "27 typed MCP tools",
+      "24 scenario workflows",
+      "Project Design Files",
+      "Design File @ references",
+      "Structured agent tool activity",
+      "Always-on brand design systems",
+      "Semantic source-file roles",
       "AI slide generation",
       "Deep research and outlines",
       "Conversational and mark editing",
@@ -33,6 +42,8 @@
     "brandColor": "#6D5EF8",
     "defaultPrompt": [
       "Open PPT Anything in the Codex Browser.",
+      "Show me the scenario catalog and use the best workflow for my source files.",
+      "Open this deck's Design Files or brand design system and update it.",
       "Research this topic, build a deck, and open the live preview.",
       "Edit my latest deck and show the result in the Browser."
     ]

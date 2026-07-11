@@ -2,7 +2,8 @@
 // Keeps per-slide editing ("逐页编辑") in one place so both surfaces behave the same.
 
 import type { ContextItem } from "@/lib/contextItems";
-import type { OutlinePage, PptConfig, ProgressEvent, SlideTransition } from "@/lib/types";
+import type { AgentToolCall } from "@/lib/agentActivity";
+import type { DesignFileReference, OutlinePage, PptConfig, ProgressEvent, SlideTransition } from "@/lib/types";
 
 export interface UiSlide {
   index: number;
@@ -196,11 +197,12 @@ export async function saveConversations(
 export async function reviseOutlineChat(
   projectId: string,
   message: string,
+  designFiles: DesignFileReference[] = [],
 ): Promise<{ pages: OutlinePage[]; reply: string }> {
   const r = await fetch(`/api/projects/${projectId}/outline`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, designFilePaths: designFiles.map((file) => file.path) }),
   });
   const d = await r.json();
   if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
@@ -360,6 +362,7 @@ export interface ChatPlan {
   afterIndex?: number;
   title?: string;
   instruction: string;
+  activities?: AgentToolCall[];
 }
 
 export interface SlideChatContext {
@@ -372,6 +375,7 @@ export interface ChatRequest {
   message: string;
   context?: SlideChatContext;
   attachments?: ContextItem[];
+  designFiles?: DesignFileReference[];
 }
 
 /** Ask the agent to turn an NL edit into a plan (which slides + how). */
@@ -380,6 +384,7 @@ export async function planChatEdit(
   message: string,
   context?: SlideChatContext,
   attachments: ContextItem[] = [],
+  designFiles: DesignFileReference[] = [],
 ): Promise<ChatPlan> {
   const r = await fetch(`/api/projects/${projectId}/chat`, {
     method: "POST",
@@ -388,6 +393,7 @@ export async function planChatEdit(
       message,
       context,
       attachmentIds: attachments.map((item) => item.id),
+      designFilePaths: designFiles.map((file) => file.path),
     }),
   });
   const d = await r.json();

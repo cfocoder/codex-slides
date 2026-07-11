@@ -144,7 +144,7 @@ export function normalizeDeckDesignSystem(
       tagline: cleanText(brand.tagline, seed.brand.tagline, 240),
       voice: cleanText(brand.voice, seed.brand.voice, 500),
       logoUsage: cleanText(brand.logoUsage, seed.brand.logoUsage, 500),
-      assetMaterialIds: Array.from(new Set(
+      assetMaterialIds: Array.from(new Set<string>(
         (Array.isArray(brand.assetMaterialIds) ? brand.assetMaterialIds : [])
           .map((id: unknown) => String(id))
           .filter((id: string) => MATERIAL_ID_RE.test(id)),
@@ -189,6 +189,29 @@ export function normalizeDeckDesignSystem(
       pill: cleanNumber(radius.pill, seed.radius.pill, 0, 999),
     },
   };
+}
+
+/** Merge a partial Codex/UI patch without resetting untouched design-system sections. */
+export function mergeDeckDesignSystem(
+  current: DeckDesignSystem | undefined,
+  patch: unknown,
+  seedInput: DesignSystemSeedInput = {},
+): DeckDesignSystem {
+  const base = current
+    ? normalizeDeckDesignSystem(current, seedInput)
+    : createDeckDesignSystemSeed(seedInput);
+  const next = patch && typeof patch === "object" ? patch as any : {};
+  return normalizeDeckDesignSystem({
+    ...base,
+    ...next,
+    brand: { ...base.brand, ...(next.brand && typeof next.brand === "object" ? next.brand : {}) },
+    style: { ...base.style, ...(next.style && typeof next.style === "object" ? next.style : {}) },
+    colors: { ...base.colors, ...(next.colors && typeof next.colors === "object" ? next.colors : {}) },
+    typography: { ...base.typography, ...(next.typography && typeof next.typography === "object" ? next.typography : {}) },
+    effects: { ...base.effects, ...(next.effects && typeof next.effects === "object" ? next.effects : {}) },
+    spacing: { ...base.spacing, ...(next.spacing && typeof next.spacing === "object" ? next.spacing : {}) },
+    radius: { ...base.radius, ...(next.radius && typeof next.radius === "object" ? next.radius : {}) },
+  }, seedInput);
 }
 
 /** Serialize the project system once and inject the same block into every agent path. */

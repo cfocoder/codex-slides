@@ -8,6 +8,7 @@ import type { Language, OutlinePage, PptConfig, Project, SlidePage } from "./typ
 import { buildDeckDesignSystemContext } from "./designSystem";
 import { getTemplate, styleBlockFor } from "./templates";
 import { getCommunityTemplate, communityStyleBlock } from "./community";
+import { materialRolePrompt, scenarioPromptContext } from "./scenarios";
 
 function langInstruction(language: Language): string {
   switch (language) {
@@ -35,6 +36,8 @@ export function buildOutlinePrompt(config: PptConfig): string {
     "",
     `Produce about ${pages} slides (the first is a cover/title slide).`,
     "Each slide has a short title and 2-4 concise key points.",
+    scenarioPromptContext(config.scenarioId),
+    materialRolePrompt(config.materialContexts),
     style ? `Overall style / tone to keep in mind: ${style}.` : "",
     designSystemContext,
     researchDoc
@@ -63,6 +66,8 @@ export function buildOutlineRevisePrompt(project: Project, instruction: string):
   return [
     "You are editing the OUTLINE of a slide deck before any slides are drawn.",
     `Deck topic: ${project.title}.`,
+    scenarioPromptContext(project.config.scenarioId),
+    materialRolePrompt(project.config.materialContexts),
     buildDeckDesignSystemContext(project.config.designSystem),
     "",
     "Current outline:",
@@ -114,7 +119,12 @@ export function buildPageDescriptionPrompt(
     "",
     `This is slide ${index} of ${total}. Title: "${page.title}".`,
     page.points?.length ? `Key points: ${page.points.join("; ")}.` : "",
+    scenarioPromptContext(config.scenarioId),
+    materialRolePrompt(config.materialContexts),
     buildDeckDesignSystemContext(config.designSystem),
+    config.researchDoc
+      ? `Use this research brief to verify the page's facts and source labels. When a slide makes a substantive researched claim, keep a compact source name, year, or URL in the on-slide copy instead of dropping attribution:\n<research_document>\n${config.researchDoc.slice(0, 7000)}\n</research_document>`
+      : "",
     config.materialIds?.length
       ? "Use the attached context items as source material. Preserve relevant facts, wording, brand assets, and visual evidence faithfully."
       : "",
@@ -181,6 +191,8 @@ export function buildImagePrompt(
     "",
     styleBlock,
     designSystemContext,
+    scenarioPromptContext(config.scenarioId),
+    materialRolePrompt(config.materialContexts),
     "",
     "<design_guidelines>",
     `- Canvas is a single slide at a strict ${aspect} aspect ratio, 4K resolution.`,

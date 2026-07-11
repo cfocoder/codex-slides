@@ -16,18 +16,25 @@ object. Success responses contain `"ok": true`; failures contain
 | CLI command | MCP tool | Important input |
 |---|---|---|
 | `capabilities` | `get_capabilities` | none |
-| `open` | `open_ppt_anything` | optional `projectId` |
-| `onboard` | `get_onboarding_questions` | `topic` |
-| `research` | `deep_research` | `topic`, optional `rounds` |
-| `create` | `create_deck` | `topic`; optional `pages`, `aspect`, `language`, `style`, `template`, `resolution`, `materialIds`, `fast`, `research`, `researchDoc`, `rounds` |
+| `open` | `open_ppt_anything` | optional `projectId`, `view`, `filePath`, `scenarioId` |
+| `onboard` | `get_onboarding_questions` | `topic`; optional `scenarioId`, `uiLocale` |
+| `research` | `deep_research` | `topic`, optional `rounds`, `scenarioId` |
+| `create` | `create_deck` | `topic`; optional `scenarioId`, `pages`, `aspect`, `language`, `style`, `template`, `resolution`, `materialIds`, `materialContexts`, `designSystem`, `fast`, `research`, `researchDoc`, `rounds` |
 | `outline` | `create_outline` | same planning inputs as `create` |
-| `revise-outline` | `revise_outline` | `projectId` plus `instruction` or `pages` |
+| `revise-outline` | `revise_outline` | `projectId` plus `instruction` or `pages`; optional `designFilePaths` |
 | `inspiration` | `rank_inspiration` | `topic` or `outlineTitles` |
 | `render` | `render_deck` | `projectId` |
 | `list` | `list_projects` | none |
 | `get` | `get_project` | `projectId`, optional `includeChat` |
 | `templates` | `list_templates` | optional `categoryId` |
-| `edit` | `edit_deck` | `projectId`, `instruction`; optional `slideIndex`, `materialIds` |
+| `scenarios` | `list_scenarios` | optional `group`, `query`, `featured`, `scenarioId` |
+| `design-files` | `list_design_files` | `projectId`; optional focused `filePath` |
+| `read-design-file` | `read_design_file` | `projectId`, `filePath` |
+| `write-design-file` | `write_design_file` | `projectId`, `filePath`, complete `content` |
+| `upload-design-file` | `upload_design_file` | `projectId`, local `filePath` |
+| `get-brand-system` | `get_brand_design_system` | `projectId` |
+| `set-brand-system` | `update_brand_design_system` | `projectId`; partial `designSystem`, optional `template`, `materialIds`, `brandAssetMaterialIds`, `clear`, `redraw` |
+| `edit` | `edit_deck` | `projectId`, `instruction`; optional `slideIndex`, `materialIds`, `designFilePaths` |
 | `restyle` | `restyle_deck` | `projectId`; optional `template`, `style`, `materialIds`, `redraw` |
 | `slide` | `manage_slide` | `projectId`, `action`; index fields depend on action |
 | `regenerate` | `regenerate_slide` | `projectId`, `index`, optional `instruction` |
@@ -37,6 +44,25 @@ object. Success responses contain `"ok": true`; failures contain
 | `export` | `export_deck` | `projectId`, `format` (`pdf` or `pptx`) |
 
 ## Examples
+
+Discover scenarios, stage required files, and create with semantic roles:
+
+```bash
+node <skill-dir>/scripts/ppt-anything.mjs scenarios \
+  --json '{"query":"data insights"}'
+
+node <skill-dir>/scripts/ppt-anything.mjs upload-material \
+  --json '{"filePath":"./metrics.xlsx"}'
+
+node <skill-dir>/scripts/ppt-anything.mjs outline --json '{
+  "topic": "Explain this quarter performance",
+  "scenarioId": "data-insights",
+  "materialIds": ["MATERIAL_ID"],
+  "materialContexts": [
+    {"id":"MATERIAL_ID","name":"metrics.xlsx","role":"Dataset"}
+  ]
+}'
+```
 
 Create a researched six-slide deck:
 
@@ -77,6 +103,41 @@ node <skill-dir>/scripts/ppt-anything.mjs open \
 Use the returned `url` as the Browser navigation target. The `open` command
 starts the app but intentionally does not control a particular browser client;
 the Codex in-app Browser capability performs that final navigation.
+
+Deep-link to new Browser surfaces:
+
+```bash
+node <skill-dir>/scripts/ppt-anything.mjs open \
+  --json '{"view":"scenarios","scenarioId":"market-research"}'
+
+node <skill-dir>/scripts/ppt-anything.mjs open \
+  --json '{"projectId":"PROJECT_ID","view":"design-files","filePath":"generated/outline.md"}'
+
+node <skill-dir>/scripts/ppt-anything.mjs open \
+  --json '{"projectId":"PROJECT_ID","view":"brand-system"}'
+```
+
+Read a Design File, use it in an edit, then merge brand rules:
+
+```bash
+node <skill-dir>/scripts/ppt-anything.mjs read-design-file \
+  --json '{"projectId":"PROJECT_ID","filePath":"uploaded/brief.md"}'
+
+node <skill-dir>/scripts/ppt-anything.mjs edit --json '{
+  "projectId":"PROJECT_ID",
+  "instruction":"Use the referenced brief to tighten the recommendation",
+  "designFilePaths":["uploaded/brief.md"]
+}'
+
+node <skill-dir>/scripts/ppt-anything.mjs set-brand-system --json '{
+  "projectId":"PROJECT_ID",
+  "designSystem":{
+    "brand":{"name":"Acme","voice":"Direct, expert, optimistic"},
+    "colors":{"primary":"#173B57","accent":"#FF6B35"}
+  },
+  "redraw":false
+}'
+```
 
 Edit, mark-edit, then export:
 

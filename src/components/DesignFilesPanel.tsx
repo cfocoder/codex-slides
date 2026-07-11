@@ -22,7 +22,7 @@ function FileIcon({ kind }: { kind: DesignFile["kind"] }) {
 function QuestionsPreview({ file }: { file: Extract<DesignFile, { kind: "questions" }> }) {
   const { t } = useI18n();
   return (
-    <div className="workflow-file-document questions-document">
+    <div className="workflow-file-document workflow-questions-document">
       {file.answerSummary ? (
         <section className="workflow-file-summary">
           <CheckCircle size={17} weight="fill" />
@@ -58,7 +58,7 @@ function QuestionsPreview({ file }: { file: Extract<DesignFile, { kind: "questio
 function OutlinePreview({ file }: { file: Extract<DesignFile, { kind: "outline" }> }) {
   const { t } = useI18n();
   return (
-    <div className="workflow-file-document outline-document">
+    <div className="workflow-file-document workflow-outline-document">
       {file.pages.map((page, index) => (
         <article key={`${index}-${page.title}`}>
           <span>{String(index + 1).padStart(2, "0")}</span>

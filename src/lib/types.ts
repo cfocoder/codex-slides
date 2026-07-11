@@ -70,9 +70,13 @@ export interface PptConfig {
   engine: Engine;
   template?: string; // DeckTemplate id (see lib/templates.ts); overrides/augments style
   materialIds?: string[]; // staged context-item ids (images and supported documents)
+  /** Semantic roles assigned by scenario file slots (source deck, dataset, brand guide, etc.). */
+  materialContexts?: Array<{ id: string; name: string; role: string }>;
   mode?: "direct" | "research"; // deep-research mode seeds the outline from a research doc
   researchDoc?: string; // markdown research brief used as outline context (research mode)
   fast?: boolean; // fast mode: render every page in parallel (rate-limit-queued) instead of one-by-one
+  /** Home workflow preset. Its stable id restores the model-facing scenario contract. */
+  scenarioId?: string;
   /** Always-on project context for generation, chat planning, and later edits. */
   designSystem?: DeckDesignSystem;
 }
@@ -89,12 +93,24 @@ export interface MaterialRecord {
 
 export interface ProjectFileRecord {
   path: string;
+  /** Absolute local path used by an agent after the user explicitly references this file. */
+  absolutePath: string;
   name: string;
   kind: "document" | "image" | "data" | "code" | "other";
   source: "generated" | "uploaded";
   size: number;
   updatedAt: string;
   editable: boolean;
+}
+
+/** A Design Files item explicitly attached to one chat turn via @ mention. */
+export interface DesignFileReference {
+  /** Absolute local path. This is the durable, agent-readable reference value. */
+  path: string;
+  /** Project-relative path used to reopen the item in the Design Files workspace. */
+  relativePath: string;
+  name: string;
+  kind?: ProjectFileRecord["kind"];
 }
 
 export const DEFAULT_CONFIG: PptConfig = {
@@ -139,7 +155,7 @@ export type ProjectStatus = "draft" | "rendering" | "ready";
 /** A non-file choice attached to a user turn, displayed like other context. */
 export interface ContextOptionItem {
   id: string;
-  kind: "research" | "style" | "setting" | "speed";
+  kind: "research" | "style" | "setting" | "speed" | "scenario";
   label: string;
   value?: string;
 }
@@ -165,6 +181,7 @@ export interface StoredChatMessage {
   };
   attachment?: { slideIndex: number; title: string; imageUrl?: string };
   contextItems?: { id: string; name: string; url?: string; kind?: string }[];
+  designFiles?: DesignFileReference[];
   contextOptions?: ContextOptionItem[];
   suggestions?: string[];
   process?: {
@@ -176,6 +193,13 @@ export interface StoredChatMessage {
       name: string;
       label: string;
       detail?: string;
+      kind?: "tool" | "read" | "write" | "edit" | "bash" | "todo" | "files" | "search";
+      path?: string;
+      relativePath?: string;
+      command?: string;
+      output?: string;
+      todos?: Array<{ id: string; content: string; status: "pending" | "in_progress" | "complete" | "error" }>;
+      files?: DesignFileReference[];
       state: "pending" | "running" | "complete" | "error";
     }[];
   };

@@ -1,12 +1,26 @@
 import { translate, type UiLocale } from "@/i18n/messages";
 
 export type AgentToolState = "pending" | "running" | "complete" | "error";
+export type AgentToolKind = "tool" | "read" | "write" | "edit" | "bash" | "todo" | "files" | "search";
+
+export interface AgentTodoItem {
+  id: string;
+  content: string;
+  status: "pending" | "in_progress" | "complete" | "error";
+}
 
 export interface AgentToolCall {
   id: string;
   name: string;
   label: string;
   detail?: string;
+  kind?: AgentToolKind;
+  path?: string;
+  relativePath?: string;
+  command?: string;
+  output?: string;
+  todos?: AgentTodoItem[];
+  files?: Array<{ path: string; relativePath: string; name: string; kind?: "document" | "image" | "data" | "code" | "other" }>;
   state: AgentToolState;
 }
 
@@ -36,6 +50,17 @@ export function patchAgentTool(
   return {
     ...process,
     tools: process.tools.map((tool) => (tool.id === id ? { ...tool, ...patch } : tool)),
+  };
+}
+
+export function patchAgentTools(
+  process: AgentProcess,
+  predicate: (tool: AgentToolCall) => boolean,
+  patch: Partial<Omit<AgentToolCall, "id">>,
+): AgentProcess {
+  return {
+    ...process,
+    tools: process.tools.map((tool) => (predicate(tool) ? { ...tool, ...patch } : tool)),
   };
 }
 

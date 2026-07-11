@@ -6,6 +6,7 @@ import { coerceConfig } from "@/lib/config";
 import { planOutline } from "@/lib/pipeline";
 import { runResearch } from "@/lib/research";
 import { type ProgressEvent } from "@/lib/types";
+import { scenarioPromptContext } from "@/lib/scenarios";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
               else if (ev.type === "synth") send({ type: "research", phase: "synthesizing", detail: `round ${ev.round}` });
               else if (ev.type === "doc") send({ type: "research", phase: "brief", markdown: ev.markdown });
             },
-            { signal: abort.signal },
+            { signal: abort.signal, workflowContext: scenarioPromptContext(config.scenarioId) },
           );
           if (doc.trim()) config.researchDoc = doc;
         }

@@ -1,4 +1,5 @@
 import { runResearch, type ResearchEvent } from "@/lib/research";
+import { scenarioPromptContext } from "@/lib/scenarios";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ export async function POST(req: Request) {
     });
   }
   const rounds = Math.max(1, Math.min(4, Number(body?.rounds) || 2));
+  const workflowContext = scenarioPromptContext(String(body?.scenarioId ?? ""));
 
   const encoder = new TextEncoder();
   const abort = new AbortController();
@@ -30,7 +32,7 @@ export async function POST(req: Request) {
         }
       };
       try {
-        await runResearch(topic, send, { rounds, signal: abort.signal });
+        await runResearch(topic, send, { rounds, signal: abort.signal, workflowContext });
       } catch (e: any) {
         send({ type: "error", error: String(e?.message ?? e) });
       } finally {

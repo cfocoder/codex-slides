@@ -12,7 +12,10 @@ so the user can review or edit the evidence before slide generation.
 
 For the staged workflow:
 
-1. Call `deep_research` / CLI `research` with one to four rounds.
+1. If a research workflow fits, call `list_scenarios` / CLI `scenarios` and
+   pass the selected `scenarioId` into `deep_research` / CLI `research` with
+   one to four rounds. This carries the scenario's evidence contract into the
+   search brief.
 2. Call `create_outline` / CLI `outline` with `researchDoc` set to the reviewed brief.
 3. Revise the draft with `revise_outline` / CLI `revise-outline` when needed.
 4. Call `render_deck` / CLI `render` only after the outline is accepted.

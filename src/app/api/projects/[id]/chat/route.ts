@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { planChatEdit } from "@/lib/chat";
 import { attachMaterialsToProject, loadProjectInputAttachments } from "@/lib/materials";
+import { loadProjectFileReferences } from "@/lib/projectFiles";
 import { loadProject, saveProject } from "@/lib/store";
-import type { StoredChatMessage, StoredConversation } from "@/lib/types";
+import type { DesignFileReference, StoredChatMessage, StoredConversation } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +12,23 @@ export const maxDuration = 120;
 function finiteNonNegative(value: unknown): number | undefined {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : undefined;
+}
+
+function sanitizeDesignFiles(raw: unknown): DesignFileReference[] {
+  const seen = new Set<string>();
+  return (Array.isArray(raw) ? raw : [])
+    .map((file: any) => ({
+      path: String(file?.path ?? "").trim().slice(0, 2_000),
+      relativePath: String(file?.relativePath ?? "").trim().slice(0, 500),
+      name: String(file?.name ?? "").trim().slice(0, 240),
+      kind: ["document", "image", "data", "code", "other"].includes(file?.kind) ? file.kind : undefined,
+    }))
+    .filter((file) => {
+      if (!file.path || !file.relativePath || !file.name || seen.has(file.path)) return false;
+      seen.add(file.path);
+      return true;
+    })
+    .slice(0, 12);
 }
 
 function sanitizeMessages(raw: unknown): StoredChatMessage[] {
@@ -47,10 +65,11 @@ function sanitizeMessages(raw: unknown): StoredChatMessage[] {
         : undefined,
       attachment: m.attachment,
       contextItems: m.contextItems,
+      designFiles: sanitizeDesignFiles(m.designFiles),
       contextOptions: Array.isArray(m.contextOptions)
         ? m.contextOptions.slice(0, 12).map((item: any, index: number) => ({
             id: String(item?.id ?? `option-${index}`),
-            kind: ["research", "style", "setting", "speed"].includes(item?.kind) ? item.kind : "setting",
+            kind: ["research", "style", "setting", "speed", "scenario"].includes(item?.kind) ? item.kind : "setting",
             label: String(item?.label ?? "Option"),
             value: item?.value ? String(item.value) : undefined,
           }))
@@ -66,7 +85,24 @@ function sanitizeMessages(raw: unknown): StoredChatMessage[] {
                   id: String(tool?.id ?? `tool-${index}`),
                   name: String(tool?.name ?? "tool"),
                   label: String(tool?.label ?? "Tool call"),
-                  detail: tool?.detail ? String(tool.detail) : undefined,
+                  detail: tool?.detail ? String(tool.detail).slice(0, 4_000) : undefined,
+                  kind: ["tool", "read", "write", "edit", "bash", "todo", "files", "search"].includes(tool?.kind)
+                    ? tool.kind
+                    : undefined,
+                  path: tool?.path ? String(tool.path).slice(0, 2_000) : undefined,
+                  relativePath: tool?.relativePath ? String(tool.relativePath).slice(0, 500) : undefined,
+                  command: tool?.command ? String(tool.command).slice(0, 8_000) : undefined,
+                  output: tool?.output ? String(tool.output).slice(0, 24_000) : undefined,
+                  todos: Array.isArray(tool?.todos)
+                    ? tool.todos.slice(0, 80).map((todo: any, todoIndex: number) => ({
+                        id: String(todo?.id ?? `todo-${todoIndex}`).slice(0, 120),
+                        content: String(todo?.content ?? "").slice(0, 1_000),
+                        status: ["pending", "in_progress", "complete", "error"].includes(todo?.status)
+                          ? todo.status
+                          : "pending",
+                      }))
+                    : undefined,
+                  files: sanitizeDesignFiles(tool?.files),
                   state: ["pending", "running", "complete", "error"].includes(tool?.state)
                     ? tool.state
                     : "complete",
@@ -187,8 +223,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       saveProject(project);
     }
     const turnRecords = (project.materials ?? []).filter((item) => attachmentIds.includes(item.id));
-    const attachments = loadProjectInputAttachments(project.id, turnRecords);
-    const plan = await planChatEdit(project, message, context, attachments);
+    const rawDesignFilePaths = Array.isArray(body?.designFilePaths)
+      ? body.designFilePaths.map(String).slice(0, 12)
+      : [];
+    const { references: designFiles, attachments: designFileAttachments } = loadProjectFileReferences(
+      project.id,
+      rawDesignFilePaths,
+    );
+    const attachments = [
+      ...loadProjectInputAttachments(project.id, turnRecords),
+      ...designFileAttachments,
+    ];
+    const plan = await planChatEdit(project, message, context, attachments, designFiles);
     return NextResponse.json({ plan });
   } catch (e: any) {
     return NextResponse.json({ error: String(e?.message ?? e) }, { status: 500 });

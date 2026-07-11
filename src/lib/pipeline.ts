@@ -31,6 +31,7 @@ import {
   saveSlideImage,
 } from "./store";
 import type {
+  DesignFileReference,
   Engine,
   OutlinePage,
   PptConfig,
@@ -295,14 +296,28 @@ export async function runGeneration(
 export async function reviseOutline(
   id: string,
   instruction: string,
-  signal?: AbortSignal,
+  opts: {
+    signal?: AbortSignal;
+    attachments?: CodexInputAttachment[];
+    designFiles?: DesignFileReference[];
+  } = {},
 ): Promise<{ pages: SlidePage[]; reply: string }> {
   const project = loadProject(id);
   if (!project) throw new Error("project not found");
+  const designFileContext = opts.designFiles?.length
+    ? [
+        "",
+        "<design_file_references>",
+        "The user referenced these local project files with @. Use the relevant contents while revising the outline:",
+        ...opts.designFiles.map((file) => `- ${file.name}: ${file.path}`),
+        "</design_file_references>",
+      ].join("\n")
+    : "";
   const raw = await generateJson<any>(
     project.config.engine,
-    buildOutlineRevisePrompt(project, instruction),
-    signal,
+    `${buildOutlineRevisePrompt(project, instruction)}${designFileContext}`,
+    opts.signal,
+    opts.attachments,
   );
   const outline = normalizeOutline(raw?.outline ?? raw);
   if (!outline.length) throw new Error("Outline revision returned no slides");

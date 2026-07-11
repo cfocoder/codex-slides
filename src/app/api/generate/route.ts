@@ -1,5 +1,7 @@
 import { coerceConfig } from "@/lib/config";
 import { runGeneration } from "@/lib/pipeline";
+import { runResearch } from "@/lib/research";
+import { scenarioPromptContext } from "@/lib/scenarios";
 import { type ProgressEvent } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -30,6 +32,18 @@ export async function POST(req: Request) {
         }
       };
       try {
+        if (config.mode === "research" && !config.researchDoc?.trim()) {
+          const doc = await runResearch(
+            config.requirement,
+            (event) => {
+              if (event.type === "search") send({ type: "research", phase: "searching", detail: event.query });
+              else if (event.type === "synth") send({ type: "research", phase: "synthesizing", detail: `round ${event.round}` });
+              else if (event.type === "doc") send({ type: "research", phase: "brief", markdown: event.markdown });
+            },
+            { signal: abort.signal, workflowContext: scenarioPromptContext(config.scenarioId) },
+          );
+          if (doc.trim()) config.researchDoc = doc;
+        }
         await runGeneration(config, send, { signal: abort.signal });
       } catch (e: any) {
         send({ type: "error", error: String(e?.message ?? e) });

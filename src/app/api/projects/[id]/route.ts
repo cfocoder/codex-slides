@@ -22,8 +22,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (typeof body.template !== "undefined") project.config.template = body.template || undefined;
   if (typeof body.style === "string") project.config.style = body.style;
 
-  const requestedMaterialIds = Array.isArray(body.materialIds)
-    ? Array.from(new Set(body.materialIds.map((id: unknown) => String(id)))).slice(0, 16)
+  const requestedMaterialIds: string[] = Array.isArray(body.materialIds)
+    ? Array.from(new Set<string>(body.materialIds.map((id: unknown) => String(id)))).slice(0, 16)
     : [];
   if (requestedMaterialIds.length) {
     const existingIds = new Set((project.materials ?? []).map((item) => item.id));

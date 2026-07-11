@@ -22,11 +22,11 @@ function call(command, input = {}) {
 }
 
 const capabilities = call("capabilities");
-if (capabilities.commands.length !== 20) {
-  throw new Error(`Expected 20 commands, got ${capabilities.commands.length}.`);
+if (capabilities.commands.length !== 27) {
+  throw new Error(`Expected 27 commands, got ${capabilities.commands.length}.`);
 }
-if (capabilities.capabilities.length < 19) {
-  throw new Error(`Expected at least 19 capability surfaces, got ${capabilities.capabilities.length}.`);
+if (capabilities.capabilities.length < 27) {
+  throw new Error(`Expected at least 27 capability surfaces, got ${capabilities.capabilities.length}.`);
 }
 
 const summary = {
@@ -38,17 +38,26 @@ const summary = {
 if (live) {
   const projects = call("list");
   const templates = call("templates");
-  const opened = call("open");
+  const scenarios = call("scenarios");
+  const opened = call("open", { view: "scenarios", scenarioId: "new-deck" });
   if (!Array.isArray(projects.projects)) throw new Error("Project list is missing.");
   if (templates.categories?.length !== 15 || templates.templates?.length !== 45) {
     throw new Error(`Expected 15 categories and 45 templates, got ${templates.categories?.length}/${templates.templates?.length}.`);
   }
+  if (scenarios.groups?.length !== 6 || scenarios.scenarios?.length !== 24) {
+    throw new Error(`Expected 6 groups and 24 scenarios, got ${scenarios.groups?.length}/${scenarios.scenarios?.length}.`);
+  }
   if (!opened.url?.startsWith("http://127.0.0.1:4311")) throw new Error("Browser URL is missing.");
+  if (!opened.url.includes("view=scenarios") || !opened.url.includes("scenario=new-deck")) {
+    throw new Error("Scenario Browser deep link is missing.");
+  }
   Object.assign(summary, {
     live: true,
     projects: projects.projects.length,
     categories: templates.categories.length,
     templates: templates.templates.length,
+    scenarioGroups: scenarios.groups.length,
+    scenarios: scenarios.scenarios.length,
     browserUrl: opened.url,
   });
 }

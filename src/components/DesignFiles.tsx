@@ -26,12 +26,15 @@ export default function DesignFiles({
   onClose,
   headerPrefix,
   initialPath,
+  selectionRequestKey,
 }: {
   projectId: string;
   title: string;
   onClose: () => void;
   headerPrefix?: ReactNode;
   initialPath?: string;
+  /** Changes whenever a chat artifact asks to reveal this path again. */
+  selectionRequestKey?: number;
 }) {
   const { t } = useI18n();
   const [files, setFiles] = useState<ProjectFileRecord[]>([]);
@@ -51,7 +54,7 @@ export default function DesignFiles({
     setSelectedPath((current) => preferred ?? (next.some((file) => file.path === current) ? current : next[0]?.path ?? ""));
     setLoading(false);
   }
-  useEffect(() => { void refresh(initialPath); }, [initialPath, projectId]);
+  useEffect(() => { void refresh(initialPath); }, [initialPath, projectId, selectionRequestKey]);
   useEffect(() => {
     if (!selected?.editable) { setContent(""); setSavedContent(""); return; }
     fetch(apiPath(projectId, selected.path), { cache: "no-store" }).then((response) => response.text()).then((text) => { setContent(text); setSavedContent(text); });

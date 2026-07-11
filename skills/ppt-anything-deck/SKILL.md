@@ -1,6 +1,6 @@
 ---
 name: ppt-anything-deck
-description: Compatibility entry point for creating, inspecting, revising, restyling, and exporting PPT Anything slide decks. Use when a user asks Codex to make a presentation, turn research into slides, edit an existing deck, manage slide structure, apply a template, or export PDF/PPTX.
+description: Compatibility entry point for scenario-led creation, Design Files, brand systems, inspecting, revising, restyling, and exporting PPT Anything slide decks. Use when a user asks Codex to make a presentation, use project files, edit an existing deck, manage slide structure, apply brand or template rules, or export PDF/PPTX.
 ---
 
 # PPT Anything Deck
@@ -12,6 +12,10 @@ in the in-editor Browser whenever visual review helps.
 
 ## Choose the flow
 
+- Use `list_scenarios` / CLI `scenarios` when a named workflow such as business
+  report, document-to-deck, data insights, brand application, localization, or
+  batch generation fits. Upload required slot files and pass `scenarioId`,
+  `materialIds`, and `materialContexts` into creation.
 - For a fast one-call result, call `create_deck` or CLI command `create`.
 - For a reviewable workflow, call `create_outline`, optionally
   `revise_outline` and `rank_inspiration`, then `render_deck`; the CLI commands
@@ -30,6 +34,11 @@ in the in-editor Browser whenever visual review helps.
 - Use `upload_slide_image` for a finished PNG.
 - Use `mark_edit_slide` when the user supplies an annotated PNG and wants a
   clean revised slide.
+- Use `list_design_files`, `read_design_file`, `write_design_file`, and
+  `upload_design_file` for the project file workspace. Pass selected paths as
+  `designFilePaths` when revising an outline or editing a deck.
+- Use `get_brand_design_system` then `update_brand_design_system` for persistent
+  project-wide brand/style rules. Redraw only when requested.
 
 ## Show and verify
 

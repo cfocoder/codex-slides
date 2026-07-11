@@ -18,7 +18,9 @@ const COMMANDS = [
   "capabilities", "open", "onboard", "research", "create", "outline",
   "revise-outline", "inspiration", "render", "list", "get", "templates",
   "edit", "restyle", "slide", "regenerate", "upload-material",
-  "upload-slide", "mark-edit", "export",
+  "upload-slide", "mark-edit", "export", "scenarios", "design-files",
+  "read-design-file", "write-design-file", "upload-design-file",
+  "get-brand-system", "set-brand-system",
 ];
 
 const CAPABILITIES = [
@@ -32,6 +34,13 @@ const CAPABILITIES = [
   ["Render a confirmed draft", "render", "script + Browser"],
   ["List and inspect projects", "list / get", "script"],
   ["Discover categories and templates", "templates", "script"],
+  ["Discover 24 scenario workflows and required source slots", "scenarios", "script + Browser"],
+  ["List project Design Files", "design-files", "script + Browser"],
+  ["Read or edit an existing text Design File", "read-design-file / write-design-file", "script + Browser"],
+  ["Upload a file into the project Design Files workspace", "upload-design-file", "script + Browser"],
+  ["Attach Design Files to outline and deck agent turns", "revise-outline / edit", "script + Browser"],
+  ["Inspect the always-on brand design system", "get-brand-system", "script + Browser"],
+  ["Merge brand, color, type, spacing, asset, and style rules", "set-brand-system", "script + Browser"],
   ["Execute natural-language edits", "edit", "script + Browser"],
   ["Restyle a whole deck", "restyle", "script + Browser"],
   ["Add, duplicate, delete, or transition slides", "slide", "script"],
@@ -41,6 +50,7 @@ const CAPABILITIES = [
   ["Apply an annotated-PNG edit", "mark-edit", "script + Browser"],
   ["Export PDF or PPTX", "export", "script + Browser"],
   ["Play, navigate, and mark visually", "open", "Browser UI"],
+  ["Inspect structured agent tool activity and reopen referenced files", "open", "Browser UI"],
 ];
 
 function writeJson(value) {
@@ -51,8 +61,17 @@ function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
-function browserUrl(projectId) {
-  return projectId ? `${BASE}/project/${encodeURIComponent(projectId)}` : BASE;
+function browserUrl(projectId, { view, filePath, scenarioId } = {}) {
+  const url = new URL(projectId ? `${BASE}/project/${encodeURIComponent(projectId)}` : BASE);
+  if (view && view !== "workspace") url.searchParams.set("view", view);
+  if (filePath) url.searchParams.set("file", filePath);
+  if (scenarioId) url.searchParams.set("scenario", scenarioId);
+  return url.toString();
+}
+
+function projectFileApiPath(projectId, filePath = "") {
+  const encoded = String(filePath).split("/").filter(Boolean).map(encodeURIComponent).join("/");
+  return `/api/projects/${encodeURIComponent(projectId)}/files${encoded ? `/${encoded}` : ""}`;
 }
 
 function usableAppRoot(candidate) {
@@ -228,16 +247,19 @@ function slideSummary(page) {
 function deckConfig(input, researchDoc) {
   return {
     requirement: input.topic,
-    pages: input.pages ?? 6,
-    aspect: input.aspect ?? "16:9",
+    pages: input.pages ?? (input.scenarioId ? undefined : 6),
+    aspect: input.aspect ?? (input.scenarioId ? undefined : "16:9"),
     language: input.language ?? "auto",
-    style: input.style ?? "",
+    style: input.style ?? (input.scenarioId ? undefined : ""),
     template: input.template,
     resolution: input.resolution ?? "2K",
     materialIds: input.materialIds ?? [],
+    materialContexts: input.materialContexts ?? [],
+    scenarioId: input.scenarioId,
+    designSystem: input.designSystem,
     engine: "codex",
     ...(input.fast ? { fast: true } : {}),
-    ...(researchDoc ? { mode: "research", researchDoc } : {}),
+    ...(input.research || researchDoc ? { mode: "research", researchDoc: researchDoc || undefined } : {}),
   };
 }
 
@@ -278,18 +300,40 @@ async function run(command, input) {
     return { baseUrl: BASE, commands: COMMANDS, capabilities: CAPABILITIES.map(([capability, action, surface]) => ({ capability, action, surface })) };
   }
   if (command === "open") {
+    const view = input.view || "workspace";
+    if (["design-files", "brand-system"].includes(view) && !input.projectId) {
+      throw new Error(`${view} requires projectId.`);
+    }
     await ensureServer();
-    return { url: browserUrl(input.projectId), projectId: input.projectId || null, browserAction: "navigate" };
+    const targetProjectId = view === "scenarios" ? undefined : input.projectId;
+    return {
+      url: browserUrl(targetProjectId, {
+        view,
+        filePath: input.filePath,
+        scenarioId: input.scenarioId,
+      }),
+      projectId: targetProjectId || null,
+      view,
+      browserAction: "navigate",
+    };
   }
   if (command === "onboard") {
     if (!input.topic) throw new Error("topic is required.");
-    return postJson("/api/onboard", { requirement: input.topic });
+    return postJson("/api/onboard", {
+      requirement: input.topic,
+      scenarioId: input.scenarioId,
+      uiLocale: input.uiLocale,
+    });
   }
   if (command === "research") {
     if (!input.topic) throw new Error("topic is required.");
     let markdown = "";
     const queries = [];
-    await postSse("/api/research", { requirement: input.topic, rounds: input.rounds ?? 2 }, (event) => {
+    await postSse("/api/research", {
+      requirement: input.topic,
+      rounds: input.rounds ?? 2,
+      scenarioId: input.scenarioId,
+    }, (event) => {
       if (event.type === "doc") markdown = event.markdown || "";
       if (event.type === "search" && event.query) queries.push(event.query);
     });
@@ -299,7 +343,11 @@ async function run(command, input) {
     if (!input.topic) throw new Error("topic is required.");
     let researchDoc = input.researchDoc;
     if (input.research && !researchDoc?.trim()) {
-      await postSse("/api/research", { requirement: input.topic, rounds: input.rounds ?? 2 }, (event) => {
+      await postSse("/api/research", {
+        requirement: input.topic,
+        rounds: input.rounds ?? 2,
+        scenarioId: input.scenarioId,
+      }, (event) => {
         if (event.type === "doc") researchDoc = event.markdown;
       });
     }
@@ -341,7 +389,7 @@ async function run(command, input) {
     const path = `/api/projects/${encodeURIComponent(input.projectId)}/outline`;
     return input.pages?.length
       ? apiJson(path, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pages: input.pages }) })
-      : postJson(path, { message: input.instruction });
+      : postJson(path, { message: input.instruction, designFilePaths: input.designFilePaths || [] });
   }
   if (command === "inspiration") {
     if (!input.topic && !input.outlineTitles?.length) throw new Error("topic or outlineTitles is required.");
@@ -374,6 +422,119 @@ async function run(command, input) {
       templates: input.categoryId ? data.templates.filter((template) => template.categoryId === input.categoryId) : data.templates,
     };
   }
+  if (command === "scenarios") {
+    const data = await apiJson("/api/scenarios");
+    const query = String(input.query || "").trim().toLocaleLowerCase();
+    const featured = new Set(data.featuredIds || []);
+    const scenarios = (data.scenarios || []).filter((scenario) => {
+      if (input.group && scenario.group !== input.group) return false;
+      if (input.featured === true && !featured.has(scenario.id)) return false;
+      if (!query) return true;
+      return JSON.stringify(scenario).toLocaleLowerCase().includes(query);
+    });
+    return {
+      groups: data.groups,
+      scenarios,
+      featuredIds: data.featuredIds,
+      browserUrl: browserUrl(undefined, { view: "scenarios", scenarioId: input.scenarioId }),
+    };
+  }
+  if (command === "design-files") {
+    if (!input.projectId) throw new Error("projectId is required.");
+    const data = await apiJson(projectFileApiPath(input.projectId));
+    return {
+      projectId: input.projectId,
+      files: data.files || [],
+      browserUrl: browserUrl(input.projectId, { view: "design-files", filePath: input.filePath }),
+    };
+  }
+  if (command === "read-design-file") {
+    if (!input.projectId || !input.filePath) throw new Error("projectId and filePath are required.");
+    const listing = await apiJson(projectFileApiPath(input.projectId));
+    const file = (listing.files || []).find((item) => item.path === input.filePath);
+    if (!file) throw new Error(`Design File not found: ${input.filePath}`);
+    const url = browserUrl(input.projectId, { view: "design-files", filePath: input.filePath });
+    if (!file.editable) return { projectId: input.projectId, file, content: null, browserUrl: url };
+    const response = await apiFetch(projectFileApiPath(input.projectId, input.filePath));
+    if (!response.ok) throw new Error((await response.text().catch(() => "")) || `HTTP ${response.status}`);
+    return { projectId: input.projectId, file, content: await response.text(), browserUrl: url };
+  }
+  if (command === "write-design-file") {
+    if (!input.projectId || !input.filePath || typeof input.content !== "string") {
+      throw new Error("projectId, filePath, and string content are required.");
+    }
+    await apiJson(projectFileApiPath(input.projectId, input.filePath), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: input.content }),
+    });
+    return {
+      projectId: input.projectId,
+      filePath: input.filePath,
+      bytes: Buffer.byteLength(input.content),
+      browserUrl: browserUrl(input.projectId, { view: "design-files", filePath: input.filePath }),
+    };
+  }
+  if (command === "upload-design-file") {
+    if (!input.projectId || !input.filePath) throw new Error("projectId and filePath are required.");
+    const { form, absolute } = await fileForm(input.filePath, "files", 20 * 1024 * 1024);
+    const response = await apiFetch(projectFileApiPath(input.projectId), { method: "POST", body: form });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    const uploaded = (data.files || []).find((file) => file.source === "uploaded" && file.name === basename(absolute));
+    return {
+      projectId: input.projectId,
+      file: uploaded || null,
+      files: data.files || [],
+      sourcePath: absolute,
+      browserUrl: browserUrl(input.projectId, { view: "design-files", filePath: uploaded?.path }),
+    };
+  }
+  if (command === "get-brand-system") {
+    if (!input.projectId) throw new Error("projectId is required.");
+    const data = await apiJson(`/api/projects/${encodeURIComponent(input.projectId)}/design-system`);
+    return {
+      projectId: input.projectId,
+      ...data,
+      browserUrl: browserUrl(input.projectId, { view: "brand-system" }),
+    };
+  }
+  if (command === "set-brand-system") {
+    if (!input.projectId) throw new Error("projectId is required.");
+    if (input.clear !== true && !input.designSystem && !input.template && !input.style && !input.materialIds?.length && input.brandAssetMaterialIds === undefined) {
+      throw new Error("Provide designSystem, template, style, materialIds, brandAssetMaterialIds, or clear:true.");
+    }
+    const data = await apiJson(`/api/projects/${encodeURIComponent(input.projectId)}/design-system`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        designSystem: input.designSystem,
+        template: input.template,
+        style: input.style,
+        materialIds: input.materialIds || [],
+        brandAssetMaterialIds: input.brandAssetMaterialIds,
+        clear: input.clear === true,
+      }),
+    });
+    const changed = [];
+    if (input.redraw === true && !input.clear) {
+      for (const page of data.project?.pages || []) {
+        try {
+          const generated = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/regenerate`, { index: page.index });
+          changed.push(slideSummary(generated.page));
+        } catch (error) {
+          changed.push({ index: page.index, status: "error", error: error instanceof Error ? error.message : String(error) });
+        }
+      }
+    }
+    delete data.project;
+    return {
+      projectId: input.projectId,
+      ...data,
+      changed,
+      browserUrl: browserUrl(input.projectId, { view: "brand-system" }),
+    };
+  }
   if (command === "edit") {
     if (!input.projectId || !input.instruction) throw new Error("projectId and instruction are required.");
     const project = await apiJson(`/api/projects/${encodeURIComponent(input.projectId)}`);
@@ -382,6 +543,7 @@ async function run(command, input) {
       message: input.instruction,
       context: contextPage ? { slideIndex: input.slideIndex, title: contextPage.title } : undefined,
       attachmentIds: input.materialIds || [],
+      designFilePaths: input.designFilePaths || [],
     });
     const changed = [];
     if (plan.action === "add") {

@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import type { AgentToolCall } from "./agentActivity";
 import type { DetectedAgent, Engine } from "./types";
 
 interface AgentDef {
@@ -178,9 +179,135 @@ function extractTextFromStdout(agentId: string, stdout: string): string {
   return "";
 }
 
+function compactJson(value: unknown): string | undefined {
+  if (value == null || value === "") return undefined;
+  let text: string;
+  if (typeof value === "string") text = value;
+  else {
+    try {
+      text = JSON.stringify(value, null, 2);
+    } catch {
+      text = String(value);
+    }
+  }
+  return text.length > 24_000 ? `${text.slice(0, 24_000)}\n…` : text;
+}
+
+/** Capture the CLI's real tool events so the chat can render Bash/read/edit rows. */
+export function extractToolActivities(agentId: string, stdout: string): AgentToolCall[] {
+  if (agentId !== "codex") return [];
+  const activities = new Map<string, AgentToolCall>();
+  const lines = stdout.split("\n").map((line) => line.trim()).filter(Boolean);
+
+  for (let index = 0; index < lines.length; index += 1) {
+    let event: any;
+    try {
+      event = JSON.parse(lines[index]);
+    } catch {
+      continue;
+    }
+    const item = event?.item ?? event?.msg;
+    const itemType = String(item?.type ?? "").toLowerCase();
+    if (!itemType) continue;
+    const id = String(item?.id ?? `${itemType}-${index}`);
+    const completed = /completed|done/.test(String(event?.type ?? ""))
+      || /completed|done|success|failed/.test(String(item?.status ?? ""));
+    const exitCode = Number.isFinite(Number(item?.exit_code)) ? Number(item.exit_code) : undefined;
+    const state: AgentToolCall["state"] = exitCode != null && exitCode !== 0
+      ? "error"
+      : completed
+        ? "complete"
+        : "running";
+
+    if (/command_execution|shell_command|terminal/.test(itemType)) {
+      const command = Array.isArray(item?.command)
+        ? item.command.join(" ")
+        : String(item?.command ?? item?.input?.command ?? "").trim();
+      activities.set(id, {
+        id,
+        name: "bash",
+        kind: "bash",
+        label: "Run command",
+        detail: exitCode == null ? undefined : `exit ${exitCode}`,
+        command: command || undefined,
+        output: compactJson(item?.aggregated_output ?? item?.output),
+        state,
+      });
+      continue;
+    }
+
+    if (/file_change|file_edit|apply_patch/.test(itemType)) {
+      const changes = Array.isArray(item?.changes) ? item.changes : [];
+      const firstPath = String(changes[0]?.path ?? item?.path ?? "").trim();
+      activities.set(id, {
+        id,
+        name: itemType,
+        kind: "edit",
+        label: "Edit files",
+        detail: changes.length ? `${changes.length} file${changes.length === 1 ? "" : "s"}` : undefined,
+        path: firstPath || undefined,
+        output: compactJson(changes.length ? changes : item?.output),
+        state,
+      });
+      continue;
+    }
+
+    if (/web_search|search/.test(itemType)) {
+      activities.set(id, {
+        id,
+        name: itemType,
+        kind: "search",
+        label: "Search",
+        detail: String(item?.query ?? item?.input?.query ?? "").trim() || undefined,
+        output: compactJson(item?.output ?? item?.results),
+        state,
+      });
+      continue;
+    }
+
+    if (/todo|task_list/.test(itemType)) {
+      const rawTodos = Array.isArray(item?.todos) ? item.todos : Array.isArray(item?.items) ? item.items : [];
+      activities.set(id, {
+        id,
+        name: itemType,
+        kind: "todo",
+        label: "Task list",
+        todos: rawTodos.map((todo: any, todoIndex: number) => ({
+          id: String(todo?.id ?? `todo-${todoIndex}`),
+          content: String(todo?.content ?? todo?.text ?? todo?.title ?? ""),
+          status: ["pending", "in_progress", "complete", "error"].includes(todo?.status)
+            ? todo.status
+            : "pending",
+        })),
+        state,
+      });
+      continue;
+    }
+
+    if (/tool_call|mcp/.test(itemType)) {
+      activities.set(id, {
+        id,
+        name: String(item?.name ?? item?.tool_name ?? itemType),
+        kind: "tool",
+        label: "Use tool",
+        detail: compactJson(item?.input ?? item?.arguments),
+        output: compactJson(item?.output ?? item?.result),
+        state,
+      });
+    }
+  }
+
+  // The process has already exited when this parser runs; incomplete rows are
+  // historical rather than genuinely live, so settle them as completed.
+  return Array.from(activities.values()).map((activity) => (
+    activity.state === "running" ? { ...activity, state: "complete" as const } : activity
+  ));
+}
+
 export interface CliRunResult {
   text: string;
   agentPath: string;
+  activities: AgentToolCall[];
 }
 
 /** Run a detected agent CLI with a prompt, returning its text output. */
@@ -216,7 +343,11 @@ export function runCliAgentText(
     child.on("close", (code) => {
       clearTimeout(timer);
       const text = extractTextFromStdout(def.id, stdout);
-      if (text) return resolve({ text, agentPath: resolved.path! });
+      if (text) return resolve({
+        text,
+        agentPath: resolved.path!,
+        activities: extractToolActivities(def.id, stdout),
+      });
       reject(
         new Error(
           `${def.label} produced no usable text (exit ${code}). stderr: ${stderr.slice(0, 300)}`,

@@ -9,6 +9,7 @@ import OnboardForm from "@/components/OnboardForm";
 import OutlineBoard from "@/components/OutlineBoard";
 import InspireDialog from "@/components/InspireDialog";
 import RecentProjects from "@/components/RecentProjects";
+import ScenarioPicker from "@/components/ScenarioPicker";
 import SlideStage, { type MarkAgentEvent } from "@/components/SlideStage";
 import TopBar from "@/components/TopBar";
 import WorkspaceModeTabs from "@/components/WorkspaceModeTabs";
@@ -31,6 +32,12 @@ import {
   type UiSlide,
 } from "@/lib/deckEdit";
 import { mergeContextItems, type ContextItem } from "@/lib/contextItems";
+import {
+  getScenario,
+  isScenarioStarter,
+  scenarioText,
+  type PresentationScenario,
+} from "@/lib/scenarios";
 import type { QuestionSpec } from "@/lib/onboard";
 import { getTemplate } from "@/lib/templates";
 import {
@@ -109,6 +116,7 @@ export default function Home() {
   const [inspireOpen, setInspireOpen] = useState(false);
   const [inspireMsgId, setInspireMsgId] = useState<string | null>(null);
   const [inspirationSkipped, setInspirationSkipped] = useState(false);
+  const [scenarioOpenRequestKey, setScenarioOpenRequestKey] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const markRunRef = useRef<{ id: string; startedAt: number; slideIndex: number } | null>(null);
 
@@ -150,8 +158,36 @@ export default function Home() {
   function onRemoveMaterial(id: string) {
     const next = materials.filter((m) => m.id !== id);
     setMaterials(next);
-    patchConfig({ materialIds: next.map((m) => m.id) });
+    patchConfig({
+      materialIds: next.map((m) => m.id),
+      materialContexts: config.materialContexts?.filter((item) => item.id !== id),
+    });
   }
+  function selectScenario(scenario: PresentationScenario) {
+    const current = config.requirement.trim();
+    patchConfig({
+      scenarioId: scenario.id,
+      requirement: !current || isScenarioStarter(current)
+        ? scenarioText(scenario.starter, locale)
+        : config.requirement,
+      pages: scenario.defaults.pages,
+      aspect: scenario.defaults.aspect,
+      style: scenario.defaults.style,
+    });
+    setResearchMode(Boolean(scenario.defaults.research));
+  }
+  function clearScenario() {
+    patchConfig({ scenarioId: undefined });
+  }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requestedScenario = getScenario(params.get("scenario"));
+    if (requestedScenario) selectScenario(requestedScenario);
+    if (params.get("view") === "scenarios") setScenarioOpenRequestKey((key) => key + 1);
+    // Browser deep links are consumed once on mount; subsequent UI state stays local.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   /** Reference images attached to a clarify question join the shared materials. */
   function attachClarifyImages(items: ContextItem[]) {
     onAddItems(mergeContextItems(materials, items));
@@ -159,12 +195,15 @@ export default function Home() {
 
   // ---------------- step 1: clarify ----------------
 
-  function submit(contextOptions: ContextOptionItem[]) {
+  function submit(
+    contextOptions: ContextOptionItem[],
+    materialContexts: Array<{ id: string; name: string; role: string }> = [],
+  ) {
     if (running || busy || clarifyBusy) return;
     if (!config.requirement.trim() && !materials.length) return;
     const cfg = config.requirement.trim()
-      ? config
-      : { ...config, requirement: t("flow.attachedRequirement") };
+      ? { ...config, materialContexts }
+      : { ...config, requirement: t("flow.attachedRequirement"), materialContexts };
     beginClarify(cfg, contextOptions);
   }
 
@@ -203,7 +242,7 @@ export default function Home() {
       const r = await fetch("/api/onboard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requirement: cfg.requirement, uiLocale: locale }),
+        body: JSON.stringify({ requirement: cfg.requirement, scenarioId: cfg.scenarioId, uiLocale: locale }),
       });
       const d = await r.json();
       if (r.ok && Array.isArray(d.questions) && d.questions.length) {
@@ -545,6 +584,21 @@ export default function Home() {
     setBusy(true);
     try {
       const plan = await planChatEdit(projectId, message, context, attachments);
+      const capturedActivities = (plan.activities ?? []).map((tool, index) => ({
+        ...tool,
+        id: `cli-${tool.id || index}`,
+        label: tool.kind === "bash"
+          ? t("agent.runCommand")
+          : tool.kind === "read"
+            ? t("agent.readFile")
+            : tool.kind === "write" || tool.kind === "edit"
+              ? t("agent.editFiles")
+              : tool.kind === "search"
+                ? t("agent.search")
+                : tool.kind === "todo"
+                  ? t("agent.taskList")
+                  : t("agent.useTool"),
+      }));
       const planDetail = plan.action === "edit"
         ? t(plan.targets.length === 1 ? "agent.targetOne" : "agent.targetMany", { targets: plan.targets.join(", ") })
         : plan.action === "add"
@@ -553,7 +607,13 @@ export default function Home() {
       updateChatMessage(runId, (current) => ({
         ...current,
         process: {
-          ...patchAgentTool(current.process!, "plan", { state: "complete", detail: planDetail }),
+          ...patchAgentTool(
+            capturedActivities.length
+              ? { ...current.process!, tools: [...current.process!.tools, ...capturedActivities] }
+              : current.process!,
+            "plan",
+            { state: "complete", detail: planDetail },
+          ),
           title: plan.action === "add" ? t("agent.adding") : plan.action === "edit" ? t("agent.applying") : t("agent.reviewed"),
           notes: plan.instruction ? [t("agent.plannedChange", { instruction: plan.instruction })] : [t("agent.noChange")],
         },
@@ -566,8 +626,8 @@ export default function Home() {
             ...current.process!,
             tools: [
               ...current.process!.tools,
-              { id: "add", name: "add_slide", label: t("agent.insert"), detail: t("agent.after", { index: afterIndex }), state: "running" },
-              { id: "generate", name: "generate_slide", label: t("agent.renderSlide"), detail: t("agent.matchStyle"), state: "pending" },
+              { id: "add", name: "add_slide", kind: "write", label: t("agent.insert"), detail: t("agent.after", { index: afterIndex }), state: "running" },
+              { id: "generate", name: "generate_slide", kind: "edit", label: t("agent.renderSlide"), detail: t("agent.matchStyle"), state: "pending" },
             ],
           },
         }));
@@ -1067,6 +1127,7 @@ export default function Home() {
     : curatedStyle
       ? { id: curatedStyle.id, name: curatedStyle.name, palette: curatedStyle.palette, sub: t("template.preset") }
       : null;
+  const selectedScenario = getScenario(config.scenarioId);
   return (
     <>
       <TopBar codexReady={codexReady} agentLabel={agentLabel} />
@@ -1078,6 +1139,11 @@ export default function Home() {
             <span style={{ color: "var(--muted)" }}>{t("home.tagline")}</span>
           </div>
           <h1>{t("home.title")}</h1>
+          <ScenarioPicker
+            selected={config.scenarioId}
+            onSelect={selectScenario}
+            openRequestKey={scenarioOpenRequestKey}
+          />
           <Composer
             config={config}
             setConfig={patchConfig}
@@ -1090,6 +1156,8 @@ export default function Home() {
             onRemoveMaterial={onRemoveMaterial}
             styleTemplate={selectedStyle}
             onClearStyle={() => patchConfig({ template: undefined })}
+            scenario={selectedScenario}
+            onClearScenario={clearScenario}
             onSubmit={submit}
           />
         </div>

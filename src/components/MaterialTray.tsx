@@ -15,10 +15,12 @@ export default function MaterialTray({
   initialItems = [],
   disabled = false,
   onChange,
+  onItemsChange,
 }: {
   initialItems?: MaterialTrayItem[];
   disabled?: boolean;
-  onChange: (ids: string[]) => void;
+  onChange?: (ids: string[]) => void;
+  onItemsChange?: (items: MaterialTrayItem[]) => void;
 }) {
   const { t } = useI18n();
   const [items, setItems] = useState<MaterialTrayItem[]>(initialItems);
@@ -41,7 +43,8 @@ export default function MaterialTray({
       }
     }
     setItems(next);
-    onChange(next.map((item) => item.id));
+    onChange?.(next.map((item) => item.id));
+    onItemsChange?.(next);
     setBusy(false);
     if (inputRef.current) inputRef.current.value = "";
   }
@@ -50,7 +53,8 @@ export default function MaterialTray({
     if (disabled) return;
     const next = items.filter((item) => item.id !== id);
     setItems(next);
-    onChange(next.map((item) => item.id));
+    onChange?.(next.map((item) => item.id));
+    onItemsChange?.(next);
   }
 
   return (

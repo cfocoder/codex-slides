@@ -19,6 +19,7 @@ export default function OutlineBoard({
   streaming = false,
   researchDoc,
   headerPrefix,
+  headerExtra,
 }: {
   title: string;
   aspect: string;
@@ -31,6 +32,7 @@ export default function OutlineBoard({
   streaming?: boolean;
   researchDoc?: string;
   headerPrefix?: ReactNode;
+  headerExtra?: ReactNode;
 }) {
   const { t } = useI18n();
   const [showBrief, setShowBrief] = useState(false);
@@ -70,6 +72,7 @@ export default function OutlineBoard({
         <span className="title">{title || t("outline.draft")}</span>
         <span className="count">{t("outline.pageCount", { count, aspect })}</span>
         <div className="stage-actions">
+          {headerExtra}
           <button
             className="iconbtn primary"
             disabled={!editable || count === 0}

@@ -2,7 +2,7 @@
   "mcpServers": {
     "ppt_anything": {
       "title": "PPT Anything",
-      "description": "Create, research, preview, edit, present, and export slide decks from Codex.",
+      "description": "Operate scenario workflows, project Design Files, brand systems, creation, research, preview, editing, presenting, and export from Codex.",
       "command": "node",
       "args": [
         "./scripts/start-mcp.mjs"

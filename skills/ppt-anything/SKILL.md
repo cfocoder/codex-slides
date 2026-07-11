@@ -1,6 +1,6 @@
 ---
 name: ppt-anything
-description: Create, research, revise, restyle, present, inspect, and export PPT Anything slide decks from Codex. Use when the user asks for a presentation, PPT/PPTX, slide deck, research brief converted into slides, an existing deck edit, a marked-up slide revision, or to open and operate PPT Anything in the Codex in-editor Browser.
+description: Create, research, revise, restyle, present, inspect, and export PPT Anything slide decks from Codex, including scenario workflows, project Design Files, and always-on brand design systems. Use when the user asks for a presentation, PPT/PPTX, slide deck, research brief converted into slides, an existing deck edit, a marked-up slide revision, brand/style controls, project files, or to open and operate PPT Anything in the Codex in-editor Browser.
 ---
 
 # PPT Anything
@@ -28,9 +28,20 @@ node <skill-dir>/scripts/ppt-anything.mjs capabilities
 
 Read [references/COMMANDS.md](references/COMMANDS.md) when selecting commands,
 constructing JSON inputs, or mapping a CLI command to an MCP tool.
+Read [references/CAPABILITY_MATRIX.md](references/CAPABILITY_MATRIX.md) when
+auditing a newly added product feature or changing the Browser/CLI/MCP contract.
 
 ## Build a deck
 
+- Discover workflow presets with `scenarios` / `list_scenarios`. A scenario owns
+  its default page count, aspect, research behavior, model instruction, and
+  required/optional source slots. Pass its `scenarioId` to `onboard`,
+  `research`, `create`, or `outline`; do not re-create the scenario prompt by
+  hand.
+- Upload slot files with `upload-material` / `upload_material`, then pass both
+  `materialIds` and `materialContexts` (`id`, `name`, `role`). Required slots
+  must be satisfied before creation. Keep content sources, datasets, brand
+  assets, templates, and visual references in their declared roles.
 - Use `create` / `create_deck` for the fast path from topic to rendered deck.
 - Use the staged path when review matters: `onboard`, optional `research`,
   `outline`, optional `revise-outline` and `inspiration`, then `render`.
@@ -38,6 +49,33 @@ constructing JSON inputs, or mapping a CLI command to an MCP tool.
   brief source-backed when it contains no source links.
 - Upload logos, screenshots, PDFs, or other references with `upload-material`
   before creation, editing, or restyling, then pass the returned material ids.
+
+## Operate Design Files
+
+- Use `design-files` / `list_design_files` to inspect the generated and uploaded
+  project file inventory. Use `read-design-file` / `read_design_file` for text
+  and the returned Browser deep link for visual or binary files.
+- Use `write-design-file` / `write_design_file` only when the user asked to
+  replace an existing editable file. Use `upload-design-file` /
+  `upload_design_file` to add a local file to the project workspace.
+- When an outline or deck edit should use project files as evidence, pass their
+  returned paths as `designFilePaths` to `revise-outline` / `revise_outline` or
+  `edit` / `edit_deck`. This is the Codex equivalent of selecting a Design File
+  with `@` in the Browser composer.
+
+## Maintain the brand design system
+
+- Call `get-brand-system` / `get_brand_design_system` before changing an
+  existing project's always-on rules. It returns normalized brand identity,
+  style, colors, typography, effects, spacing, radii, and brand assets.
+- Stage new logos or product images with `upload-material`, then merge a partial
+  update with `set-brand-system` / `update_brand_design_system`. Brand updates
+  preserve untouched sections. Redrawing existing slides is explicit; default
+  to saving without redraw unless the user requested application to the current
+  deck.
+- A brand design system is project-wide context for outline generation, slide
+  generation, chat planning, and later edits. Do not replace it with a one-off
+  free-text style when the project already has one.
 
 ## Edit an existing deck
 
@@ -59,9 +97,11 @@ project id. Navigate the returned `url` or resource link in Codex's in-editor
 Browser and inspect the visible result. Do not stop after printing the URL when
 the Browser capability is available.
 
-Use the Browser for Play mode, slide navigation, direct on-canvas marking, and
-layout inspection. If the current Codex surface has no in-app Browser session,
-return the local URL and state that limitation instead of claiming it opened.
+Use Browser view `scenarios` for the workflow catalog, `design-files` for the
+file workspace, and `brand-system` for the visual-system editor. Use the normal
+workspace for Play mode, slide navigation, direct on-canvas marking, and layout
+inspection. If the current Codex surface has no in-app Browser session, return
+the local URL and state that limitation instead of claiming it opened.
 
 ## Export only after review
 

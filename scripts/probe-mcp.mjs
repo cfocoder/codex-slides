@@ -36,6 +36,13 @@ const expected = [
   "list_projects",
   "get_project",
   "list_templates",
+  "list_scenarios",
+  "list_design_files",
+  "read_design_file",
+  "write_design_file",
+  "upload_design_file",
+  "get_brand_design_system",
+  "update_brand_design_system",
   "edit_deck",
   "restyle_deck",
   "manage_slide",
@@ -63,10 +70,16 @@ try {
   const listed = await client.listTools();
   const names = listed.tools.map((tool) => tool.name).sort();
   assert.deepEqual(names, [...expected].sort(), "MCP tool inventory drifted");
+  const createDeck = listed.tools.find((tool) => tool.name === "create_deck");
+  assert.ok(createDeck?.inputSchema?.properties?.scenarioId, "create_deck must expose scenarioId");
+  assert.ok(createDeck?.inputSchema?.properties?.materialContexts, "create_deck must expose materialContexts");
+  assert.ok(createDeck?.inputSchema?.properties?.designSystem, "create_deck must expose designSystem");
+  const openTool = listed.tools.find((tool) => tool.name === "open_ppt_anything");
+  assert.ok(openTool?.inputSchema?.properties?.view, "open_ppt_anything must expose Browser views");
 
   const capabilities = await client.callTool({ name: "get_capabilities", arguments: {} });
   assert.equal(capabilities.isError, undefined);
-  assert.equal(capabilities.structuredContent?.capabilities?.length, 21);
+  assert.equal(capabilities.structuredContent?.capabilities?.length, 29);
   assert.ok(capabilities.content.some((item) => item.type === "resource_link"));
 
   if (live) {
@@ -75,8 +88,15 @@ try {
     const templates = await client.callTool({ name: "list_templates", arguments: {} });
     assert.equal(templates.isError, undefined);
     assert.ok(templates.structuredContent?.templates?.length >= 45);
-    const opened = await client.callTool({ name: "open_ppt_anything", arguments: {} });
+    const scenarios = await client.callTool({ name: "list_scenarios", arguments: {} });
+    assert.equal(scenarios.structuredContent?.groups?.length, 6);
+    assert.equal(scenarios.structuredContent?.scenarios?.length, 24);
+    const opened = await client.callTool({
+      name: "open_ppt_anything",
+      arguments: { view: "scenarios", scenarioId: "new-deck" },
+    });
     assert.ok(opened.content.some((item) => item.type === "resource_link"));
+    assert.ok(opened.structuredContent?.url?.includes("view=scenarios"));
   }
 
   process.stdout.write(`MCP probe passed: ${expected.length} tools${live ? ", live API and Browser link" : ""}.\n`);

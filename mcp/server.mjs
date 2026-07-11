@@ -37,6 +37,13 @@ const CAPABILITIES = [
   ["List existing decks", "list_projects", "MCP"],
   ["Read a deck and its slide state", "get_project", "MCP"],
   ["Discover categories and templates", "list_templates", "MCP"],
+  ["Discover 24 scenario workflows and required source slots", "list_scenarios", "MCP + Browser"],
+  ["List project Design Files", "list_design_files", "MCP + Browser"],
+  ["Read or edit an existing text Design File", "read_design_file / write_design_file", "MCP + Browser"],
+  ["Upload a file into the project Design Files workspace", "upload_design_file", "MCP + Browser"],
+  ["Attach Design Files to outline and deck agent turns", "revise_outline / edit_deck", "MCP + Browser"],
+  ["Inspect the always-on brand design system", "get_brand_design_system", "MCP + Browser"],
+  ["Merge brand, color, type, spacing, asset, and style rules", "update_brand_design_system", "MCP + Browser"],
   ["Execute a natural-language deck edit", "edit_deck", "MCP + Browser"],
   ["Restyle and optionally redraw a whole deck", "restyle_deck", "MCP + Browser"],
   ["Add, duplicate, delete, or transition slides", "manage_slide", "MCP"],
@@ -46,6 +53,7 @@ const CAPABILITIES = [
   ["Apply an annotated-PNG edit", "mark_edit_slide", "MCP + Browser"],
   ["Download PDF or PPTX", "export_deck", "MCP + Browser"],
   ["Play, navigate, and inspect the deck visually", "open_ppt_anything", "Browser UI"],
+  ["Inspect structured agent tool activity and reopen referenced files", "open_ppt_anything", "Browser UI"],
 ];
 
 const server = new McpServer(
@@ -56,6 +64,9 @@ const server = new McpServer(
       "When a user asks to open, launch, preview, view, play, or interact with PPT Anything, call open_ppt_anything and then immediately navigate the returned resource link in the Codex in-editor Browser. Do not merely print the URL or ask the user to open it manually.",
       "Use MCP tools for deterministic deck mutations. Keep the Browser open for visual inspection, direct manipulation, presentation mode, and final verification.",
       "For multi-step creation, prefer create_outline -> revise_outline/rank_inspiration -> render_deck. Use create_deck for a one-call result.",
+      "Use list_scenarios before scenario-led work, preserve required source-slot roles in materialContexts, and pass scenarioId through onboarding, research, and creation.",
+      "Use list/read/write/upload Design File tools for the project file workspace; pass designFilePaths to outline or deck edits when those files are evidence.",
+      "Use get_brand_design_system before update_brand_design_system. Brand updates are always-on project context; redraw existing slides only when requested.",
     ].join(" "),
   },
 );
@@ -141,8 +152,17 @@ async function ensureServer() {
   await booting;
 }
 
-function browserUrl(projectId) {
-  return projectId ? `${BASE}/project/${encodeURIComponent(projectId)}` : BASE;
+function browserUrl(projectId, { view, filePath, scenarioId } = {}) {
+  const url = new URL(projectId ? `${BASE}/project/${encodeURIComponent(projectId)}` : BASE);
+  if (view && view !== "workspace") url.searchParams.set("view", view);
+  if (filePath) url.searchParams.set("file", filePath);
+  if (scenarioId) url.searchParams.set("scenario", scenarioId);
+  return url.toString();
+}
+
+function projectFileApiPath(projectId, filePath = "") {
+  const encoded = String(filePath).split("/").filter(Boolean).map(encodeURIComponent).join("/");
+  return `/api/projects/${encodeURIComponent(projectId)}/files${encoded ? `/${encoded}` : ""}`;
 }
 
 function resourceLink(uri, name, description) {
@@ -250,9 +270,9 @@ async function postSse(path, body, onEvent, signal) {
   await consumeSse(response, onEvent);
 }
 
-function projectLink(projectId, label = "Open deck in Codex Browser") {
+function projectLink(projectId, label = "Open deck in Codex Browser", options = {}) {
   return {
-    uri: browserUrl(projectId),
+    uri: browserUrl(projectId, options),
     name: label,
     description: "Open the live PPT Anything workspace in the Codex in-editor Browser.",
   };
@@ -316,16 +336,24 @@ register(
     description: "Start PPT Anything if needed and return the home or project workspace. After this tool returns, navigate its resource link in the in-editor Browser; do not only print the URL.",
     inputSchema: {
       projectId: z.string().optional().describe("Existing project id. Omit to open the home/create workspace."),
+      view: z.enum(["workspace", "scenarios", "design-files", "brand-system"]).optional()
+        .describe("Deep-link to a newly exposed workspace surface."),
+      filePath: z.string().optional().describe("Design File path when view is design-files."),
+      scenarioId: z.string().optional().describe("Scenario to preselect when view is scenarios."),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
-  async ({ projectId }) => {
+  async ({ projectId, view = "workspace", filePath, scenarioId }) => {
+    if (["design-files", "brand-system"].includes(view) && !projectId) {
+      throw new Error(`${view} requires projectId.`);
+    }
     await ensureServer();
-    const uri = browserUrl(projectId);
+    const targetProjectId = view === "scenarios" ? undefined : projectId;
+    const uri = browserUrl(targetProjectId, { view, filePath, scenarioId });
     return ok(
       `PPT Anything is ready at ${uri}. Open this resource now in the Codex in-editor Browser and keep it visible for interaction.`,
-      { url: uri, projectId: projectId || null, browserAction: "navigate" },
-      [{ uri, name: projectId ? "Open deck workspace" : "Open PPT Anything", description: "Live Codex-controllable presentation workspace." }],
+      { url: uri, projectId: targetProjectId || null, view, browserAction: "navigate" },
+      [{ uri, name: targetProjectId ? "Open deck workspace" : "Open PPT Anything", description: "Live Codex-controllable presentation workspace." }],
     );
   },
 );
@@ -335,11 +363,15 @@ register(
   {
     title: "Generate deck onboarding questions",
     description: "Generate tailored questions for pages, audience, language, category, style, and content emphasis before making a deck.",
-    inputSchema: { topic: z.string().min(1) },
+    inputSchema: {
+      topic: z.string().min(1),
+      scenarioId: z.string().optional().describe("Scenario id from list_scenarios."),
+      uiLocale: z.enum(["zh-CN", "en"]).optional(),
+    },
     annotations: { readOnlyHint: true, openWorldHint: true },
   },
-  async ({ topic }, extra) => {
-    const data = await postJson("/api/onboard", { requirement: topic }, extra.signal);
+  async ({ topic, scenarioId, uiLocale }, extra) => {
+    const data = await postJson("/api/onboard", { requirement: topic, scenarioId, uiLocale }, extra.signal);
     return ok(`Generated ${data.questions?.length || 0} onboarding questions.`, data);
   },
 );
@@ -352,19 +384,75 @@ register(
     inputSchema: {
       topic: z.string().min(1),
       rounds: z.number().int().min(1).max(4).optional(),
+      scenarioId: z.string().optional().describe("Scenario id from list_scenarios."),
     },
     annotations: { readOnlyHint: true, openWorldHint: true },
   },
-  async ({ topic, rounds = 2 }, extra) => {
+  async ({ topic, rounds = 2, scenarioId }, extra) => {
     let markdown = "";
     const queries = [];
-    await postSse("/api/research", { requirement: topic, rounds }, (event) => {
+    await postSse("/api/research", { requirement: topic, rounds, scenarioId }, (event) => {
       if (event.type === "doc") markdown = event.markdown || "";
       if (event.type === "search" && event.query) queries.push(event.query);
     }, extra.signal);
-    return ok(markdown || "No research document was produced.", { topic, rounds, queries, markdown });
+    return ok(markdown || "No research document was produced.", { topic, rounds, scenarioId, queries, markdown });
   },
 );
+
+const designSystemShape = z.object({
+  version: z.literal(1).optional(),
+  brand: z.object({
+    name: z.string().optional(),
+    tagline: z.string().optional(),
+    voice: z.string().optional(),
+    logoUsage: z.string().optional(),
+    assetMaterialIds: z.array(z.string()).optional(),
+  }).optional(),
+  style: z.object({
+    direction: z.string().optional(),
+    keywords: z.string().optional(),
+    imageTreatment: z.string().optional(),
+  }).optional(),
+  colors: z.object({
+    primary: z.string().optional(),
+    primaryTint: z.string().optional(),
+    accent: z.string().optional(),
+    accentTint: z.string().optional(),
+    ink: z.string().optional(),
+    surface: z.string().optional(),
+    background: z.string().optional(),
+    backgroundWarm: z.string().optional(),
+  }).optional(),
+  typography: z.object({
+    headingFont: z.string().optional(),
+    bodyFont: z.string().optional(),
+    monoFont: z.string().optional(),
+    headingWeight: z.number().int().optional(),
+    bodyWeight: z.number().int().optional(),
+    scale: z.string().optional(),
+  }).optional(),
+  effects: z.object({
+    shadow: z.string().optional(),
+    border: z.string().optional(),
+    texture: z.string().optional(),
+  }).optional(),
+  spacing: z.object({
+    density: z.enum(["compact", "balanced", "spacious"]).optional(),
+    baseUnit: z.number().int().optional(),
+    sectionGap: z.number().int().optional(),
+  }).optional(),
+  radius: z.object({
+    card: z.number().int().optional(),
+    control: z.number().int().optional(),
+    pill: z.number().int().optional(),
+  }).optional(),
+});
+
+const materialContextShape = z.object({
+  id: z.string(),
+  name: z.string(),
+  role: z.string(),
+});
 
 const deckConfigShape = {
   topic: z.string().min(1).describe("What the deck is about"),
@@ -375,10 +463,33 @@ const deckConfigShape = {
   template: z.string().optional().describe("Template id from list_templates"),
   resolution: z.enum(["1K", "2K", "4K"]).optional(),
   materialIds: z.array(z.string()).optional().describe("Reference ids returned by upload_material"),
+  materialContexts: z.array(materialContextShape).max(24).optional()
+    .describe("Semantic source roles mapped from a scenario's file slots."),
+  scenarioId: z.string().optional().describe("Scenario id from list_scenarios; its defaults and workflow contract are applied automatically."),
+  designSystem: designSystemShape.optional().describe("Project-wide brand and visual rules to apply from the first slide."),
   fast: z.boolean().optional().describe("Render slide images concurrently with rate-limit-aware queuing"),
   research: z.boolean().optional(),
   researchDoc: z.string().optional().describe("An already-reviewed research brief"),
 };
+
+function deckRequest(args, researchDoc) {
+  return {
+    requirement: args.topic,
+    pages: args.pages ?? (args.scenarioId ? undefined : 6),
+    aspect: args.aspect ?? (args.scenarioId ? undefined : "16:9"),
+    language: args.language ?? "auto",
+    style: args.style ?? (args.scenarioId ? undefined : ""),
+    template: args.template,
+    resolution: args.resolution ?? "2K",
+    materialIds: args.materialIds ?? [],
+    materialContexts: args.materialContexts ?? [],
+    scenarioId: args.scenarioId,
+    designSystem: args.designSystem,
+    engine: "codex",
+    ...(args.fast ? { fast: true } : {}),
+    ...(args.research || researchDoc ? { mode: "research", researchDoc: researchDoc || undefined } : {}),
+  };
+}
 
 register(
   "create_deck",
@@ -391,7 +502,7 @@ register(
   async (args, extra) => {
     let researchDoc = args.researchDoc;
     if (args.research && !researchDoc?.trim()) {
-      await postSse("/api/research", { requirement: args.topic, rounds: 2 }, (event) => {
+      await postSse("/api/research", { requirement: args.topic, rounds: 2, scenarioId: args.scenarioId }, (event) => {
         if (event.type === "doc") researchDoc = event.markdown;
       }, extra.signal);
     }
@@ -399,19 +510,7 @@ register(
     let title = "";
     let rendered = 0;
     let errored = 0;
-    await postSse("/api/generate", {
-      requirement: args.topic,
-      pages: args.pages ?? 6,
-      aspect: args.aspect ?? "16:9",
-      language: args.language ?? "auto",
-      style: args.style ?? "",
-      template: args.template,
-      resolution: args.resolution ?? "2K",
-      materialIds: args.materialIds ?? [],
-      engine: "codex",
-      ...(args.fast ? { fast: true } : {}),
-      ...(researchDoc ? { mode: "research", researchDoc } : {}),
-    }, (event) => {
+    await postSse("/api/generate", deckRequest(args, researchDoc), (event) => {
       if (event.type === "project") projectId = event.id;
       if (event.type === "outline") title = event.title;
       if (event.type === "page_rendered") rendered += 1;
@@ -439,19 +538,7 @@ register(
     let title = "";
     let outline = [];
     let researchDoc = args.researchDoc || "";
-    await postSse("/api/outline", {
-      requirement: args.topic,
-      pages: args.pages ?? 6,
-      aspect: args.aspect ?? "16:9",
-      language: args.language ?? "auto",
-      style: args.style ?? "",
-      template: args.template,
-      resolution: args.resolution ?? "2K",
-      materialIds: args.materialIds ?? [],
-      engine: "codex",
-      ...(args.fast ? { fast: true } : {}),
-      ...(args.research || researchDoc ? { mode: "research", researchDoc: researchDoc || undefined } : {}),
-    }, (event) => {
+    await postSse("/api/outline", deckRequest(args, researchDoc), (event) => {
       if (event.type === "project") projectId = event.id;
       if (event.type === "outline") {
         title = event.title;
@@ -477,10 +564,12 @@ register(
       projectId: z.string(),
       instruction: z.string().optional(),
       pages: z.array(z.object({ title: z.string(), points: z.array(z.string()).optional() })).optional(),
+      designFilePaths: z.array(z.string()).max(12).optional()
+        .describe("Project Design File paths from list_design_files to use as revision context."),
     },
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
   },
-  async ({ projectId, instruction, pages }, extra) => {
+  async ({ projectId, instruction, pages, designFilePaths = [] }, extra) => {
     if (!instruction?.trim() && !pages?.length) throw new Error("Provide instruction or pages.");
     const data = pages?.length
       ? await apiJson(`/api/projects/${encodeURIComponent(projectId)}/outline`, {
@@ -489,7 +578,10 @@ register(
           body: JSON.stringify({ pages }),
           signal: extra.signal,
         })
-      : await postJson(`/api/projects/${encodeURIComponent(projectId)}/outline`, { message: instruction }, extra.signal);
+      : await postJson(`/api/projects/${encodeURIComponent(projectId)}/outline`, {
+          message: instruction,
+          designFilePaths,
+        }, extra.signal);
     return ok(
       data.reply || `Saved ${data.pages?.length || pages?.length || 0} outline pages.`,
       { projectId, ...data },
@@ -602,6 +694,204 @@ register(
 );
 
 register(
+  "list_scenarios",
+  {
+    title: "List PPT Anything scenarios",
+    description: "Discover the product-owned presentation workflow catalog, defaults, and required or optional source-file slots before creating a deck.",
+    inputSchema: {
+      group: z.enum(["create", "transform", "data", "research", "optimize", "delivery"]).optional(),
+      query: z.string().optional(),
+      featured: z.boolean().optional(),
+      locale: z.enum(["zh-CN", "en"]).optional(),
+      scenarioId: z.string().optional().describe("Preselect this scenario in the returned Browser link."),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ group, query = "", featured = false, locale = "en", scenarioId }) => {
+    const data = await apiJson("/api/scenarios");
+    const normalized = query.trim().toLocaleLowerCase();
+    const featuredIds = new Set(data.featuredIds || []);
+    const scenarios = (data.scenarios || []).filter((scenario) => {
+      if (group && scenario.group !== group) return false;
+      if (featured && !featuredIds.has(scenario.id)) return false;
+      return !normalized || JSON.stringify(scenario).toLocaleLowerCase().includes(normalized);
+    });
+    const label = (value) => value?.[locale] || value?.en || "";
+    const uri = browserUrl(undefined, { view: "scenarios", scenarioId });
+    return ok(
+      scenarios.map((scenario) => `- ${scenario.id} — ${label(scenario.name)}: ${label(scenario.description)}`).join("\n") || "No scenarios matched.",
+      { groups: data.groups, scenarios, featuredIds: data.featuredIds, browserUrl: uri },
+      [{ uri, name: "Open scenario catalog", description: "Browse and select a PPT Anything workflow in the Codex Browser." }],
+    );
+  },
+);
+
+register(
+  "list_design_files",
+  {
+    title: "List project Design Files",
+    description: "List generated and uploaded project files, including editability, kind, size, and update time.",
+    inputSchema: {
+      projectId: z.string(),
+      filePath: z.string().optional().describe("Optionally focus this file in the Browser link."),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ projectId, filePath }) => {
+    const data = await apiJson(projectFileApiPath(projectId));
+    const uri = browserUrl(projectId, { view: "design-files", filePath });
+    return ok(
+      (data.files || []).map((file) => `- ${file.path} — ${file.kind}, ${file.size} bytes${file.editable ? ", editable" : ""}`).join("\n") || "This project has no Design Files yet.",
+      { projectId, files: data.files || [], browserUrl: uri },
+      [projectLink(projectId, "Open Design Files", { view: "design-files", filePath })],
+    );
+  },
+);
+
+register(
+  "read_design_file",
+  {
+    title: "Read a project Design File",
+    description: "Read an editable text Design File. Binary files return metadata and a Browser deep link for visual inspection.",
+    inputSchema: { projectId: z.string(), filePath: z.string().min(1) },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ projectId, filePath }) => {
+    const listing = await apiJson(projectFileApiPath(projectId));
+    const file = (listing.files || []).find((item) => item.path === filePath);
+    if (!file) throw new Error(`Design File not found: ${filePath}`);
+    const link = projectLink(projectId, `Open ${file.name}`, { view: "design-files", filePath });
+    if (!file.editable) {
+      return ok(`${file.path} is a ${file.kind} file. Open it in the Codex Browser to inspect it visually.`, {
+        projectId, file, content: null, browserUrl: link.uri,
+      }, [link]);
+    }
+    const response = await apiFetch(projectFileApiPath(projectId, filePath));
+    if (!response.ok) throw new Error((await response.text().catch(() => "")) || `HTTP ${response.status}`);
+    const content = await response.text();
+    return ok(content, { projectId, file, content, browserUrl: link.uri }, [link]);
+  },
+);
+
+register(
+  "write_design_file",
+  {
+    title: "Write a project Design File",
+    description: "Replace the content of an existing editable text Design File, matching the Browser workspace's Save action.",
+    inputSchema: {
+      projectId: z.string(),
+      filePath: z.string().min(1),
+      content: z.string().describe("Complete replacement content, up to 2 MB."),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+  },
+  async ({ projectId, filePath, content }, extra) => {
+    await apiJson(projectFileApiPath(projectId, filePath), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+      signal: extra.signal,
+    });
+    const link = projectLink(projectId, `Inspect ${filePath}`, { view: "design-files", filePath });
+    return ok(`Saved ${filePath} (${Buffer.byteLength(content)} bytes).`, {
+      projectId, filePath, bytes: Buffer.byteLength(content), browserUrl: link.uri,
+    }, [link]);
+  },
+);
+
+register(
+  "upload_design_file",
+  {
+    title: "Upload a project Design File",
+    description: "Copy a local file into a project's uploaded Design Files area so it is visible to both Codex and the Browser workspace.",
+    inputSchema: { projectId: z.string(), filePath: z.string().describe("Absolute or workspace-relative local file path") },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+  },
+  async ({ projectId, filePath }, extra) => {
+    const { form, absolute } = await fileForm(filePath, "files", 20 * 1024 * 1024);
+    const response = await apiFetch(projectFileApiPath(projectId), { method: "POST", body: form, signal: extra.signal });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    const uploaded = (data.files || []).find((file) => file.source === "uploaded" && file.name === basename(absolute));
+    const link = projectLink(projectId, `Open ${basename(absolute)}`, { view: "design-files", filePath: uploaded?.path });
+    return ok(`Uploaded ${basename(absolute)} to project Design Files.`, {
+      projectId, file: uploaded || null, files: data.files || [], sourcePath: absolute, browserUrl: link.uri,
+    }, [link]);
+  },
+);
+
+register(
+  "get_brand_design_system",
+  {
+    title: "Get a deck brand design system",
+    description: "Read the normalized always-on brand, style, color, typography, effects, spacing, radius, and asset rules for a project.",
+    inputSchema: { projectId: z.string() },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ projectId }) => {
+    const data = await apiJson(`/api/projects/${encodeURIComponent(projectId)}/design-system`);
+    const link = projectLink(projectId, "Open brand design system", { view: "brand-system" });
+    return ok(
+      data.enabled ? "Loaded the project's active brand design system." : "This project has no active brand system; returning its normalized editable seed.",
+      { projectId, ...data, browserUrl: link.uri },
+      [link],
+    );
+  },
+);
+
+register(
+  "update_brand_design_system",
+  {
+    title: "Update a deck brand design system",
+    description: "Merge partial brand and visual rules, attach staged brand assets, optionally apply a template, and optionally redraw every existing slide.",
+    inputSchema: {
+      projectId: z.string(),
+      designSystem: designSystemShape.optional().describe("Partial system patch; untouched sections are preserved."),
+      template: z.string().optional(),
+      style: z.string().optional(),
+      materialIds: z.array(z.string()).optional().describe("Staged ids from upload_material; this brand-specific tool adds them as brand assets."),
+      brandAssetMaterialIds: z.array(z.string()).optional().describe("Explicit final set of project material ids used as brand assets."),
+      clear: z.boolean().optional().describe("Disable the always-on brand system."),
+      redraw: z.boolean().optional().describe("Redraw all slides after saving. Defaults to false."),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+  },
+  async ({ projectId, designSystem, template, style, materialIds = [], brandAssetMaterialIds, clear = false, redraw = false }, extra) => {
+    if (!clear && !designSystem && !template && !style && !materialIds.length && brandAssetMaterialIds === undefined) {
+      throw new Error("Provide designSystem, template, style, materialIds, brandAssetMaterialIds, or clear:true.");
+    }
+    const data = await apiJson(`/api/projects/${encodeURIComponent(projectId)}/design-system`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ designSystem, template, style, materialIds, brandAssetMaterialIds, clear }),
+      signal: extra.signal,
+    });
+    const changed = [];
+    if (redraw && !clear) {
+      for (const page of data.project?.pages || []) {
+        try {
+          const generated = await postJson(`/api/projects/${encodeURIComponent(projectId)}/regenerate`, { index: page.index }, extra.signal);
+          changed.push(slideSummary(generated.page));
+        } catch (error) {
+          changed.push({ index: page.index, status: "error", error: error instanceof Error ? error.message : String(error) });
+        }
+      }
+    }
+    const { project: _project, ...systemData } = data;
+    const link = projectLink(projectId, "Inspect brand design system", { view: "brand-system" });
+    return ok(
+      clear
+        ? "Disabled the always-on brand design system."
+        : redraw
+          ? `Saved the brand design system and redrew ${changed.filter((page) => page.status !== "error").length}/${data.project?.pages?.length || 0} slides.`
+          : "Saved the brand design system for future generation and edits without redrawing existing slides.",
+      { projectId, ...systemData, changed, browserUrl: link.uri },
+      [link],
+    );
+  },
+);
+
+register(
   "edit_deck",
   {
     title: "Edit a deck with natural language",
@@ -611,16 +901,19 @@ register(
       instruction: z.string().min(1),
       slideIndex: z.number().int().min(1).optional(),
       materialIds: z.array(z.string()).optional(),
+      designFilePaths: z.array(z.string()).max(12).optional()
+        .describe("Project Design File paths from list_design_files to attach to this edit turn."),
     },
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
   },
-  async ({ projectId, instruction, slideIndex, materialIds = [] }, extra) => {
+  async ({ projectId, instruction, slideIndex, materialIds = [], designFilePaths = [] }, extra) => {
     const project = await apiJson(`/api/projects/${encodeURIComponent(projectId)}`);
     const contextPage = slideIndex ? project.pages?.find((page) => page.index === slideIndex) : undefined;
     const { plan } = await postJson(`/api/projects/${encodeURIComponent(projectId)}/chat`, {
       message: instruction,
       context: contextPage ? { slideIndex, title: contextPage.title } : undefined,
       attachmentIds: materialIds,
+      designFilePaths,
     }, extra.signal);
     const changed = [];
     if (plan.action === "add") {
@@ -751,7 +1044,7 @@ register(
   "upload_material",
   {
     title: "Upload a deck reference",
-    description: "Stage a local image, PDF, text, Markdown, CSV, or JSON file for use by create_deck, edit_deck, or restyle_deck.",
+    description: "Stage a supported local image, document, deck, spreadsheet, data, text, or code file for scenario slots, creation, editing, restyling, or brand assets.",
     inputSchema: { filePath: z.string().describe("Absolute or workspace-relative local file path") },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
   },

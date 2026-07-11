@@ -33,10 +33,11 @@ export type ResearchEvent =
 
 // --- primary path: Codex built-in web_search --------------------------------
 
-function researchPrompt(topic: string, priorDoc: string): string {
+function researchPrompt(topic: string, priorDoc: string, workflowContext = ""): string {
   if (priorDoc) {
     return [
       `You are extending a research brief about: ${topic}.`,
+      workflowContext,
       "Identify what is missing, thin, or outdated in the draft below, then USE WEB SEARCH to fill those gaps.",
       "Return an improved, extended markdown brief in the same format (more/updated facts and sources).",
       "",
@@ -46,6 +47,7 @@ function researchPrompt(topic: string, priorDoc: string): string {
   }
   return [
     `Research this topic for a slide deck using web search: ${topic}.`,
+    workflowContext,
     "Search several angles (definition/context, market size & trends, key players/examples, recent developments, risks/open questions).",
     "Then write a clean markdown research brief: a short intro, 4-8 thematic sections with concrete, current facts and figures",
     "(not filler), and a final '## Sources' list of [title](url) you actually found. Cite inline as [n].",
@@ -58,12 +60,13 @@ async function codexSearchSynthesize(
   priorDoc: string,
   emit: (e: ResearchEvent) => void,
   signal?: AbortSignal,
+  workflowContext = "",
 ): Promise<string> {
   const payload = {
     model: CODEX_RESPONSES_MODEL,
     instructions:
       "You are a research analyst. Use the web_search tool to gather current, cited facts, then write a clean markdown brief.",
-    input: [{ role: "user", content: [{ type: "input_text", text: researchPrompt(topic, priorDoc) }] }],
+    input: [{ role: "user", content: [{ type: "input_text", text: researchPrompt(topic, priorDoc, workflowContext) }] }],
     tools: [{ type: "web_search" }],
     store: false,
     stream: true,
@@ -99,6 +102,7 @@ async function codexSearchSynthesize(
 export interface RunResearchOptions {
   rounds?: number; // synthesis rounds (default 2)
   signal?: AbortSignal;
+  workflowContext?: string;
 }
 
 /** Run the deep-research loop, emitting progress. Returns the final markdown doc. */
@@ -107,13 +111,13 @@ export async function runResearch(
   emit: (e: ResearchEvent) => void,
   opts: RunResearchOptions = {},
 ): Promise<string> {
-  const { rounds = 2, signal } = opts;
+  const { rounds = 2, signal, workflowContext = "" } = opts;
   let doc = "";
   try {
     for (let round = 1; round <= rounds; round++) {
       if (signal?.aborted) break;
       emit({ type: "synth", round });
-      const next = await codexSearchSynthesize(topic, doc, emit, signal);
+      const next = await codexSearchSynthesize(topic, doc, emit, signal, workflowContext);
       if (next) doc = next;
       emit({ type: "doc", markdown: doc });
     }

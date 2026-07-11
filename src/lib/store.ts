@@ -49,10 +49,18 @@ function writeGeneratedFile(dir: string, name: string, content: string) {
 /** Keep agent-created inputs and intermediate decisions visible as ordinary files. */
 export function syncProjectFiles(project: Project): void {
   const dir = path.join(projectDir(project.id), "files", "generated");
+  const messages = project.chat ?? [];
   const outline = (project.outline ?? []).map((page, i) =>
     `## ${i + 1}. ${page.title}\n\n${page.points.map((point) => `- ${point}`).join("\n")}`,
   ).join("\n\n");
-  writeGeneratedFile(dir, "brief.md", `# ${project.title}\n\n${project.config.requirement || ""}\n`);
+  const confirmedBrief = messages.find((message) => (
+    message.role === "user" && /^(已确认|confirmed)[:：]/i.test(message.content.trim())
+  ))?.content.trim();
+  writeGeneratedFile(
+    dir,
+    "brief.md",
+    `# ${project.title}\n\n${project.config.requirement || ""}${confirmedBrief ? `\n\n## 已确认输入 / Confirmed inputs\n\n${confirmedBrief}` : ""}\n`,
+  );
   writeGeneratedFile(dir, "outline.md", `# Outline\n\n${outline}\n`);
   writeGeneratedFile(dir, "deck-config.json", `${JSON.stringify(project.config, null, 2)}\n`);
   if (project.config.designSystem) {
@@ -63,14 +71,22 @@ export function syncProjectFiles(project: Project): void {
     );
   }
   if (project.researchDoc) writeGeneratedFile(dir, "research.md", project.researchDoc);
-  const messages = project.chat ?? [];
   if (messages.length) {
     writeGeneratedFile(dir, "conversation.md", messages.map((message) =>
       `## ${message.role === "user" ? "User" : "Agent"}\n\n${message.content || ""}`,
     ).join("\n\n"));
-    const inspirations = messages.flatMap((message) => message.inspiration ? [message.inspiration] : []);
-    if (inspirations.length) writeGeneratedFile(dir, "inspiration.json", `${JSON.stringify(inspirations, null, 2)}\n`);
   }
+  const inspirations = messages.flatMap((message) => message.inspiration ? [message.inspiration] : []);
+  if (!inspirations.length && project.config.template) {
+    inspirations.push({
+      query: project.config.requirement || project.title,
+      coverIds: [project.config.template],
+      total: 1,
+      chosen: project.config.template,
+      resolved: true,
+    });
+  }
+  if (inspirations.length) writeGeneratedFile(dir, "inspiration.json", `${JSON.stringify(inspirations, null, 2)}\n`);
 }
 
 export function loadProject(id: string): Project | null {

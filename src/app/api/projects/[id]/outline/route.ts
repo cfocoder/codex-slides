@@ -5,6 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { reviseOutline } from "@/lib/pipeline";
+import { loadProjectFileReferences } from "@/lib/projectFiles";
 import { loadProject, replaceProjectPages } from "@/lib/store";
 import type { SlidePage } from "@/lib/types";
 
@@ -43,7 +44,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const message = String(body?.message ?? "").trim();
   if (!message) return NextResponse.json({ error: "message required" }, { status: 400 });
   try {
-    const { pages, reply } = await reviseOutline(params.id, message);
+    const requestedPaths = Array.isArray(body?.designFilePaths)
+      ? body.designFilePaths.map(String).slice(0, 12)
+      : [];
+    const { references, attachments } = loadProjectFileReferences(params.id, requestedPaths);
+    const { pages, reply } = await reviseOutline(params.id, message, {
+      attachments,
+      designFiles: references,
+    });
     return NextResponse.json({ pages, reply });
   } catch (e: any) {
     return NextResponse.json({ error: String(e?.message ?? e) }, { status: 500 });

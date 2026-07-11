@@ -10,11 +10,12 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const requirement = String(body?.requirement ?? "").trim();
   const uiLocale = isUiLocale(body?.uiLocale) ? body.uiLocale : "zh-CN";
+  const scenarioId = String(body?.scenarioId ?? "");
   if (!requirement) {
     return NextResponse.json({ error: "requirement is required" }, { status: 400 });
   }
   try {
-    const questions = await generateOnboardQuestions(requirement, undefined, uiLocale);
+    const questions = await generateOnboardQuestions(requirement, undefined, uiLocale, scenarioId);
     return NextResponse.json({ questions });
   } catch (e: any) {
     return NextResponse.json({ error: String(e?.message ?? e) }, { status: 500 });

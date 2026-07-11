@@ -2,9 +2,12 @@
 // (which slides to change + the instruction). Execution reuses the validated
 // per-slide regenerate route, so chat itself only classifies — it stays fast.
 
-import { codexJson, type CodexInputAttachment } from "./codex-text";
+import { codexJson, parseLooseJson, type CodexInputAttachment } from "./codex-text";
+import { runCliAgentText } from "./agents";
+import type { AgentToolCall } from "./agentActivity";
 import { buildDeckDesignSystemContext } from "./designSystem";
-import type { Project } from "./types";
+import { materialRolePrompt, scenarioPromptContext } from "./scenarios";
+import type { DesignFileReference, Project } from "./types";
 
 export interface ChatPlan {
   action: "edit" | "add" | "reply";
@@ -13,6 +16,8 @@ export interface ChatPlan {
   afterIndex?: number; // add a new slide after this 1-based index; 0 = before slide 1
   title?: string; // exact resulting title when adding or explicitly retitling one slide
   instruction: string; // self-contained imperative change
+  /** Real tool events captured from local CLI agents (Codex JSONL today). */
+  activities?: AgentToolCall[];
 }
 
 export interface ChatSlideContext {
@@ -25,6 +30,7 @@ export function buildChatPrompt(
   message: string,
   context?: ChatSlideContext,
   attachments: CodexInputAttachment[] = [],
+  designFiles: DesignFileReference[] = [],
 ): string {
   const slides = project.pages
     .map((p) => `${p.index}. ${p.title}${p.points?.length ? ` — ${p.points.join("; ")}` : ""}`)
@@ -38,6 +44,8 @@ export function buildChatPrompt(
     slides,
     "",
     `The deck's overall topic: ${project.title}.`,
+    scenarioPromptContext(project.config.scenarioId),
+    materialRolePrompt(project.config.materialContexts),
     buildDeckDesignSystemContext(project.config.designSystem),
     selected
       ? `The user attached slide ${selected.index} as the active context: "${selected.title}"${selected.points?.length ? `. Its content includes: ${selected.points.join("; ")}` : ""}. References such as "this slide", "after this", "before it", "这页", "它后面" refer to this slide.`
@@ -45,6 +53,14 @@ export function buildChatPrompt(
     attachments.length
       ? `The user attached ${attachments.length} new context item(s) to this turn: ${attachments.map((item) => item.name).join(", ")}. Read and use the actual attached content when deciding the action and writing a self-contained instruction.`
       : "No new file or image is attached to this turn.",
+    designFiles.length
+      ? [
+          "<design_file_references>",
+          "The user explicitly referenced these local project files with @. Read only the files needed for this request and treat their contents as source material:",
+          ...designFiles.map((file) => `- ${file.name}: ${file.path}`),
+          "</design_file_references>",
+        ].join("\n")
+      : "No Design Files path was referenced with @ in this turn.",
     "",
     `The user says: "${message}"`,
     "",
@@ -103,11 +119,26 @@ export async function planChatEdit(
   message: string,
   context?: ChatSlideContext,
   attachments: CodexInputAttachment[] = [],
+  designFiles: DesignFileReference[] = [],
   signal?: AbortSignal,
 ): Promise<ChatPlan> {
-  const raw = await codexJson<any>(buildChatPrompt(project, message, context, attachments), {
-    signal,
-    attachments,
-  });
-  return parseChatPlan(raw, project.pages.length);
+  const prompt = buildChatPrompt(project, message, context, attachments, designFiles);
+  const localAttachments = attachments.filter((attachment) => attachment.path);
+  const localPrompt = localAttachments.length
+    ? [
+        prompt,
+        "",
+        "Local context paths available for this turn:",
+        ...localAttachments.map((attachment) => `- ${attachment.name}: ${attachment.path}`),
+      ].join("\n")
+    : prompt;
+  if (project.config.engine === "codex") {
+    const raw = await codexJson<any>(prompt, { signal, attachments });
+    return parseChatPlan(raw, project.pages.length);
+  }
+  const result = await runCliAgentText(project.config.engine, localPrompt, { signal });
+  return {
+    ...parseChatPlan(parseLooseJson<any>(result.text), project.pages.length),
+    activities: result.activities,
+  };
 }

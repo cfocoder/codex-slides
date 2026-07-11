@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  At,
   ArrowsOut,
   Check,
   CheckCircle,
@@ -18,8 +19,8 @@ import {
   Plus,
   Question,
   SidebarSimple,
+  Sparkle,
   Trash,
-  Wrench,
   X,
   XCircle,
 } from "@phosphor-icons/react";
@@ -27,6 +28,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ContextItems from "@/components/ContextItems";
 import ContextOptionItems from "@/components/ContextOptionItems";
+import { AgentToolActivity } from "@/components/AgentToolActivity";
+import { DesignFileMentionPicker } from "@/components/DesignFileMentionPicker";
+import { DesignFileReferenceList } from "@/components/DesignFileReferenceList";
 import ImagePreviewDialog from "@/components/ImagePreviewDialog";
 import {
   CONTEXT_ITEM_ACCEPT,
@@ -36,9 +40,14 @@ import {
 } from "@/lib/contextItems";
 import type { ChatRequest, GenStatus, SlideChatContext } from "@/lib/deckEdit";
 import type { AgentProcess } from "@/lib/agentActivity";
+import {
+  fileMentionAtCursor,
+  replaceFileMention,
+  type ActiveFileMention,
+} from "@/lib/designFileMentions";
 import { getCommunityTemplate } from "@/lib/community";
 import { shouldSubmitTextarea } from "@/lib/keyboard";
-import type { ContextOptionItem } from "@/lib/types";
+import type { ContextOptionItem, DesignFileReference, ProjectFileRecord } from "@/lib/types";
 import type { WorkflowProgress } from "@/lib/workflowProgress";
 import { useI18n } from "@/i18n/I18nProvider";
 import { translate, type UiLocale } from "@/i18n/messages";
@@ -63,6 +72,8 @@ export interface ChatMsg {
   };
   attachment?: SlideChatContext;
   contextItems?: ContextItem[];
+  /** Project files explicitly referenced with @. `path` is the durable local path. */
+  designFiles?: DesignFileReference[];
   contextOptions?: ContextOptionItem[];
   /** Clickable next-step chips (step 6 guidance); clicking sends the text as a follow-up. */
   suggestions?: string[];
@@ -123,8 +134,13 @@ function AnswerMeta({ message }: { message: ChatMsg }) {
   const { locale, t } = useI18n();
   const [copied, setCopied] = useState(false);
   const fallbackOutputTokens = estimateOutputTokens(message.content);
-  const outputTokens = message.usage?.outputTokens ?? fallbackOutputTokens;
-  const estimated = message.usage?.outputTokens == null || message.usage.estimated;
+  const reportedOutputTokens = message.usage?.outputTokens;
+  const reportedTotalTokens = message.usage?.totalTokens;
+  const hasReportedOutput = typeof reportedOutputTokens === "number";
+  const hasReportedTotal = typeof reportedTotalTokens === "number";
+  const tokenCount = reportedOutputTokens ?? reportedTotalTokens ?? fallbackOutputTokens;
+  const estimated = (!hasReportedOutput && !hasReportedTotal) || Boolean(message.usage?.estimated);
+  const tokenLabel = hasReportedTotal && !hasReportedOutput ? "total" : "output";
 
   async function copyAnswer() {
     if (!message.content.trim()) return;
@@ -139,15 +155,19 @@ function AnswerMeta({ message }: { message: ChatMsg }) {
     <div className="answer-meta">
       <span className="answer-meta-summary">
         <span>{answerDurationLabel(message.ran, t("chat.answerDone"))}</span>
-        {outputTokens > 0 && (
+        {tokenCount > 0 && (
           <>
             <i aria-hidden="true">·</i>
             <span
               title={estimated
                 ? t("chat.estimatedTokens")
-                : t("chat.reportedTokens")}
+                : tokenLabel === "total"
+                  ? t("chat.reportedTotalTokens")
+                  : t("chat.reportedTokens")}
             >
-              {t("chat.outputTokens", { count: `${estimated ? "≈ " : ""}${formatTokenCount(outputTokens, locale)}` })}
+              {t(tokenLabel === "total" ? "chat.totalTokens" : "chat.outputTokens", {
+                count: `${estimated ? "≈ " : ""}${formatTokenCount(tokenCount, locale)}`,
+              })}
             </span>
           </>
         )}
@@ -424,7 +444,7 @@ function InspirationCard({
       <div className={`inspo-card${resolved ? " resolved" : ""}`}>
         <div className="inspo-head">
           <span className="inspo-ic" aria-hidden="true">
-            ✦
+            <Sparkle size={14} weight="fill" />
           </span>
           <span className="inspo-copy">
           <b>{t("chat.inspiration")}</b>
@@ -483,7 +503,13 @@ function InspirationCard({
   );
 }
 
-function AgentProcessCard({ process }: { process: AgentProcess }) {
+function AgentProcessCard({
+  process,
+  onOpenDesignFile,
+}: {
+  process: AgentProcess;
+  onOpenDesignFile?: (relativePath: string) => void;
+}) {
   const { t } = useI18n();
   return (
     <div className={`agent-process ${process.state}`} role="status" aria-live="polite">
@@ -508,27 +534,7 @@ function AgentProcessCard({ process }: { process: AgentProcess }) {
       {process.tools.length ? (
         <div className="agent-tools" aria-label={t("chat.toolCalls")}>
           {process.tools.map((tool) => (
-            <div className={`agent-tool ${tool.state}`} key={tool.id}>
-              <span className="agent-tool-icon" aria-hidden="true">
-                {tool.state === "running" ? (
-                  <CircleNotch size={14} className="spin" />
-                ) : tool.state === "complete" ? (
-                  <CheckCircle size={14} weight="fill" />
-                ) : tool.state === "error" ? (
-                  <XCircle size={14} weight="fill" />
-                ) : (
-                  <Circle size={14} />
-                )}
-              </span>
-              <span className="agent-tool-copy">
-                <span><Wrench size={12} aria-hidden="true" /><code>{tool.name}</code></span>
-                <strong>{tool.label}</strong>
-                {tool.detail && <small>{tool.detail}</small>}
-              </span>
-              <span className="agent-tool-status">
-                {tool.state === "running" ? t("chat.toolRunning") : tool.state === "complete" ? t("chat.toolDone") : tool.state === "error" ? t("chat.toolFailed") : t("chat.toolWaiting")}
-              </span>
-            </div>
+            <AgentToolActivity tool={tool} onOpenDesignFile={onOpenDesignFile} key={tool.id} />
           ))}
         </div>
       ) : null}
@@ -594,6 +600,7 @@ function StatusCard({ status }: { status: GenStatus }) {
  * them when work finishes (multi-round dialogue).
  */
 export default function ChatColumn({
+  projectId,
   label,
   messages,
   busy,
@@ -617,6 +624,8 @@ export default function ChatColumn({
   onDeleteConversation,
   conversationManagementDisabled = false,
 }: {
+  /** Enables @ mentions for the physical files owned by this project. */
+  projectId?: string | null;
   label?: string;
   messages: ChatMsg[];
   busy: boolean;
@@ -655,6 +664,12 @@ export default function ChatColumn({
   const [collapseSettled, setCollapseSettled] = useState(false);
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<ContextItem[]>([]);
+  const [projectFiles, setProjectFiles] = useState<ProjectFileRecord[]>([]);
+  const [referencedFiles, setReferencedFiles] = useState<DesignFileReference[]>([]);
+  const [fileMention, setFileMention] = useState<ActiveFileMention | null>(null);
+  const [fileMentionIndex, setFileMentionIndex] = useState(0);
+  const [projectFilesLoading, setProjectFilesLoading] = useState(false);
+  const [projectFilesLoaded, setProjectFilesLoaded] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [conversationOpen, setConversationOpen] = useState(false);
@@ -666,6 +681,8 @@ export default function ChatColumn({
   const feedRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  const projectFilesRequestRef = useRef(0);
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationPanelRef = useRef<HTMLDivElement>(null);
 
@@ -674,6 +691,64 @@ export default function ChatColumn({
     if (!query) return conversations ?? [];
     return (conversations ?? []).filter((conversation) => conversation.title.toLocaleLowerCase().includes(query));
   }, [conversationQuery, conversations]);
+
+  const filteredProjectFiles = useMemo(() => {
+    const query = fileMention?.query.trim().toLocaleLowerCase() ?? "";
+    if (!query) return projectFiles;
+    return projectFiles.filter((file) => (
+      `${file.name} ${file.path} ${file.absolutePath}`.toLocaleLowerCase().includes(query)
+    ));
+  }, [fileMention?.query, projectFiles]);
+
+  const referencedFilePaths = useMemo(
+    () => new Set(referencedFiles.map((file) => file.path)),
+    [referencedFiles],
+  );
+
+  async function refreshProjectFiles(force = false) {
+    if (!projectId || (!force && (projectFilesLoaded || projectFilesLoading))) return;
+    const requestId = ++projectFilesRequestRef.current;
+    const requestedProjectId = projectId;
+    setProjectFilesLoading(true);
+    try {
+      const response = await fetch(`/api/projects/${encodeURIComponent(requestedProjectId)}/files`, {
+        cache: "no-store",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(String(data.error ?? `HTTP ${response.status}`));
+      if (requestId !== projectFilesRequestRef.current) return;
+      setProjectFiles(Array.isArray(data.files) ? data.files as ProjectFileRecord[] : []);
+      setProjectFilesLoaded(true);
+    } catch (error) {
+      if (requestId !== projectFilesRequestRef.current) return;
+      setUploadError(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (requestId === projectFilesRequestRef.current) setProjectFilesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    projectFilesRequestRef.current += 1;
+    setProjectFiles([]);
+    setProjectFilesLoaded(false);
+    setProjectFilesLoading(false);
+    setReferencedFiles([]);
+    setFileMention(null);
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!fileMention) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!composerRef.current?.contains(event.target as Node)) setFileMention(null);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [fileMention]);
+
+  useEffect(() => {
+    if (fileMentionIndex < filteredProjectFiles.length) return;
+    setFileMentionIndex(Math.max(0, filteredProjectFiles.length - 1));
+  }, [fileMentionIndex, filteredProjectFiles.length]);
 
   useEffect(() => {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
@@ -717,12 +792,72 @@ export default function ChatColumn({
     setUploading(false);
   }
 
+  function updateComposerText(value: string, cursor: number) {
+    setText(value);
+    setReferencedFiles((current) => current.filter((file) => value.includes(`@${file.name}`)));
+    const nextMention = projectId ? fileMentionAtCursor(value, cursor) : null;
+    setFileMention(nextMention);
+    setFileMentionIndex(0);
+    if (nextMention) void refreshProjectFiles();
+  }
+
+  function openFileMention() {
+    if (!projectId) return;
+    const cursor = textareaRef.current?.selectionStart ?? text.length;
+    const prefix = cursor > 0 && !/\s/.test(text[cursor - 1] ?? "") ? " @" : "@";
+    const next = `${text.slice(0, cursor)}${prefix}${text.slice(cursor)}`;
+    const nextCursor = cursor + prefix.length;
+    setText(next);
+    setFileMention({ start: nextCursor - 1, query: "" });
+    setFileMentionIndex(0);
+    void refreshProjectFiles();
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(nextCursor, nextCursor);
+    });
+  }
+
+  function selectProjectFile(file: ProjectFileRecord) {
+    if (!fileMention) return;
+    const cursor = textareaRef.current?.selectionStart ?? fileMention.start + fileMention.query.length + 1;
+    const replacement = replaceFileMention(text, cursor, fileMention, file.name);
+    setText(replacement.value);
+    setReferencedFiles((current) => current.some((item) => item.path === file.absolutePath)
+      ? current
+      : [...current, {
+          path: file.absolutePath,
+          relativePath: file.path,
+          name: file.name,
+          kind: file.kind,
+        }]);
+    setFileMention(null);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(replacement.cursor, replacement.cursor);
+    });
+  }
+
+  function removeReferencedFile(path: string) {
+    const file = referencedFiles.find((item) => item.path === path);
+    setReferencedFiles((current) => current.filter((item) => item.path !== path));
+    if (file) setText((current) => current.replace(`@${file.name}`, "").replace(/ {2,}/g, " "));
+  }
+
   function submit() {
-    const m = text.trim() || (attachments.length ? t("chat.useAttachments") : "");
+    const m = text.trim()
+      || (attachments.length ? t("chat.useAttachments") : "")
+      || (referencedFiles.length ? t("chat.useDesignFiles") : "");
     if (!m || !onSend || uploading) return; // allowed while busy → parent queues it
     setText("");
-    onSend({ message: m, context: context ?? undefined, attachments });
+    onSend({
+      message: m,
+      context: context ?? undefined,
+      attachments,
+      designFiles: referencedFiles,
+    });
     setAttachments([]);
+    setReferencedFiles([]);
+    setFileMention(null);
     setUploadError("");
     onClearContext?.();
   }
@@ -732,13 +867,19 @@ export default function ChatColumn({
     if (collapsed) {
       setCollapseSettled(false);
       setCollapsed(false);
-      window.setTimeout(() => textareaRef.current?.focus(), 230);
+      collapseTimerRef.current = setTimeout(() => {
+        collapseTimerRef.current = null;
+        textareaRef.current?.focus();
+      }, 230);
       return;
     }
     setConversationOpen(false);
     setCollapseSettled(false);
     setCollapsed(true);
-    collapseTimerRef.current = setTimeout(() => setCollapseSettled(true), 230);
+    collapseTimerRef.current = setTimeout(() => {
+      collapseTimerRef.current = null;
+      setCollapseSettled(true);
+    }, 230);
   }
 
   function beginRename(conversation: ChatConversationSummary) {
@@ -931,6 +1072,9 @@ export default function ChatColumn({
             {m.role === "user" && m.contextOptions?.length ? (
               <ContextOptionItems items={m.contextOptions} compact />
             ) : null}
+            {m.role === "user" && m.designFiles?.length ? (
+              <DesignFileReferenceList files={m.designFiles} compact onOpen={onOpenDesignFile} />
+            ) : null}
             {m.role === "user" && m.contextItems?.length ? <ContextItems items={m.contextItems} compact /> : null}
             {m.role === "user" && m.attachment ? <SlideAttachment slide={m.attachment} onSelectSlide={onSelectSlide} /> : null}
             {m.content && (
@@ -938,7 +1082,7 @@ export default function ChatColumn({
                 {m.content}
               </div>
             )}
-            {m.process && <AgentProcessCard process={m.process} />}
+            {m.process && <AgentProcessCard process={m.process} onOpenDesignFile={onOpenDesignFile} />}
             {m.artifact && <ArtifactCard artifact={m.artifact} onOpenDesignFile={onOpenDesignFile} />}
             {m.doc && <OutlineDocumentCard doc={m.doc} onOpenDesignFile={onOpenDesignFile} />}
             {m.role !== "user" && m.attachment && <SlideAttachment slide={m.attachment} onSelectSlide={onSelectSlide} />}
@@ -986,6 +1130,9 @@ export default function ChatColumn({
           <div key={`q${i}`} className="msg user queued" title={t("chat.queuedHelp")}>
             <span className="queued-tag">⏳ {t("chat.queued")}</span>
             {q.context && <SlideAttachment slide={q.context} compact onSelectSlide={onSelectSlide} />}
+            {q.designFiles?.length ? (
+              <DesignFileReferenceList files={q.designFiles} compact onOpen={onOpenDesignFile} />
+            ) : null}
             {q.attachments?.length ? <ContextItems items={q.attachments} compact /> : null}
             <div className="msg-user-bubble" style={{ whiteSpace: "pre-wrap" }}>{q.message}</div>
           </div>
@@ -994,7 +1141,19 @@ export default function ChatColumn({
 
       {onSend && (
         <div className="chatcol-composer">
-          <div className="composer" style={{ padding: "10px 12px 8px", borderRadius: 16 }}>
+          <div className="composer" ref={composerRef} style={{ padding: "10px 12px 8px", borderRadius: 16 }}>
+            {fileMention && projectId ? (
+              <DesignFileMentionPicker
+                files={filteredProjectFiles}
+                query={fileMention.query}
+                loading={projectFilesLoading}
+                activeIndex={fileMentionIndex}
+                selectedPaths={referencedFilePaths}
+                onActiveIndexChange={setFileMentionIndex}
+                onSelect={selectProjectFile}
+                onRefresh={() => void refreshProjectFiles(true)}
+              />
+            ) : null}
             {context && (
               <div className="composer-context">
                 <SlideAttachment slide={context} compact onSelectSlide={onSelectSlide} />
@@ -1009,6 +1168,14 @@ export default function ChatColumn({
                 scrollable
               />
             )}
+            {referencedFiles.length > 0 ? (
+              <DesignFileReferenceList
+                files={referencedFiles}
+                compact
+                onOpen={onOpenDesignFile}
+                onRemove={removeReferencedFile}
+              />
+            ) : null}
             {uploadError && <div className="context-upload-error" role="alert">{uploadError}</div>}
             <textarea
               ref={textareaRef}
@@ -1021,7 +1188,7 @@ export default function ChatColumn({
                     : placeholder ?? t("chat.defaultPlaceholder")
               }
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(event) => updateComposerText(event.target.value, event.target.selectionStart)}
               onPaste={(event) => {
                 const files = Array.from(event.clipboardData.files);
                 if (!files.length) return;
@@ -1029,6 +1196,25 @@ export default function ChatColumn({
                 void addFiles(files);
               }}
               onKeyDown={(e) => {
+                if (fileMention) {
+                  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                    e.preventDefault();
+                    const direction = e.key === "ArrowDown" ? 1 : -1;
+                    const count = filteredProjectFiles.length;
+                    if (count) setFileMentionIndex((index) => (index + direction + count) % count);
+                    return;
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setFileMention(null);
+                    return;
+                  }
+                  if ((e.key === "Enter" || e.key === "Tab") && filteredProjectFiles[fileMentionIndex]) {
+                    e.preventDefault();
+                    selectProjectFile(filteredProjectFiles[fileMentionIndex]);
+                    return;
+                  }
+                }
                 if (shouldSubmitTextarea({
                   key: e.key,
                   shiftKey: e.shiftKey,
@@ -1062,10 +1248,22 @@ export default function ChatColumn({
                   event.target.value = "";
                 }}
               />
+              {projectId ? (
+                <button
+                  type="button"
+                  className={`cbtn icononly${fileMention ? " active" : ""}`}
+                  onClick={openFileMention}
+                  title={t("chat.mentionDesignFile")}
+                  aria-label={t("chat.mentionDesignFile")}
+                  aria-expanded={Boolean(fileMention)}
+                >
+                  <At size={18} />
+                </button>
+              ) : null}
               <span className="spacer" />
               <button
                 className="send-btn"
-                disabled={uploading || (!text.trim() && !attachments.length)}
+                disabled={uploading || (!text.trim() && !attachments.length && !referencedFiles.length)}
                 onClick={submit}
                 title={busy ? t("chat.queue") : t("chat.send")}
               >
