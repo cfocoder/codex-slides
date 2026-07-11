@@ -1,3 +1,7 @@
+"use client";
+
+import { useI18n } from "@/i18n/I18nProvider";
+
 interface ProjectLoadingShellProps {
   title?: string;
 }
@@ -50,6 +54,3 @@ export default function ProjectLoadingShell({ title }: ProjectLoadingShellProps)
     </div>
   );
 }
-"use client";
-
-import { useI18n } from "@/i18n/I18nProvider";

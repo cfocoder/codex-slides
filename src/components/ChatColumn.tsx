@@ -11,10 +11,12 @@ import {
   CrosshairSimple,
   DotsThree,
   FileText,
+  Images,
   MagnifyingGlass,
   MinusCircle,
   PencilSimple,
   Plus,
+  Question,
   SidebarSimple,
   Trash,
   Wrench,
@@ -51,6 +53,13 @@ export interface ChatMsg {
     subtitle: string;
     icon?: string;
     pages?: { title: string; points: string[] }[];
+    artifactId?: string;
+  };
+  artifact?: {
+    id: string;
+    kind: "questions" | "outline" | "inspiration";
+    title: string;
+    subtitle: string;
   };
   attachment?: SlideChatContext;
   contextItems?: ContextItem[];
@@ -275,7 +284,13 @@ function SlideAttachment({
   );
 }
 
-function OutlineDocumentCard({ doc }: { doc: NonNullable<ChatMsg["doc"]> }) {
+function OutlineDocumentCard({
+  doc,
+  onOpenDesignFile,
+}: {
+  doc: NonNullable<ChatMsg["doc"]>;
+  onOpenDesignFile?: (id: string) => void;
+}) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
 
@@ -302,7 +317,15 @@ function OutlineDocumentCard({ doc }: { doc: NonNullable<ChatMsg["doc"]> }) {
   return (
     <>
       {doc.pages?.length ? (
-        <button type="button" className="doc-card" onClick={() => setOpen(true)}>{card}</button>
+        <button
+          type="button"
+          className="doc-card"
+          onClick={() => (
+            onOpenDesignFile && doc.artifactId
+              ? onOpenDesignFile(doc.artifactId)
+              : setOpen(true)
+          )}
+        >{card}</button>
       ) : (
         <div className="doc-card">{card}</div>
       )}
@@ -345,15 +368,49 @@ function OutlineDocumentCard({ doc }: { doc: NonNullable<ChatMsg["doc"]> }) {
   );
 }
 
+function ArtifactCard({
+  artifact,
+  onOpenDesignFile,
+}: {
+  artifact: NonNullable<ChatMsg["artifact"]>;
+  onOpenDesignFile?: (id: string) => void;
+}) {
+  const { t } = useI18n();
+  const icon = artifact.kind === "questions"
+    ? <Question size={17} />
+    : artifact.kind === "inspiration"
+      ? <Images size={17} />
+      : <FileText size={17} />;
+  return (
+    <button
+      type="button"
+      className="chat-artifact-card"
+      onClick={() => onOpenDesignFile?.(artifact.id)}
+      disabled={!onOpenDesignFile}
+    >
+      <span className="chat-artifact-icon" aria-hidden="true">{icon}</span>
+      <span className="chat-artifact-copy">
+        <strong>{artifact.title}</strong>
+        <small>{artifact.subtitle}</small>
+      </span>
+      <span className="chat-artifact-open">
+        {t("chat.openDesignFiles")} <ArrowsOut size={13} />
+      </span>
+    </button>
+  );
+}
+
 /** In-chat inspiration card (Image #10): topic-matched cover thumbnails + a
  *  Browse button that opens the style popup. After the user picks or skips it
  *  collapses to a resolved summary line. */
 function InspirationCard({
   inspiration,
   onInspire,
+  onOpenDesignFile,
 }: {
   inspiration: NonNullable<ChatMsg["inspiration"]>;
   onInspire?: (action: "browse" | "skip") => void;
+  onOpenDesignFile?: (id: string) => void;
 }) {
   const { t } = useI18n();
   const { query, coverIds, total, chosen, resolved } = inspiration;
@@ -404,7 +461,11 @@ function InspirationCard({
         )}
         {resolved && chosenTemplate && (
           <div className="inspo-actions resolved-actions">
-            <button type="button" className="inspo-preview" onClick={() => setPreviewOpen(true)}>
+            <button
+              type="button"
+              className="inspo-preview"
+              onClick={() => onOpenDesignFile ? onOpenDesignFile("inspiration") : setPreviewOpen(true)}
+            >
               {t("chat.previewAgain")} <ArrowsOut size={13} />
             </button>
           </div>
@@ -423,7 +484,7 @@ function InspirationCard({
 }
 
 function AgentProcessCard({ process }: { process: AgentProcess }) {
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
   return (
     <div className={`agent-process ${process.state}`} role="status" aria-live="polite">
       <div className="agent-process-head">
@@ -546,6 +607,7 @@ export default function ChatColumn({
   focusKey = 0,
   onSelectSlide,
   onInspire,
+  onOpenDesignFile,
   workflow,
   conversations,
   activeConversationId,
@@ -575,6 +637,8 @@ export default function ChatColumn({
   onSelectSlide?: (index: number) => void;
   /** Inspiration card actions: open the Browse popup, or skip the style step. */
   onInspire?: (action: "browse" | "skip") => void;
+  /** Open a workflow artifact in the shared right-side Design Files preview. */
+  onOpenDesignFile?: (id: string) => void;
   /** Persistent four-step project progress shown throughout the workflow. */
   workflow?: WorkflowProgress;
   /** Optional project-scoped multi-session controls. */
@@ -586,7 +650,7 @@ export default function ChatColumn({
   onDeleteConversation?: (id: string) => void;
   conversationManagementDisabled?: boolean;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [collapsed, setCollapsed] = useState(false);
   const [collapseSettled, setCollapseSettled] = useState(false);
   const [text, setText] = useState("");
@@ -875,9 +939,16 @@ export default function ChatColumn({
               </div>
             )}
             {m.process && <AgentProcessCard process={m.process} />}
-            {m.doc && <OutlineDocumentCard doc={m.doc} />}
+            {m.artifact && <ArtifactCard artifact={m.artifact} onOpenDesignFile={onOpenDesignFile} />}
+            {m.doc && <OutlineDocumentCard doc={m.doc} onOpenDesignFile={onOpenDesignFile} />}
             {m.role !== "user" && m.attachment && <SlideAttachment slide={m.attachment} onSelectSlide={onSelectSlide} />}
-            {m.inspiration && <InspirationCard inspiration={m.inspiration} onInspire={onInspire} />}
+            {m.inspiration && (
+              <InspirationCard
+                inspiration={m.inspiration}
+                onInspire={onInspire}
+                onOpenDesignFile={onOpenDesignFile}
+              />
+            )}
             {m.role !== "user" && m.contextItems?.length ? <ContextItems items={m.contextItems} compact /> : null}
             {m.suggestions?.length ? (
               <div className="suggest-row">
@@ -898,6 +969,7 @@ export default function ChatColumn({
           </div>
         ))}
 
+        {workflow ? <WorkflowProgressCard workflow={workflow} /> : null}
         {status && !workflow && <StatusCard status={status} />}
 
         {waiting && (
@@ -919,8 +991,6 @@ export default function ChatColumn({
           </div>
         ))}
       </div>
-
-      {workflow ? <WorkflowProgressCard workflow={workflow} /> : null}
 
       {onSend && (
         <div className="chatcol-composer">

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import type { OutlinePage } from "@/lib/types";
 import { useI18n } from "@/i18n/I18nProvider";
 
@@ -18,6 +18,7 @@ export default function OutlineBoard({
   busy = false,
   streaming = false,
   researchDoc,
+  headerPrefix,
 }: {
   title: string;
   aspect: string;
@@ -29,6 +30,7 @@ export default function OutlineBoard({
   /** true while the outline is still being written by the agent. */
   streaming?: boolean;
   researchDoc?: string;
+  headerPrefix?: ReactNode;
 }) {
   const { t } = useI18n();
   const [showBrief, setShowBrief] = useState(false);
@@ -64,6 +66,7 @@ export default function OutlineBoard({
   return (
     <section className="stage outline-stage">
       <div className="stage-head">
+        {headerPrefix}
         <span className="title">{title || t("outline.draft")}</span>
         <span className="count">{t("outline.pageCount", { count, aspect })}</span>
         <div className="stage-actions">

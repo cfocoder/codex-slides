@@ -47,7 +47,7 @@ function writeGeneratedFile(dir: string, name: string, content: string) {
 }
 
 /** Keep agent-created inputs and intermediate decisions visible as ordinary files. */
-function syncProjectFiles(project: Project): void {
+export function syncProjectFiles(project: Project): void {
   const dir = path.join(projectDir(project.id), "files", "generated");
   const outline = (project.outline ?? []).map((page, i) =>
     `## ${i + 1}. ${page.title}\n\n${page.points.map((point) => `- ${point}`).join("\n")}`,

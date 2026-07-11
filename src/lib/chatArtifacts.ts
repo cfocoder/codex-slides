@@ -10,6 +10,7 @@ export function outlineSnapshotMessage(title: string, outline: OutlinePage[]): C
       title: title || "演示文稿大纲",
       subtitle: `已确认 · ${outline.length} 页`,
       pages: outline.map((page) => ({ title: page.title, points: [...page.points] })),
+      artifactId: "outline",
     },
   };
 }

@@ -3,9 +3,7 @@
 import { Check, GearSix, Translate, X } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/i18n/I18nProvider";
-import type { UiLocale } from "@/i18n/messages";
-
-const LOCALES: UiLocale[] = ["zh-CN", "en"];
+import { LOCALES, LOCALE_LABEL } from "@/i18n/messages";
 
 export default function GlobalSettings() {
   const { locale, setLocale, t } = useI18n();
@@ -67,8 +65,8 @@ export default function GlobalSettings() {
                 onClick={() => setLocale(value)}
               >
                 <span>
-                  <b>{value === "zh-CN" ? "文" : "EN"}</b>
-                  <span>{value === "zh-CN" ? t("settings.zh") : t("settings.en")}</span>
+                  <b>{value === "zh-CN" ? "文" : value.slice(0, 2).toUpperCase()}</b>
+                  <span>{LOCALE_LABEL[value]}</span>
                 </span>
                 {locale === value && <Check size={16} weight="bold" aria-hidden="true" />}
               </button>
@@ -79,4 +77,3 @@ export default function GlobalSettings() {
     </div>
   );
 }
-

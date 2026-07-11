@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import {
   DEFAULT_UI_LOCALE,
   isUiLocale,
+  RTL_LOCALES,
   translate,
   UI_LOCALE_STORAGE_KEY,
   type MessageKey,
@@ -19,26 +20,37 @@ interface I18nValue {
 
 const I18nContext = createContext<I18nValue | null>(null);
 
-export default function I18nProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<UiLocale>(DEFAULT_UI_LOCALE);
+export default function I18nProvider({
+  children,
+  initial = DEFAULT_UI_LOCALE,
+}: {
+  children: React.ReactNode;
+  initial?: UiLocale;
+}) {
+  const [locale, setLocaleState] = useState<UiLocale>(initial);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(UI_LOCALE_STORAGE_KEY);
-    if (isUiLocale(saved)) {
-      setLocaleState(saved);
-      return;
+    try {
+      const saved = window.localStorage.getItem(UI_LOCALE_STORAGE_KEY);
+      if (isUiLocale(saved)) setLocaleState(saved);
+    } catch {
+      // Storage can be unavailable in private or restricted browser contexts.
     }
-    setLocaleState(navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en");
   }, []);
 
   useEffect(() => {
     document.documentElement.lang = locale;
+    document.documentElement.dir = RTL_LOCALES.includes(locale) ? "rtl" : "ltr";
     document.documentElement.dataset.locale = locale;
   }, [locale]);
 
   const setLocale = useCallback((next: UiLocale) => {
     setLocaleState(next);
-    window.localStorage.setItem(UI_LOCALE_STORAGE_KEY, next);
+    try {
+      window.localStorage.setItem(UI_LOCALE_STORAGE_KEY, next);
+    } catch {
+      // The in-memory choice still applies for this session.
+    }
   }, []);
 
   const t = useCallback((key: MessageKey, values?: MessageValues) => translate(locale, key, values), [locale]);
@@ -49,7 +61,9 @@ export default function I18nProvider({ children }: { children: React.ReactNode }
 
 export function useI18n(): I18nValue {
   const value = useContext(I18nContext);
-  if (!value) throw new Error("useI18n must be used inside I18nProvider");
-  return value;
+  return value ?? {
+    locale: "en",
+    setLocale: () => {},
+    t: (key, values) => translate("en", key, values),
+  };
 }
-

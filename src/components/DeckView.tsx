@@ -787,7 +787,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             headerExtra={
               stage !== "inspire" ? (
               <div className="deck-header-extras">
-              <button className="iconbtn design-files-trigger" onClick={() => setWorkspaceView("files")} title="Open project files">
+              <button className="iconbtn design-files-trigger" onClick={() => setWorkspaceView("files")} title={t("chat.openDesignFiles")}>
                 <FolderOpen size={16} weight="regular" aria-hidden="true" />
                 Design Files
               </button>

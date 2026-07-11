@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "@/i18n/I18nProvider";
 
 /** Runs the deep-research SSE loop and shows an editable markdown brief (M5). */
 export default function ResearchPanel({
@@ -12,6 +13,7 @@ export default function ResearchPanel({
   onComplete: (doc: string) => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
   const [log, setLog] = useState<string[]>([]);
   const [doc, setDoc] = useState("");
   const [running, setRunning] = useState(false);
@@ -43,12 +45,12 @@ export default function ResearchPanel({
           const line = block.split("\n").find((l) => l.startsWith("data:"));
           if (!line) continue;
           const ev = JSON.parse(line.slice(5).trim());
-          if (ev.type === "queries") setLog((l) => [...l, `round ${ev.round}: ${ev.queries.join(" · ")}`]);
-          else if (ev.type === "search") setLog((l) => [...l, `  🔎 ${ev.query} → ${ev.count} results`]);
-          else if (ev.type === "synth") setLog((l) => [...l, `  ✍ synthesizing (round ${ev.round})…`]);
+          if (ev.type === "queries") setLog((l) => [...l, t("research.round", { round: ev.round, queries: ev.queries.join(" · ") })]);
+          else if (ev.type === "search") setLog((l) => [...l, `  ${t("research.results", { query: ev.query, count: ev.count })}`]);
+          else if (ev.type === "synth") setLog((l) => [...l, `  ${t("research.synthesizing", { round: ev.round })}`]);
           else if (ev.type === "doc") setDoc(ev.markdown);
           else if (ev.type === "error") setLog((l) => [...l, `✗ ${ev.error}`]);
-          else if (ev.type === "done") setLog((l) => [...l, "✓ research complete"]);
+          else if (ev.type === "done") setLog((l) => [...l, t("research.complete")]);
         }
       }
     } catch (e: any) {
@@ -71,22 +73,22 @@ export default function ResearchPanel({
 
   return (
     <div className="panel" style={{ marginTop: 14, borderColor: "var(--accent-2)" }}>
-      <h2>🔍 Deep research {running ? "(running…)" : ""}</h2>
+      <h2>🔍 {t("research.title")} {running ? `(${t("research.running")})` : ""}</h2>
       <div className="log" ref={logRef} style={{ maxHeight: 120 }}>
-        {log.length ? log.join("\n") : "starting…"}
+        {log.length ? log.join("\n") : t("research.starting")}
       </div>
       <label className="field" style={{ marginTop: 12 }}>
-        <span>Research brief — editable markdown; the outline is derived from this</span>
+        <span>{t("research.brief")}</span>
         <textarea
           style={{ minHeight: 240, fontFamily: "ui-monospace, monospace", fontSize: 12 }}
           value={doc}
           onChange={(e) => setDoc(e.target.value)}
-          placeholder={running ? "researching…" : "no document yet"}
+          placeholder={running ? t("research.researching") : t("research.noDocument")}
         />
       </label>
       <div style={{ display: "flex", gap: 8 }}>
         <button className="ghost" onClick={onCancel} disabled={running}>
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           className="primary"
@@ -94,7 +96,7 @@ export default function ResearchPanel({
           onClick={() => onComplete(doc)}
           disabled={running || !doc.trim()}
         >
-          Generate deck from this research →
+          {t("research.generate")}
         </button>
       </div>
     </div>

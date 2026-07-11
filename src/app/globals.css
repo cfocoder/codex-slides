@@ -2886,7 +2886,7 @@ button {
 }
 .workflow-progress {
   flex: 0 0 auto;
-  margin: 0 14px 12px;
+  margin: 0;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 13px;

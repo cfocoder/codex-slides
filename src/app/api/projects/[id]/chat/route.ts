@@ -26,12 +26,23 @@ function sanitizeMessages(raw: unknown): StoredChatMessage[] {
             title: String(m.doc.title ?? "Presentation"),
             subtitle: String(m.doc.subtitle ?? ""),
             icon: m.doc.icon ? String(m.doc.icon) : undefined,
+            artifactId: m.doc.artifactId ? String(m.doc.artifactId).slice(0, 120) : undefined,
             pages: Array.isArray(m.doc.pages)
               ? m.doc.pages.slice(0, 100).map((page: any) => ({
                   title: String(page?.title ?? ""),
                   points: Array.isArray(page?.points) ? page.points.map(String).slice(0, 20) : [],
                 }))
               : undefined,
+          }
+        : undefined,
+      artifact: m.artifact && typeof m.artifact === "object"
+        ? {
+            id: String(m.artifact.id ?? "").slice(0, 120),
+            kind: ["questions", "outline", "inspiration"].includes(m.artifact.kind)
+              ? m.artifact.kind
+              : "outline",
+            title: String(m.artifact.title ?? "Design file").slice(0, 160),
+            subtitle: String(m.artifact.subtitle ?? "").slice(0, 240),
           }
         : undefined,
       attachment: m.attachment,

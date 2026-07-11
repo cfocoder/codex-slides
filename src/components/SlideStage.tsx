@@ -98,6 +98,7 @@ export default function SlideStage({
   busy,
   setBusy,
   streaming = false,
+  headerPrefix,
   headerExtra,
   onAskSlide,
   onMarkAgentEvent,
@@ -112,6 +113,7 @@ export default function SlideStage({
   busy: boolean;
   setBusy: (b: boolean) => void;
   streaming?: boolean;
+  headerPrefix?: React.ReactNode;
   headerExtra?: React.ReactNode;
   /** Attach a page to the deck-agent conversation for a scoped follow-up. */
   onAskSlide?: (slide: UiSlide) => void;
@@ -455,6 +457,7 @@ export default function SlideStage({
   return (
     <section className="stage" ref={stageRef}>
       <div className="stage-head">
+        {headerPrefix}
         <span className="title">{title || t("slide.untitled")}</span>
         <span className="count">
           {currentPosition >= 0 ? currentPosition + 1 : 0}/{slides.length || "…"} · {aspect}

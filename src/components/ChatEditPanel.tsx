@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useI18n } from "@/i18n/I18nProvider";
 
 interface Msg {
   role: "user" | "assistant";
@@ -15,6 +16,7 @@ export default function ChatEditPanel({
   onSend: (message: string) => Promise<string>;
   busy: boolean;
 }) {
+  const { t } = useI18n();
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const boxRef = useRef<HTMLDivElement>(null);
@@ -36,13 +38,13 @@ export default function ChatEditPanel({
 
   return (
     <div className="panel" style={{ marginTop: 16, borderColor: "var(--accent-2)" }}>
-      <h2>💬 Chat to edit</h2>
+      <h2>💬 {t("chatEdit.title")}</h2>
       {msgs.length > 0 && (
         <div ref={boxRef} className="log" style={{ maxHeight: 200 }}>
           {msgs.map((m, i) => (
             <div key={i} style={{ marginBottom: 6 }}>
               <b style={{ color: m.role === "user" ? "var(--text)" : "var(--accent)" }}>
-                {m.role === "user" ? "you" : "agent"}:
+                {m.role === "user" ? t("chatEdit.you") : t("chatEdit.agent")}:
               </b>{" "}
               {m.content}
             </div>
@@ -51,14 +53,14 @@ export default function ChatEditPanel({
       )}
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         <input
-          placeholder='e.g. "把第 2 页改得更暖一点" / "restyle the whole deck to swiss international"'
+          placeholder={t("chatEdit.placeholder")}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
           disabled={busy}
         />
         <button className="primary" style={{ width: "auto" }} onClick={send} disabled={busy || !text.trim()}>
-          {busy ? "Working…" : "Send"}
+          {busy ? t("common.working") : t("common.send")}
         </button>
       </div>
     </div>

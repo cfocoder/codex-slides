@@ -68,7 +68,7 @@ export default function OnboardForm({
 
   function customPlaceholder(q: QuestionSpec) {
     const supplied = q.placeholder?.trim();
-    if (!supplied || /随意输入|anything|free.?form/i.test(supplied)) return t("onboard.customInput");
+    if (!supplied || /\u968f\u610f\u8f93\u5165|anything|free.?form/i.test(supplied)) return t("onboard.customInput");
     return supplied;
   }
 

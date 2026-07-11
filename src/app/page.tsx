@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ChatColumn, { type ChatMsg } from "@/components/ChatColumn";
 import Composer from "@/components/Composer";
 import Community from "@/components/Community";
+import DesignFilesPanel from "@/components/DesignFilesPanel";
 import OnboardForm from "@/components/OnboardForm";
 import OutlineBoard from "@/components/OutlineBoard";
 import InspireDialog from "@/components/InspireDialog";
 import RecentProjects from "@/components/RecentProjects";
 import SlideStage, { type MarkAgentEvent } from "@/components/SlideStage";
 import TopBar from "@/components/TopBar";
+import WorkspaceModeTabs from "@/components/WorkspaceModeTabs";
 import {
   addProjectSlide,
   deriveStatus,
@@ -53,6 +55,7 @@ import {
 import { outlineSnapshotMessage, styleSnapshotMessage } from "@/lib/chatArtifacts";
 import { useChatConversations } from "@/lib/useChatConversations";
 import { buildWorkflowProgress } from "@/lib/workflowProgress";
+import type { DesignFile, WorkspaceMode } from "@/lib/designFiles";
 import { useI18n } from "@/i18n/I18nProvider";
 
 interface EngineInfo {
@@ -80,6 +83,9 @@ export default function Home() {
   const [stage, setStage] = useState<Stage>("clarify");
   const [questions, setQuestions] = useState<QuestionSpec[]>([]);
   const [clarifyBusy, setClarifyBusy] = useState(false);
+  const [clarifyAnswerSummary, setClarifyAnswerSummary] = useState("");
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("canvas");
+  const [selectedDesignFileId, setSelectedDesignFileId] = useState<string>("questions");
 
   const [running, setRunning] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -91,7 +97,7 @@ export default function Home() {
   const [slides, setSlides] = useState<UiSlide[]>([]);
   const conversationState = useChatConversations({
     initialMessages: [],
-    initialTitle: "新会话",
+    initialTitle: t("chat.newConversationTitle"),
   });
   const chat = conversationState.messages;
   const setChat = conversationState.setMessages;
@@ -126,9 +132,15 @@ export default function Home() {
   }
 
   function locateChatSlide(index: number) {
+    setWorkspaceMode("canvas");
     setStage("deck");
     setFocusSlideIndex(index);
     setFocusSlideKey((key) => key + 1);
+  }
+
+  function openDesignFile(id: string) {
+    setSelectedDesignFileId(id);
+    setWorkspaceMode("files");
   }
 
   function onAddItems(next: ContextItem[]) {
@@ -169,6 +181,9 @@ export default function Home() {
     setResearchDoc("");
     setResearchNote("");
     setInspirationSkipped(false);
+    setClarifyAnswerSummary("");
+    setWorkspaceMode("canvas");
+    setSelectedDesignFileId("questions");
     setChatContext(null);
     setQueue([]);
     setQuestions([]);
@@ -192,7 +207,20 @@ export default function Home() {
       });
       const d = await r.json();
       if (r.ok && Array.isArray(d.questions) && d.questions.length) {
-        setQuestions(d.questions);
+        const nextQuestions = d.questions as QuestionSpec[];
+        setQuestions(nextQuestions);
+        say({
+          role: "assistant",
+          content: locale === "zh-CN"
+            ? `我准备了 ${nextQuestions.length} 个确认问题。它们会作为 Design File 保留，后面可以随时回看。`
+            : `I prepared ${nextQuestions.length} clarification questions. They will stay available as a Design File.`,
+          artifact: {
+            id: "questions",
+            kind: "questions",
+            title: locale === "zh-CN" ? "需求确认问题" : "Clarification questions",
+            subtitle: locale === "zh-CN" ? `${nextQuestions.length} 个问题 · 待确认` : `${nextQuestions.length} questions · pending`,
+          },
+        });
       } else {
         proceedToOutline(cfg);
       }
@@ -205,11 +233,15 @@ export default function Home() {
 
   function applyClarify(patch: Partial<PptConfig>, suffix: string, summary: string) {
     const cfg: PptConfig = { ...config, ...patch, requirement: config.requirement + suffix };
+    setClarifyAnswerSummary(summary.trim());
+    setWorkspaceMode("canvas");
     if (summary.trim()) say({ role: "user", content: t("flow.confirmed", { summary }) });
     proceedToOutline(cfg);
   }
 
   function skipClarify() {
+    setClarifyAnswerSummary(locale === "zh-CN" ? "已跳过问题确认" : "Clarification skipped");
+    setWorkspaceMode("canvas");
     say({ role: "user", content: t("flow.skipClarify") });
     proceedToOutline(config);
   }
@@ -220,6 +252,7 @@ export default function Home() {
     const cfg: PptConfig = { ...base, mode: researchMode ? "research" : "direct" };
     setConfig(cfg);
     setStage("outline");
+    setWorkspaceMode("canvas");
     setRunning(true);
     setProjectId(null);
     setTitle("");
@@ -260,6 +293,7 @@ export default function Home() {
             title: ev.title,
             subtitle: t("flow.outlineDoc", { count: ev.outline.length }),
             pages: ev.outline.map((page) => ({ title: page.title, points: [...page.points] })),
+            artifactId: "outline",
           },
         });
         break;
@@ -763,6 +797,50 @@ export default function Home() {
     }
   }
 
+  const designFiles = useMemo<DesignFile[]>(() => {
+    const files: DesignFile[] = [];
+    if (questions.length) {
+      files.push({
+        id: "questions",
+        kind: "questions",
+        title: locale === "zh-CN" ? "需求确认问题" : "Clarification questions",
+        subtitle: clarifyAnswerSummary
+          ? locale === "zh-CN" ? `${questions.length} 个问题 · 已确认` : `${questions.length} questions · confirmed`
+          : locale === "zh-CN" ? `${questions.length} 个问题 · 待确认` : `${questions.length} questions · pending`,
+        questions,
+        answerSummary: clarifyAnswerSummary || undefined,
+      });
+    }
+    if (outline.length) {
+      files.push({
+        id: "outline",
+        kind: "outline",
+        title: title || (locale === "zh-CN" ? "演示文稿大纲" : "Presentation outline"),
+        subtitle: stage === "outline"
+          ? locale === "zh-CN" ? `${outline.length} 页 · 编辑中` : `${outline.length} pages · editing`
+          : locale === "zh-CN" ? `${outline.length} 页 · 已确认` : `${outline.length} pages · confirmed`,
+        pages: outline.map((page) => ({ title: page.title, points: [...page.points] })),
+      });
+    }
+    if (stage === "inspire" || config.template || inspirationSkipped) {
+      const matchQuery = [config.requirement, ...outline.map((page) => page.title)].filter(Boolean).join(" ");
+      files.push({
+        id: "inspiration",
+        kind: "inspiration",
+        title: locale === "zh-CN" ? "视觉参考灵感" : "Visual inspiration",
+        subtitle: inspirationSkipped
+          ? locale === "zh-CN" ? "已跳过 · 默认风格" : "Skipped · default style"
+          : config.template
+            ? locale === "zh-CN" ? "已选择 · 可回看" : "Selected · reviewable"
+            : locale === "zh-CN" ? "候选方向 · 待选择" : "Candidates · pending",
+        selectedTemplateId: config.template,
+        candidateTemplateIds: matchCommunityTemplates(matchQuery, 4).map((template) => template.id),
+        skipped: inspirationSkipped,
+      });
+    }
+    return files;
+  }, [clarifyAnswerSummary, config.requirement, config.template, inspirationSkipped, locale, outline, questions, stage, title]);
+
   // ---------------- WORK VIEW (clarify → outline → deck) ----------------
   if (phase === "work") {
     const status: GenStatus | null =
@@ -793,6 +871,9 @@ export default function Home() {
         : undefined,
       locale,
     });
+    const workspaceTabs = (
+      <WorkspaceModeTabs mode={workspaceMode} fileCount={designFiles.length} onChange={setWorkspaceMode} />
+    );
     const placeholder =
       stage === "clarify"
         ? t("flow.placeholderClarify")
@@ -816,6 +897,7 @@ export default function Home() {
           focusKey={chatFocusKey}
           onSelectSlide={locateChatSlide}
           onInspire={onInspire}
+          onOpenDesignFile={openDesignFile}
           workflow={workflow}
           conversations={projectId ? conversationState.summaries : undefined}
           activeConversationId={projectId ? conversationState.activeConversationId : undefined}
@@ -836,9 +918,17 @@ export default function Home() {
           conversationManagementDisabled={running || busy || clarifyBusy}
           placeholder={placeholder}
         />
-        {stage === "clarify" ? (
+        {workspaceMode === "files" ? (
+          <DesignFilesPanel
+            files={designFiles}
+            selectedId={selectedDesignFileId}
+            onSelect={setSelectedDesignFileId}
+            headerPrefix={workspaceTabs}
+          />
+        ) : stage === "clarify" ? (
           <section className="stage clarify-stage">
             <div className="stage-head">
+              {workspaceTabs}
               <span className="title">{t("onboard.stageTitle")}</span>
               <span className="count">{t("onboard.step")}</span>
             </div>
@@ -887,6 +977,7 @@ export default function Home() {
             busy={running && outline.length > 0}
             streaming={running && outline.length === 0}
             researchDoc={researchDoc}
+            headerPrefix={workspaceTabs}
           />
         ) : (
           // Both "inspire" (pending skeleton deck while picking a style) and
@@ -901,6 +992,7 @@ export default function Home() {
             busy={busy}
             setBusy={setBusy}
             streaming={stage === "inspire" || running}
+            headerPrefix={workspaceTabs}
             onAskSlide={askAboutSlide}
             onMarkAgentEvent={mirrorMarkToChat}
             focusSlideIndex={focusSlideIndex}

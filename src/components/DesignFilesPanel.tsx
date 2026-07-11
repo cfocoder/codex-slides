@@ -1,0 +1,209 @@
+"use client";
+
+import {
+  CheckCircle,
+  FileText,
+  Images,
+  Question,
+} from "@phosphor-icons/react";
+import type { ReactNode } from "react";
+import { getCommunityTemplate } from "@/lib/community";
+import type { DesignFile } from "@/lib/designFiles";
+import { CATEGORIES, getTemplate } from "@/lib/templates";
+import { useI18n } from "@/i18n/I18nProvider";
+import { COMMUNITY_GROUP_KEYS } from "@/i18n/community";
+
+function FileIcon({ kind }: { kind: DesignFile["kind"] }) {
+  if (kind === "questions") return <Question size={17} />;
+  if (kind === "inspiration") return <Images size={17} />;
+  return <FileText size={17} />;
+}
+
+function QuestionsPreview({ file }: { file: Extract<DesignFile, { kind: "questions" }> }) {
+  const { t } = useI18n();
+  return (
+    <div className="design-file-document questions-document">
+      {file.answerSummary ? (
+        <section className="design-file-summary">
+          <CheckCircle size={17} weight="fill" />
+          <div>
+            <strong>{t("designFiles.confirmedAnswers")}</strong>
+            <pre>{file.answerSummary}</pre>
+          </div>
+        </section>
+      ) : null}
+      <div className="question-preview-list">
+        {file.questions.map((question, index) => (
+          <article key={question.id}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <div>
+              <strong>{question.question}</strong>
+              {question.options?.length ? (
+                <div className="question-preview-options">
+                  {question.options.map((option) => (
+                    <small className={option.value === question.recommended ? "recommended" : ""} key={option.value}>
+                      {option.label}{option.value === question.recommended ? ` · ${t("common.recommended")}` : ""}
+                    </small>
+                  ))}
+                </div>
+              ) : question.placeholder ? <p>{question.placeholder}</p> : null}
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OutlinePreview({ file }: { file: Extract<DesignFile, { kind: "outline" }> }) {
+  const { t } = useI18n();
+  return (
+    <div className="design-file-document outline-document">
+      {file.pages.map((page, index) => (
+        <article key={`${index}-${page.title}`}>
+          <span>{String(index + 1).padStart(2, "0")}</span>
+          <div>
+            <strong>{page.title || t("chat.slide", { index: index + 1 })}</strong>
+            {page.points.length ? <ul>{page.points.map((point, pointIndex) => <li key={pointIndex}>{point}</li>)}</ul> : null}
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function InspirationPreview({ file }: { file: Extract<DesignFile, { kind: "inspiration" }> }) {
+  const { locale, t } = useI18n();
+  const community = getCommunityTemplate(file.selectedTemplateId);
+  const curated = community ? undefined : getTemplate(file.selectedTemplateId);
+  const candidates = file.candidateTemplateIds
+    .map((id) => getCommunityTemplate(id))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  if (file.skipped) {
+    return (
+      <div className="design-file-empty-preview">
+        <Images size={30} />
+        <strong>{t("designFiles.defaultStyle")}</strong>
+        <span>{t("designFiles.defaultStyleHelp")}</span>
+      </div>
+    );
+  }
+
+  if (community) {
+    return (
+      <div className="inspiration-file-preview">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={community.cover} alt={community.name} />
+        <div className="inspiration-file-copy">
+          <span>{t(COMMUNITY_GROUP_KEYS[community.group])}</span>
+          <h2>{community.name}</h2>
+          <p>{community.description}</p>
+          <small>{community.styleBlock}</small>
+        </div>
+      </div>
+    );
+  }
+
+  if (curated) {
+    return (
+      <div className="curated-file-preview">
+        <div className="curated-file-palette" aria-label={t("designFiles.templatePalette")}>
+          {curated.palette.map((color) => <i key={color} style={{ background: color }} title={color} />)}
+        </div>
+        <span>{(() => {
+          const category = CATEGORIES.find((item) => item.id === curated.categoryId);
+          return category ? (locale === "zh-CN" ? category.labelZh : category.labelEn) : curated.categoryId;
+        })()}</span>
+        <h2>{curated.name}</h2>
+        <p>{curated.description}</p>
+        <small>{curated.styleBlock}</small>
+      </div>
+    );
+  }
+
+  return (
+    <div className="inspiration-candidate-grid">
+      {candidates.map((candidate) => (
+        <article key={candidate.id}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={candidate.cover} alt="" />
+          <strong>{candidate.name}</strong>
+          <span>{t(COMMUNITY_GROUP_KEYS[candidate.group])}</span>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+export default function DesignFilesPanel({
+  files,
+  selectedId,
+  onSelect,
+  headerPrefix,
+}: {
+  files: DesignFile[];
+  selectedId?: string;
+  onSelect: (id: string) => void;
+  headerPrefix?: ReactNode;
+}) {
+  const { t } = useI18n();
+  const selected = files.find((file) => file.id === selectedId) ?? files[0];
+
+  return (
+    <section className="stage design-files-stage">
+      <div className="stage-head">
+        {headerPrefix}
+        <span className="title">{t("designFiles.title")}</span>
+        <span className="count">{t(files.length === 1 ? "designFiles.itemCountOne" : "designFiles.itemCountMany", { count: files.length })}</span>
+      </div>
+      <div className="design-files-workspace">
+        <aside className="design-files-list" aria-label={t("designFiles.list")}>
+          <div className="design-files-list-head">
+            <strong>{t("designFiles.referenceFiles")}</strong>
+            <span>{files.length}</span>
+          </div>
+          {files.map((file) => (
+            <button
+              type="button"
+              className={file.id === selected?.id ? "active" : ""}
+              onClick={() => onSelect(file.id)}
+              key={file.id}
+            >
+              <span className="design-file-icon"><FileIcon kind={file.kind} /></span>
+              <span className="design-file-list-copy">
+                <strong>{file.title}</strong>
+                <small>{file.subtitle}</small>
+              </span>
+            </button>
+          ))}
+          {!files.length ? <p>{t("designFiles.workflowEmpty")}</p> : null}
+        </aside>
+        <main className="design-file-preview">
+          {selected ? (
+            <>
+              <header className="design-file-preview-head">
+                <span className="design-file-icon"><FileIcon kind={selected.kind} /></span>
+                <span>
+                  <strong>{selected.title}</strong>
+                  <small>{selected.subtitle}</small>
+                </span>
+              </header>
+              <div className="design-file-preview-body">
+                {selected.kind === "questions" ? <QuestionsPreview file={selected} /> : null}
+                {selected.kind === "outline" ? <OutlinePreview file={selected} /> : null}
+                {selected.kind === "inspiration" ? <InspirationPreview file={selected} /> : null}
+              </div>
+            </>
+          ) : (
+            <div className="design-file-empty-preview">
+              <FileText size={30} />
+              <strong>{t("designFiles.noPreview")}</strong>
+              <span>{t("designFiles.noPreviewHelp")}</span>
+            </div>
+          )}
+        </main>
+      </div>
+    </section>
+  );
+}

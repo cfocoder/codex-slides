@@ -101,6 +101,13 @@ export interface StoredChatMessage {
     subtitle: string;
     icon?: string;
     pages?: { title: string; points: string[] }[];
+    artifactId?: string;
+  };
+  artifact?: {
+    id: string;
+    kind: "questions" | "outline" | "inspiration";
+    title: string;
+    subtitle: string;
   };
   attachment?: { slideIndex: number; title: string; imageUrl?: string };
   contextItems?: { id: string; name: string; url?: string; kind?: string }[];

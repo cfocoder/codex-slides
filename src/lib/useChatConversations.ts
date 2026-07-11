@@ -111,13 +111,14 @@ export function useChatConversations({
   }
   const [conversations, setConversations] = useState<ChatConversation[]>(seedRef.current.conversations);
   const [activeConversationId, setActiveConversationId] = useState(seedRef.current.activeConversationId);
+  const activeConversationIdRef = useRef(seedRef.current.activeConversationId);
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId)
     ?? conversations[0];
   const messages = activeConversation?.messages ?? [];
 
   const setMessages: Dispatch<SetStateAction<ChatMsg[]>> = useCallback((update) => {
-    const targetId = activeConversationId;
+    const targetId = activeConversationIdRef.current;
     setConversations((current) => current.map((conversation) => {
       if (conversation.id !== targetId) return conversation;
       const nextRaw = typeof update === "function" ? update(conversation.messages) : update;
@@ -132,19 +133,20 @@ export function useChatConversations({
         messages: nextMessages,
       };
     }));
-  }, [activeConversationId]);
+  }, []);
 
   const createConversation = useCallback((starterMessages: ChatMsg[] = []) => {
     const next = makeConversation(starterMessages, `新会话 ${conversations.length + 1}`);
     setConversations((current) => [...current, next]);
+    activeConversationIdRef.current = next.id;
     setActiveConversationId(next.id);
     return next.id;
   }, [conversations.length]);
 
   const selectConversation = useCallback((id: string) => {
-    setActiveConversationId((current) => (
-      conversations.some((conversation) => conversation.id === id) ? id : current
-    ));
+    if (!conversations.some((conversation) => conversation.id === id)) return;
+    activeConversationIdRef.current = id;
+    setActiveConversationId(id);
   }, [conversations]);
 
   const renameConversation = useCallback((id: string, title: string) => {
@@ -163,13 +165,16 @@ export function useChatConversations({
     const next = conversations.filter((conversation) => conversation.id !== id);
     setConversations(next);
     if (activeConversationId === id) {
-      setActiveConversationId(next[Math.min(index, next.length - 1)].id);
+      const nextActiveId = next[Math.min(index, next.length - 1)].id;
+      activeConversationIdRef.current = nextActiveId;
+      setActiveConversationId(nextActiveId);
     }
   }, [activeConversationId, conversations]);
 
   const resetConversations = useCallback((starterMessages: ChatMsg[], title = initialTitle) => {
     const next = makeConversation(starterMessages, title);
     setConversations([next]);
+    activeConversationIdRef.current = next.id;
     setActiveConversationId(next.id);
   }, [initialTitle]);
 

@@ -1,13 +1,15 @@
 import fs from "node:fs";
 import { NextResponse } from "next/server";
-import { loadProject } from "@/lib/store";
+import { loadProject, syncProjectFiles } from "@/lib/store";
 import { listProjectFiles, uniqueUploadPath } from "@/lib/projectFiles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  if (!loadProject(params.id)) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const project = loadProject(params.id);
+  if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
+  syncProjectFiles(project);
   return NextResponse.json({ files: listProjectFiles(params.id) });
 }
 
