@@ -85,6 +85,10 @@ export interface MaterialRecord {
   id: string;
   name: string;
   file: string; // file name within the project's materials/ dir
+  /** Project-relative Design Files path (for example uploaded/source.html).
+   * Local agents receive the corresponding absolute path instead of a staging
+   * or opaque materials path, so they can inspect the source on demand. */
+  designFilePath?: string;
   kind?: "image" | "file";
   mimeType?: string;
   size?: number;
@@ -141,6 +145,9 @@ export interface SlidePage {
   error?: string;
   /** Presentation-mode transition used when this page becomes active. */
   transition?: SlideTransition;
+  /** Presenter-only talking points. These stay off-canvas, appear in speaker
+   * view, and are embedded as native PowerPoint speaker notes on export. */
+  speakerNotes?: string;
 }
 
 /**
@@ -187,6 +194,69 @@ export interface ProjectWorkflowState {
   workspaceMode?: "canvas" | "files";
   selectedDesignFileId?: string;
   inspirationSkipped?: boolean;
+  queuedRequests?: Array<{
+    id?: string;
+    conversationId?: string;
+    createdAt?: number;
+    updatedAt?: number;
+    message: string;
+    context?: { slideIndex: number; title: string; imageUrl?: string };
+    attachments?: Array<{
+      id: string;
+      name: string;
+      url: string;
+      kind: "image" | "file";
+      mimeType: string;
+      size: number;
+    }>;
+    designFiles?: DesignFileReference[];
+  }>;
+}
+
+/** A durable project-owned task. Unlike component-local `busy` state, this
+ * record survives route changes and lets the server resume work after a reload. */
+export type ProjectRunKind = "chat" | "outline" | "render" | "mark";
+
+export interface ProjectRunChatRequest {
+  message: string;
+  context?: { slideIndex: number; title: string; imageUrl?: string };
+  attachments?: Array<{
+    id: string;
+    name: string;
+    url: string;
+    kind: "image" | "file";
+    mimeType: string;
+    size: number;
+  }>;
+  designFiles?: DesignFileReference[];
+}
+
+export interface ProjectRunInput {
+  kind: ProjectRunKind;
+  conversationId?: string;
+  locale?: string;
+  request?: ProjectRunChatRequest;
+  mark?: {
+    index: number;
+    source: string;
+    note: string;
+    title?: string;
+  };
+}
+
+export interface ProjectRunState {
+  id: string;
+  kind: ProjectRunKind;
+  status: "running" | "stopping";
+  conversationId?: string;
+  label: string;
+  detail?: string;
+  targetSlide?: number;
+  progress?: { current: number; total: number };
+  startedAt: number;
+  updatedAt: number;
+  /** Persisted so a local server reload can resume the same operation. */
+  input: ProjectRunInput;
 }
 
 /** A non-file choice attached to a user turn, displayed like other context. */
@@ -310,6 +380,8 @@ export interface Project {
    *  the active conversation for older project files and API clients. */
   conversations?: StoredConversation[];
   activeConversationId?: string;
+  /** The only project mutation currently executing in the server background. */
+  activeRun?: ProjectRunState;
 }
 
 export interface DetectedAgent {

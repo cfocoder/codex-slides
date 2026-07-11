@@ -43,6 +43,10 @@ in the in-editor Browser whenever visual review helps.
 - Use `upload_slide_image` for a finished PNG.
 - Use `mark_edit_slide` when the user supplies an annotated PNG and wants a
   clean revised slide.
+- Use `get_speaker_notes`, `update_speaker_notes`, and
+  `generate_speaker_notes` (CLI `speaker-notes` with `get`, `set`, or
+  `generate`) for presenter-only talk tracks. These notes persist per slide,
+  appear in the speaker window, and are embedded in PPTX export.
 - Use `list_design_files`, `read_design_file`, `write_design_file`, and
   `upload_design_file` for the project file workspace. Pass selected paths as
   `designFilePaths` when revising an outline or editing a deck.
@@ -57,5 +61,6 @@ resource link and inspect the changed slide or flow; do not make the user open
 the URL manually.
 
 Use `export_deck` only after the requested visual result is ready. Browser-only
-controls such as fullscreen Play, slide navigation, and direct on-canvas
-marking remain available through the live workspace.
+controls such as Play from current/beginning, the synchronized audience and
+presenter windows, notes editing, slide navigation, and direct on-canvas marking
+remain available through the live workspace.

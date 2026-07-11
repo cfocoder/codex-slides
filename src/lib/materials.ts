@@ -35,6 +35,54 @@ function ensureDir(p: string) {
   fs.mkdirSync(p, { recursive: true });
 }
 
+function relativeDesignFilePath(projectId: string, absolutePath: string): string {
+  return path.relative(path.join(projectDir(projectId), "files"), absolutePath).split(path.sep).join("/");
+}
+
+function sameFile(left: string, right: string): boolean {
+  if (!fs.existsSync(left) || !fs.existsSync(right)) return false;
+  const leftStat = fs.statSync(left);
+  const rightStat = fs.statSync(right);
+  if (!leftStat.isFile() || !rightStat.isFile() || leftStat.size !== rightStat.size) return false;
+  return fs.readFileSync(left).equals(fs.readFileSync(right));
+}
+
+/** Copy one staged item into the user-visible Design Files upload folder.
+ * Identical retries reuse the first copy; same-name files with different bytes
+ * receive a numeric suffix. */
+function archiveStagedMaterial(projectId: string, stagedId: string): string | null {
+  const source = stagedPath(stagedId);
+  if (!source) return null;
+  const info = readStagedMaterialInfo(stagedId);
+  const visibleDir = path.join(projectDir(projectId), "files", "uploaded");
+  ensureDir(visibleDir);
+  const visibleName = info?.name ?? stagedId;
+  const ext = path.extname(visibleName);
+  const stem = path.basename(visibleName, ext);
+  let visiblePath = path.join(visibleDir, visibleName);
+  let duplicate = 2;
+  while (fs.existsSync(visiblePath) && !sameFile(source, visiblePath)) {
+    visiblePath = path.join(visibleDir, `${stem}-${duplicate++}${ext}`);
+  }
+  if (!fs.existsSync(visiblePath)) fs.copyFileSync(source, visiblePath);
+  return relativeDesignFilePath(projectId, visiblePath);
+}
+
+/** Persist staged composer items as ordinary project Design Files without
+ * turning them into always-on deck materials. Returns validated relative paths
+ * that can be resolved into agent-readable references for the current turn. */
+export function archiveStagedMaterialsToDesignFiles(
+  projectId: string,
+  stagedIds: string[],
+): string[] {
+  const paths: string[] = [];
+  for (const stagedId of Array.from(new Set(stagedIds))) {
+    const archived = archiveStagedMaterial(projectId, stagedId);
+    if (archived && !paths.includes(archived)) paths.push(archived);
+  }
+  return paths;
+}
+
 function extFromName(name: string): string {
   const ext = path.extname(name).toLowerCase();
   return SUPPORTED_EXTENSIONS.has(ext) ? ext : ".bin";
@@ -146,9 +194,7 @@ export function attachMaterialsToProject(
   stagedIds: string[],
 ): MaterialRecord[] {
   const dir = path.join(projectDir(projectId), "materials");
-  const visibleDir = path.join(projectDir(projectId), "files", "uploaded");
   ensureDir(dir);
-  ensureDir(visibleDir);
   const records: MaterialRecord[] = [];
   for (const sid of stagedIds) {
     const src = stagedPath(sid);
@@ -156,17 +202,12 @@ export function attachMaterialsToProject(
     const info = readStagedMaterialInfo(sid);
     const file = `mat-${sid}`;
     fs.copyFileSync(src, path.join(dir, file));
-    let visibleName = info?.name ?? sid;
-    const ext = path.extname(visibleName);
-    const stem = path.basename(visibleName, ext);
-    let visiblePath = path.join(visibleDir, visibleName);
-    let duplicate = 2;
-    while (fs.existsSync(visiblePath)) visiblePath = path.join(visibleDir, `${stem}-${duplicate++}${ext}`);
-    fs.copyFileSync(src, visiblePath);
+    const designFilePath = archiveStagedMaterial(projectId, sid) ?? undefined;
     records.push({
       id: sid,
       name: info?.name ?? sid,
       file,
+      designFilePath,
       kind: info?.kind ?? (isImage(sid) ? "image" : "file"),
       mimeType: info?.mimeType ?? normalizedMimeType(sid),
       size: info?.size,
@@ -232,7 +273,17 @@ export function loadProjectInputAttachments(
   const out: CodexInputAttachment[] = [];
   for (const record of records) {
     if (!ID_RE.test(record.file)) continue;
-    const source = path.join(dir, record.file);
+    const materialSource = path.join(dir, record.file);
+    const designSource = record.designFilePath
+      ? path.resolve(path.join(projectDir(projectId), "files"), record.designFilePath)
+      : null;
+    const filesRoot = path.resolve(path.join(projectDir(projectId), "files"));
+    const safeDesignSource = designSource
+      && (designSource === filesRoot || designSource.startsWith(`${filesRoot}${path.sep}`))
+      && fs.existsSync(designSource)
+      ? designSource
+      : null;
+    const source = safeDesignSource ?? materialSource;
     if (!fs.existsSync(source)) continue;
     out.push(toInputAttachment(fs.readFileSync(source), source, record));
   }

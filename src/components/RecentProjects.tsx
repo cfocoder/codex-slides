@@ -5,6 +5,7 @@ import { useEffect, useState, type MouseEvent } from "react";
 import ProjectLoadingShell from "@/components/ProjectLoadingShell";
 import { useI18n } from "@/i18n/I18nProvider";
 import { translate, type UiLocale } from "@/i18n/messages";
+import type { ProjectRunState } from "@/lib/types";
 
 interface ProjectSummary {
   id: string;
@@ -16,6 +17,7 @@ interface ProjectSummary {
   rendered: number;
   cover: string | null;
   workflowStage?: "clarify" | "outlining" | "outline" | "inspire" | "rendering" | "deck";
+  activeRun?: ProjectRunState;
 }
 
 function relativeTime(value: string, locale: UiLocale) {
@@ -40,6 +42,7 @@ export default function RecentProjects() {
   const openingProject = projects.find((project) => project.id === openingId);
 
   function progressLabel(project: ProjectSummary) {
+    if (project.activeRun) return project.activeRun.detail || project.activeRun.label;
     switch (project.workflowStage) {
       case "clarify": return t("projects.stageClarify");
       case "outlining": return t("projects.stageOutlining");
@@ -51,18 +54,37 @@ export default function RecentProjects() {
   }
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/projects", { cache: "no-store", signal: controller.signal })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Unable to load projects"))))
-      .then((data) => setProjects(data.projects ?? []))
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setProjects([]);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
+    let disposed = false;
+    let controller: AbortController | null = null;
+    const refresh = () => {
+      if (document.visibilityState === "hidden") return;
+      controller?.abort();
+      controller = new AbortController();
+      fetch("/api/projects", { cache: "no-store", signal: controller.signal })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Unable to load projects"))))
+        .then((data) => {
+          if (!disposed) setProjects(data.projects ?? []);
+        })
+        .catch((error) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          if (!disposed) setProjects([]);
+        })
+        .finally(() => {
+          if (!disposed) setLoading(false);
+        });
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 2500);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      disposed = true;
+      controller?.abort();
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   return (
@@ -95,9 +117,12 @@ export default function RecentProjects() {
         <div className="project-grid" aria-busy={Boolean(openingId)}>
           {projects.map((project) => {
             const resumeOnHome = project.workflowStage === "clarify" || project.workflowStage === "outlining";
-            const href = resumeOnHome
-              ? `/?resume=${encodeURIComponent(project.id)}`
-              : `/project/${encodeURIComponent(project.id)}`;
+            // Always cross the dedicated project route. Clarify/outlining
+            // projects are redirected server-side to the Home resume entry,
+            // which guarantees a fresh mount even though the final pathname is
+            // `/`. A same-path `/?resume=…` anchor can update the URL without
+            // remounting Home in an already-running App Router session.
+            const href = `/project/${encodeURIComponent(project.id)}`;
             const content = <>
               <div className="project-cover" style={{ aspectRatio: project.aspect.replace(":", " / ") }}>
                 {project.cover ? (
@@ -109,6 +134,16 @@ export default function RecentProjects() {
                 <span className="project-open" aria-hidden="true">
                   {openingId === project.id ? <span className="project-open-spinner" /> : "↗"}
                 </span>
+                {project.activeRun ? (
+                  <span className="project-run-badge" title={project.activeRun.detail || project.activeRun.label}>
+                    <span className="project-open-spinner" aria-hidden="true" />
+                    <span>
+                      {project.activeRun.status === "stopping"
+                        ? t("chat.backgroundStopping")
+                        : `${t("chat.backgroundRunning")} · ${project.activeRun.label}`}
+                    </span>
+                  </span>
+                ) : null}
               </div>
               <div className="project-copy">
                 <strong>{project.title}</strong>
@@ -119,7 +154,7 @@ export default function RecentProjects() {
                 </span>
               </div>
             </>;
-            const className = `project-card${openingId === project.id ? " is-opening" : ""}`;
+            const className = `project-card${openingId === project.id ? " is-opening" : ""}${project.activeRun ? " is-running" : ""}`;
             const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
               if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
               setOpeningId(project.id);

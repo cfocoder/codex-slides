@@ -205,12 +205,43 @@ export function useChatConversations({
     updatedAt: conversation.updatedAt,
   })), [conversations]);
 
+  const todos = activeConversation?.todos ?? [];
+
+  const mutateTodos = useCallback((updater: (todos: GlobalTodoItem[]) => GlobalTodoItem[]) => {
+    const targetId = activeConversationIdRef.current;
+    setConversations((current) => current.map((conversation) => (
+      conversation.id === targetId
+        ? { ...conversation, todos: updater(conversation.todos ?? []), updatedAt: Date.now() }
+        : conversation
+    )));
+  }, []);
+
+  /** Append this turn's tasks, replacing any earlier tasks owned by the same turn. */
+  const appendTodos = useCallback((items: GlobalTodoItem[]) => {
+    if (!items.length) return;
+    const turnIds = new Set(items.map((item) => item.turnId).filter(Boolean));
+    mutateTodos((current) => [
+      ...current.filter((todo) => !todo.turnId || !turnIds.has(todo.turnId)),
+      ...items,
+    ]);
+  }, [mutateTodos]);
+
+  const patchTodo = useCallback((id: string, patch: Partial<GlobalTodoItem>) => {
+    mutateTodos((current) => current.map((todo) => (todo.id === id ? { ...todo, ...patch } : todo)));
+  }, [mutateTodos]);
+
+  const clearTodos = useCallback(() => mutateTodos(() => []), [mutateTodos]);
+
   return {
     conversations,
     summaries,
     activeConversationId,
     messages,
     setMessages,
+    todos,
+    appendTodos,
+    patchTodo,
+    clearTodos,
     createConversation,
     selectConversation,
     renameConversation,

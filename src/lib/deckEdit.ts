@@ -9,9 +9,43 @@ import type {
   PptConfig,
   ProgressEvent,
   Project,
+  ProjectRunInput,
+  ProjectRunState,
   ProjectWorkflowState,
   SlideTransition,
 } from "@/lib/types";
+
+export interface ProjectRunResponse {
+  project: Project;
+  activeRun: ProjectRunState | null;
+  queued?: boolean;
+  queue?: ProjectWorkflowState["queuedRequests"];
+}
+
+/** Start a project-owned job. The HTTP request only enqueues the work; the
+ * server keeps executing after this component unmounts or the route changes. */
+export async function startProjectRun(
+  projectId: string,
+  input: ProjectRunInput,
+): Promise<ProjectRunResponse> {
+  const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/runs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data as ProjectRunResponse;
+}
+
+export async function stopProjectRun(projectId: string): Promise<ProjectRunResponse> {
+  const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/runs`, {
+    method: "DELETE",
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data as ProjectRunResponse;
+}
 
 export interface UiSlide {
   index: number;
@@ -21,6 +55,7 @@ export interface UiSlide {
   error?: string;
   bust?: number;
   transition?: SlideTransition;
+  speakerNotes?: string;
 }
 
 /** Live activity shown in the chat column while the deck is being built or edited. */
@@ -118,7 +153,7 @@ export async function streamOutline(
 
 /** Stream clarification questions as soon as each JSON object is complete. */
 export async function streamOnboard(
-  input: { requirement: string; scenarioId?: string; uiLocale: string },
+  input: { requirement: string; scenarioId?: string; uiLocale: string; projectId?: string },
   onEvent: (ev: ProgressEvent) => void,
 ): Promise<void> {
   const resp = await fetch("/api/onboard", {
@@ -131,14 +166,26 @@ export async function streamOnboard(
 
 /** Create the project before clarification so every later step has a durable id. */
 export async function createProjectCheckpoint(config: PptConfig): Promise<Project> {
-  const response = await fetch("/api/projects", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ config }),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-  return data as Project;
+  const id = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `checkpoint-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, config }),
+        keepalive: true,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      return data as Project;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Could not create project checkpoint");
 }
 
 const CHECKPOINT_CACHE_PREFIX = "ppt-anything:project-checkpoint:v1:";
@@ -317,7 +364,51 @@ function toUiSlide(page: any): UiSlide {
     error: page.error || undefined,
     bust: Date.now(),
     transition: page.transition ?? "none",
+    speakerNotes: typeof page.speakerNotes === "string" ? page.speakerNotes : undefined,
   };
+}
+
+export interface SpeakerNotesResponse {
+  pages: UiSlide[];
+  notes: Array<{ index: number; title: string; note: string }>;
+  generated?: number[];
+}
+
+/** Persist one slide's presenter notes without redrawing or reloading it. */
+export async function saveProjectSpeakerNote(
+  projectId: string,
+  index: number,
+  note: string,
+): Promise<SpeakerNotesResponse> {
+  const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/speaker-notes`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ index, note }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return {
+    ...data,
+    pages: (data.pages ?? []).map(toUiSlide),
+  } as SpeakerNotesResponse;
+}
+
+/** Ask the project's selected agent to write notes for one slide or the deck. */
+export async function generateProjectSpeakerNotes(
+  projectId: string,
+  input: { index?: number; overwrite?: boolean; instruction?: string } = {},
+): Promise<SpeakerNotesResponse> {
+  const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/speaker-notes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return {
+    ...data,
+    pages: (data.pages ?? []).map(toUiSlide),
+  } as SpeakerNotesResponse;
 }
 
 async function slideAction(
@@ -451,12 +542,13 @@ export async function markSlide(
 }
 
 export interface ChatPlan {
-  action: "edit" | "add" | "reply";
+  action: "answer" | "edit" | "add";
   reply: string;
   targets: number[];
   afterIndex?: number;
   title?: string;
   instruction: string;
+  readFiles?: boolean;
   activities?: AgentToolCall[];
 }
 

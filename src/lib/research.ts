@@ -76,7 +76,7 @@ async function codexSearchSynthesize(
   let text = "";
   let completedText = "";
   const seenQueries: string[] = [];
-  for await (const ev of sseEvents(resp)) {
+  for await (const ev of sseEvents(resp, signal)) {
     const t = ev.type as string;
     if (t === "response.web_search_call.searching" || t === "response.web_search_call.in_progress") {
       const q = ev.action?.query ?? ev.query ?? "web";

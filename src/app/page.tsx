@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ChatColumn, { type ChatMsg } from "@/components/ChatColumn";
 import Composer from "@/components/Composer";
 import Community from "@/components/Community";
+import CodexTutorial from "@/components/CodexTutorial";
 import DesignFilesPanel from "@/components/DesignFilesPanel";
 import OnboardForm from "@/components/OnboardForm";
 import OutlineBoard from "@/components/OutlineBoard";
@@ -65,7 +66,10 @@ import {
   createAgentRunId,
   elapsedRunLabel,
   patchAgentTool,
+  patchBlockTool,
   stopRunningTools,
+  upsertBlock,
+  type MessageBlock,
 } from "@/lib/agentActivity";
 import { outlineSnapshotMessage, styleSnapshotMessage } from "@/lib/chatArtifacts";
 import {
@@ -79,6 +83,7 @@ import {
   type QueuedChatRequest,
 } from "@/lib/chatQueue";
 import { useChatConversations } from "@/lib/useChatConversations";
+import { runChatTurn } from "@/lib/chatTurn";
 import { buildWorkflowProgress } from "@/lib/workflowProgress";
 import type { DesignFile, WorkspaceMode } from "@/lib/designFiles";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -130,6 +135,8 @@ export default function Home() {
   const [researchDoc, setResearchDoc] = useState("");
   const [researchNote, setResearchNote] = useState("");
   const [slides, setSlides] = useState<UiSlide[]>([]);
+  const slidesRef = useRef<UiSlide[]>(slides);
+  slidesRef.current = slides;
   const conversationState = useChatConversations({
     initialMessages: [],
     initialTitle: t("chat.newConversationTitle"),
@@ -155,6 +162,9 @@ export default function Home() {
   const latestCheckpointRef = useRef<ProjectCheckpointPatch | null>(null);
   const creatingProjectRef = useRef(false);
   const markRunRef = useRef<{ id: string; startedAt: number; slideIndex: number } | null>(null);
+  // Deep-research surfacing: the assistant turn that shows live web searches.
+  const researchMsgIdRef = useRef<string | null>(null);
+  const researchSearchCountRef = useRef(0);
 
   const currentConversationQueue = queue.filter(
     (item) => item.conversationId === conversationState.activeConversationId,
@@ -196,6 +206,7 @@ export default function Home() {
         workspaceMode,
         selectedDesignFileId,
         inspirationSkipped,
+        queuedRequests: queue,
       },
     };
   }
@@ -226,6 +237,7 @@ export default function Home() {
     config,
     inspirationSkipped,
     projectId,
+    queue,
     questions,
     researchDoc,
     running,
@@ -345,6 +357,7 @@ export default function Home() {
           image: page.image,
           error: page.error,
           transition: page.transition,
+          speakerNotes: page.speakerNotes,
         })));
         setQuestions(restoredQuestions);
         setClarifyFormState(restoredWorkflow.clarifyForm);
@@ -352,6 +365,9 @@ export default function Home() {
         setWorkspaceMode(restoredWorkflow.workspaceMode ?? "canvas");
         setSelectedDesignFileId(restoredWorkflow.selectedDesignFileId ?? "questions");
         setInspirationSkipped(Boolean(restoredWorkflow.inspirationSkipped));
+        const restoredQueue = (restoredWorkflow.queuedRequests ?? []) as QueuedChatRequest[];
+        queueRef.current = restoredQueue;
+        setQueue(restoredQueue);
         setResearchDoc((useCached ? cached?.researchDoc : undefined) ?? project.researchDoc ?? "");
         setStage(restoredWorkflow.stage === "clarify" ? "clarify" : "outline");
         setRunning(false);
@@ -452,7 +468,7 @@ export default function Home() {
     try {
       let received: QuestionSpec[] = [];
       await streamOnboard(
-        { requirement: cfg.requirement, scenarioId: cfg.scenarioId, uiLocale: locale },
+        { requirement: cfg.requirement, scenarioId: cfg.scenarioId, uiLocale: locale, projectId: checkpointId },
         (event) => {
           if (event.type === "question") {
             received = [...received];
@@ -516,7 +532,12 @@ export default function Home() {
   // ---------------- step 2: search + outline ----------------
 
   async function proceedToOutline(base: PptConfig, checkpointId: string | null = projectId) {
-    const cfg: PptConfig = { ...base, mode: base.mode ?? (researchMode ? "research" : "direct") };
+    // The deep-research scenario (researchMode) always wins so the web search
+    // actually runs; only fall back to the stored/base mode otherwise.
+    const cfg: PptConfig = {
+      ...base,
+      mode: base.mode === "research" || researchMode ? "research" : "direct",
+    };
     let durableProjectId = checkpointId;
     if (!durableProjectId) {
       const checkpoint = await createProjectCheckpoint(cfg);
@@ -531,6 +552,33 @@ export default function Home() {
     setSlides([]);
     setOutline([]);
     setResearchNote("");
+    // Show the web-research process as its own visible, interleaved turn.
+    researchMsgIdRef.current = null;
+    researchSearchCountRef.current = 0;
+    if (cfg.mode === "research") {
+      const researchId = createAgentRunId("research");
+      researchMsgIdRef.current = researchId;
+      say({
+        id: researchId,
+        role: "assistant",
+        content: "",
+        blocks: [
+          { id: "intro", type: "text", text: t("flow.researchIntro") },
+          {
+            id: "status",
+            type: "tool",
+            tool: {
+              id: "status",
+              name: "web_search",
+              kind: "search",
+              label: t("research.title"),
+              detail: t("research.starting"),
+              state: "running",
+            },
+          },
+        ],
+      });
+    }
     try {
       await saveProjectCheckpoint(durableProjectId, {
         config: cfg,
@@ -554,11 +602,39 @@ export default function Home() {
 
   function handleOutlineEvent(ev: ProgressEvent) {
     switch (ev.type) {
-      case "research":
-        if (ev.phase === "searching") setResearchNote(t("flow.searching", { detail: ev.detail ?? "" }));
-        else if (ev.phase === "synthesizing") setResearchNote(t("flow.synthesizing", { detail: ev.detail ?? "" }));
-        else if (ev.phase === "brief" && ev.markdown) setResearchDoc(ev.markdown);
+      case "research": {
+        const researchId = researchMsgIdRef.current;
+        const patchResearch = (updater: (blocks: MessageBlock[]) => MessageBlock[]) => {
+          if (!researchId) return;
+          updateChatMessage(researchId, (m) => ({ ...m, blocks: updater(m.blocks ?? []) }));
+        };
+        if (ev.phase === "searching") {
+          setResearchNote(t("flow.searching", { detail: ev.detail ?? "" }));
+          if (ev.detail) {
+            const n = ++researchSearchCountRef.current;
+            patchResearch((blocks) => patchBlockTool(
+              upsertBlock(blocks, {
+                id: `search-${n}`,
+                type: "tool",
+                tool: { id: `search-${n}`, name: "web_search", kind: "search", label: t("agent.search"), detail: ev.detail, state: "complete" },
+              }),
+              "status",
+              { detail: t("research.searchCount", { count: n }) },
+            ));
+          }
+        } else if (ev.phase === "synthesizing") {
+          setResearchNote(t("flow.synthesizing", { detail: ev.detail ?? "" }));
+          patchResearch((blocks) => patchBlockTool(blocks, "status", { detail: t("flow.synthesizing", { detail: ev.detail ?? "" }) }));
+        } else if (ev.phase === "brief" && ev.markdown) {
+          setResearchDoc(ev.markdown);
+          patchResearch((blocks) => patchBlockTool(blocks, "status", {
+            state: "complete",
+            label: t("research.complete"),
+            detail: t("research.searchCount", { count: researchSearchCountRef.current }),
+          }));
+        }
         break;
+      }
       case "project":
         setProjectId(ev.id);
         break;
@@ -575,6 +651,18 @@ export default function Home() {
         setTitle(ev.title);
         setOutline(ev.outline.map((o) => ({ title: o.title, points: [...o.points] })));
         setResearchNote("");
+        if (researchMsgIdRef.current) {
+          const settledCount = researchSearchCountRef.current;
+          updateChatMessage(researchMsgIdRef.current, (m) => ({
+            ...m,
+            blocks: patchBlockTool(m.blocks ?? [], "status", {
+              state: "complete",
+              label: t("research.complete"),
+              detail: t("research.searchCount", { count: settledCount }),
+            }),
+          }));
+          researchMsgIdRef.current = null;
+        }
         say({
           role: "assistant",
           content: t("flow.outlineReady", { count: ev.outline.length, title: ev.title }),
@@ -606,10 +694,17 @@ export default function Home() {
 
   async function handleOutlineChat(request: ChatRequest) {
     if (!projectId) return;
-    say({ role: "user", content: request.message, attachment: request.context, contextItems: request.attachments });
+    const designFiles = request.designFiles ?? [];
+    say({
+      role: "user",
+      content: request.message,
+      attachment: request.context,
+      contextItems: request.attachments,
+      designFiles,
+    });
     setBusy(true);
     try {
-      const { pages, reply } = await reviseOutlineChat(projectId, request.message);
+      const { pages, reply } = await reviseOutlineChat(projectId, request.message, designFiles);
       setOutline(pages);
       setTitle(pages[0]?.title || title);
       say({ role: "assistant", content: reply || t("flow.outlineUpdated") });
@@ -727,12 +822,12 @@ export default function Home() {
       content: startContent,
       process: {
         state: "running",
-        title: t("flow.renderingTitle"),
-        notes: [t("flow.renderingNote")],
+        title: config.fast ? t("flow.fastRenderingTitle") : t("flow.renderingTitle"),
+        notes: [config.fast ? t("flow.fastRenderingNote") : t("flow.renderingNote")],
         tools: [{
           id: "render",
           name: "render_deck",
-          label: t("flow.renderTool"),
+          label: config.fast ? t("flow.fastRenderTool") : t("flow.renderTool"),
           detail: `0 / ${outline.length}`,
           state: "running",
         }],
@@ -827,232 +922,22 @@ export default function Home() {
 
   async function handleChat(request: ChatRequest) {
     if (!projectId) return;
-    const { message, context, attachments } = request;
-    say({ role: "user", content: message, attachment: context, contextItems: attachments });
-    const runId = createAgentRunId("deck-edit");
-    const startedAt = Date.now();
-    say({
-      id: runId,
-      role: "assistant",
-      content: "",
-      process: {
-        state: "running",
-        title: t("agent.understanding"),
-        notes: [t("agent.understandingNote")],
-        tools: [{
-          id: "plan",
-          name: "plan_deck_edit",
-          label: t("agent.plan"),
-          detail: t("agent.planDetail"),
-          state: "running",
-        }],
-      },
-    });
     setBusy(true);
     try {
-      const plan = await planChatEdit(projectId, message, context, attachments);
-      const capturedActivities = (plan.activities ?? []).map((tool, index) => ({
-        ...tool,
-        id: `cli-${tool.id || index}`,
-        label: tool.kind === "bash"
-          ? t("agent.runCommand")
-          : tool.kind === "read"
-            ? t("agent.readFile")
-            : tool.kind === "write" || tool.kind === "edit"
-              ? t("agent.editFiles")
-              : tool.kind === "search"
-                ? t("agent.search")
-                : tool.kind === "todo"
-                  ? t("agent.taskList")
-                  : t("agent.useTool"),
-      }));
-      const planDetail = plan.action === "edit"
-        ? t(plan.targets.length === 1 ? "agent.targetOne" : "agent.targetMany", { targets: plan.targets.join(", ") })
-        : plan.action === "add"
-          ? t("agent.addRender")
-          : t("agent.replyOnly");
-      updateChatMessage(runId, (current) => ({
-        ...current,
-        process: {
-          ...patchAgentTool(
-            capturedActivities.length
-              ? { ...current.process!, tools: [...current.process!.tools, ...capturedActivities] }
-              : current.process!,
-            "plan",
-            { state: "complete", detail: planDetail },
-          ),
-          title: plan.action === "add" ? t("agent.adding") : plan.action === "edit" ? t("agent.applying") : t("agent.reviewed"),
-          notes: plan.instruction ? [t("agent.plannedChange", { instruction: plan.instruction })] : [t("agent.noChange")],
-        },
-      }));
-      if (plan.action === "add") {
-        const afterIndex = plan.afterIndex ?? slides.length;
-        updateChatMessage(runId, (current) => ({
-          ...current,
-          process: {
-            ...current.process!,
-            tools: [
-              ...current.process!.tools,
-              { id: "add", name: "add_slide", kind: "write", label: t("agent.insert"), detail: t("agent.after", { index: afterIndex }), state: "running" },
-              { id: "generate", name: "generate_slide", kind: "edit", label: t("agent.renderSlide"), detail: t("agent.matchStyle"), state: "pending" },
-            ],
-          },
-        }));
-        const next = await addProjectSlide(projectId, afterIndex, plan.title);
-        const insertedIndex = Math.min(Math.max(afterIndex + 1, 1), next.length);
-        setSlides(next.map((slide) => (slide.index === insertedIndex ? { ...slide, status: "working" } : slide)));
-        updateChatMessage(runId, (current) => ({
-          ...current,
-          process: patchAgentTool(
-            patchAgentTool(current.process!, "add", { state: "complete", detail: t("agent.inserted", { index: insertedIndex }) }),
-            "generate",
-            { state: "running", detail: t("agent.renderingSlide", { index: insertedIndex }) },
-          ),
-        }));
-        try {
-          const generated = await generateSingleSlide(
-            projectId,
-            insertedIndex,
-            plan.instruction || message,
-            plan.title,
-          );
-          setSlides((items) => items.map((slide) => (slide.index === insertedIndex ? generated : slide)));
-          updateChatMessage(runId, (current) => ({
-            ...current,
-            content: t("agent.addedReply", { reply: plan.reply, index: insertedIndex }),
-            ran: elapsedRunLabel(startedAt, locale),
-            attachment: {
-              slideIndex: insertedIndex,
-              title: generated.title || t("chat.slide", { index: insertedIndex }),
-              imageUrl: fileUrl(projectId, generated.image, generated.bust),
-            },
-            process: {
-              ...patchAgentTool(current.process!, "generate", { state: "complete", detail: t("agent.renderedSlide", { index: insertedIndex }) }),
-              state: "complete",
-              title: t("agent.addedSlide", { index: insertedIndex }),
-            },
-          }));
-        } catch (error: any) {
-          setSlides((items) =>
-            items.map((slide) =>
-              slide.index === insertedIndex
-                ? { ...slide, status: "error", error: String(error?.message ?? error) }
-                : slide,
-            ),
-          );
-          throw error;
-        }
-        return;
-      }
-      if (plan.action !== "edit" || !plan.targets?.length) {
-        updateChatMessage(runId, (current) => ({
-          ...current,
-          content: plan.reply,
-          ran: elapsedRunLabel(startedAt, locale),
-          process: { ...current.process!, state: "complete", title: t("agent.reviewed") },
-        }));
-        return;
-      }
-      updateChatMessage(runId, (current) => ({
-        ...current,
-        process: {
-          ...current.process!,
-          tools: [
-            ...current.process!.tools,
-            ...plan.targets.map((target) => ({
-              id: `regenerate-${target}`,
-              name: "regenerate_slide",
-              label: t("agent.updateSlide", { index: target }),
-              detail: t("agent.waitPrevious"),
-              state: "pending" as const,
-            })),
-          ],
-        },
-      }));
-      const failedTargets: number[] = [];
-      let lastAttachment: SlideChatContext | undefined;
-      for (const target of plan.targets) {
-        updateChatMessage(runId, (current) => ({
-          ...current,
-          process: patchAgentTool(current.process!, `regenerate-${target}`, {
-            state: "running",
-            detail: t("agent.redrawing"),
-          }),
-        }));
-        setSlides((s) => s.map((x) => (x.index === target ? { ...x, status: "working" } : x)));
-        try {
-          const image = await regenerateSlide(
-            projectId,
-            target,
-            plan.instruction,
-            plan.targets.length === 1 ? plan.title : undefined,
-          );
-          const bust = Date.now();
-          setSlides((s) =>
-            s.map((x) =>
-              x.index === target
-                ? {
-                    ...x,
-                    title: plan.targets.length === 1 && plan.title ? plan.title : x.title,
-                    status: "rendered",
-                    image,
-                    bust,
-                  }
-                : x,
-            ),
-          );
-          lastAttachment = {
-            slideIndex: target,
-            title: (plan.targets.length === 1 ? plan.title : undefined)
-              || slides.find((slide) => slide.index === target)?.title
-              || t("chat.slide", { index: target }),
-            imageUrl: fileUrl(projectId, image, bust),
-          };
-          updateChatMessage(runId, (current) => ({
-            ...current,
-            process: patchAgentTool(current.process!, `regenerate-${target}`, {
-              state: "complete",
-              detail: t("agent.updatedSlide", { index: target }),
-            }),
-          }));
-        } catch (e: any) {
-          failedTargets.push(target);
-          setSlides((s) =>
-            s.map((x) => (x.index === target ? { ...x, status: "error", error: String(e?.message ?? e) } : x)),
-          );
-          updateChatMessage(runId, (current) => ({
-            ...current,
-            process: patchAgentTool(current.process!, `regenerate-${target}`, {
-              state: "error",
-              detail: String(e?.message ?? e),
-            }),
-          }));
-        }
-      }
-      updateChatMessage(runId, (current) => ({
-        ...current,
-        content: failedTargets.length
-          ? t("agent.partialFailure", { reply: plan.reply, targets: failedTargets.join(", ") })
-          : t("agent.updatedReply", { reply: plan.reply, targets: plan.targets.join(", ") }),
-        ran: elapsedRunLabel(startedAt, locale),
-        attachment: lastAttachment,
-        process: {
-          ...current.process!,
-          state: failedTargets.length ? "error" : "complete",
-          title: failedTargets.length ? t("agent.editErrors") : t("agent.editComplete"),
-        },
-      }));
-    } catch (e: any) {
-      updateChatMessage(runId, (current) => ({
-        ...current,
-        content: `⚠ ${e?.message ?? e}`,
-        ran: elapsedRunLabel(startedAt, locale),
-        process: {
-          ...stopRunningTools(current.process!, String(e?.message ?? e)),
-          state: "error",
-          title: t("agent.editFailed"),
-        },
-      }));
+      await runChatTurn(request, {
+        projectId,
+        locale,
+        t,
+        say,
+        update: updateChatMessage,
+        getSlides: () => slidesRef.current,
+        setSlides,
+        appendTodos: conversationState.appendTodos,
+        patchTodo: conversationState.patchTodo,
+        supportsDesignFiles: true,
+      });
+    } catch {
+      /* runChatTurn writes the failure into the transcript */
     } finally {
       setBusy(false);
     }
@@ -1357,6 +1242,7 @@ export default function Home() {
           onInspire={onInspire}
           onOpenDesignFile={openDesignFile}
           workflow={workflow}
+          todos={conversationState.todos}
           conversations={projectId ? conversationState.summaries : undefined}
           activeConversationId={projectId ? conversationState.activeConversationId : undefined}
           onSelectConversation={projectId ? (id) => {
@@ -1521,6 +1407,7 @@ export default function Home() {
             onClearScenario={clearScenario}
             onSubmit={submit}
           />
+          <CodexTutorial />
         </div>
         <Community selected={config.template} onPick={(id) => patchConfig({ template: config.template === id ? undefined : id })} />
         <RecentProjects />

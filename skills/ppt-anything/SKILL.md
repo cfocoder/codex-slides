@@ -127,6 +127,11 @@ auditing a newly added product feature or changing the Browser/CLI/MCP contract.
 - Use `upload-slide` for a finished local PNG.
 - Use `mark-edit` when the user supplies an annotated PNG and wants a clean
   regenerated slide.
+- Use `speaker-notes` / `get_speaker_notes` to inspect the talk track,
+  `action:set` / `update_speaker_notes` to write or clear exact notes, and
+  `action:generate` / `generate_speaker_notes` to ask the project's selected
+  agent for one slide or a coherent full-deck talk track. Notes stay off-canvas,
+  appear in presenter mode, and export as native PowerPoint speaker notes.
 
 Keep durable edits scoped to the project the user named. If no project was
 named and multiple projects exist, inspect the recent list before choosing.
@@ -140,8 +145,9 @@ Browser capability is available.
 
 Use Browser view `scenarios` for the workflow catalog, `design-files` for the
 file workspace, and `brand-system` for the visual-system editor. Use the normal
-workspace for Play mode, slide navigation, direct on-canvas marking, and layout
-inspection. If the current Codex surface has no in-app Browser session, return
+workspace for Play from current/beginning, dual-window presenter mode, speaker
+notes editing or AI generation, slide navigation, direct on-canvas marking, and
+layout inspection. If the current Codex surface has no in-app Browser session, return
 the local URL and state that limitation instead of claiming it opened.
 
 ## Export only after review

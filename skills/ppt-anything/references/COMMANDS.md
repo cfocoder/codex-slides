@@ -27,6 +27,7 @@ object. Success responses contain `"ok": true`; failures contain
 | `render` | `render_deck` | `projectId` |
 | `list` | `list_projects` | none |
 | `get` | `get_project` | `projectId`, optional `includeChat` |
+| `speaker-notes` | `get_speaker_notes` / `update_speaker_notes` / `generate_speaker_notes` | `projectId`, `action` (`get`, `set`, or `generate`); optional `index`, `note`, `notes`, `overwrite`, `instruction` |
 | `templates` | `list_templates` | optional `categoryId` |
 | `scenarios` | `list_scenarios` | optional `group`, `query`, `featured`, `scenarioId` |
 | `design-files` | `list_design_files` | `projectId`; optional focused `filePath` |
@@ -180,6 +181,28 @@ node <skill-dir>/scripts/ppt-anything.mjs mark-edit --json '{
 
 node <skill-dir>/scripts/ppt-anything.mjs export \
   --json '{"projectId":"PROJECT_ID","format":"pptx"}'
+```
+
+Read, author, or generate presenter notes without redrawing slides:
+
+```bash
+node <skill-dir>/scripts/ppt-anything.mjs speaker-notes --json '{
+  "projectId":"PROJECT_ID",
+  "action":"get"
+}'
+
+node <skill-dir>/scripts/ppt-anything.mjs speaker-notes --json '{
+  "projectId":"PROJECT_ID",
+  "action":"set",
+  "index":2,
+  "note":"Open with the customer problem, then connect it to the metric on screen."
+}'
+
+node <skill-dir>/scripts/ppt-anything.mjs speaker-notes --json '{
+  "projectId":"PROJECT_ID",
+  "action":"generate",
+  "instruction":"Write a concise 12-minute executive talk track"
+}'
 ```
 
 ## Environment

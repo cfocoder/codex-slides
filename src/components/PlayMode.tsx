@@ -1,8 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { SlideTransition } from "@/lib/types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/i18n/I18nProvider";
+import { buildPresenterWindowHtml } from "@/lib/presenterWindow";
+import type { SlideTransition } from "@/lib/types";
+
+export interface PlayModeSlide {
+  index: number;
+  url: string;
+  title: string;
+  transition?: SlideTransition;
+  speakerNotes?: string;
+}
 
 function Chevron({ direction }: { direction: "left" | "right" }) {
   return (
@@ -24,24 +33,48 @@ function FullscreenIcon({ active }: { active: boolean }) {
   );
 }
 
-/** Focused slideshow with keyboard navigation and auto-hiding presenter controls. */
+/** Audience slideshow. Its controls are a true overlay and only appear when
+ * the pointer enters the fixed bottom reveal zone, so the slide never resizes. */
 export default function PlayMode({
   slides,
+  initialIndex = 0,
+  projectId,
+  deckTitle,
+  presenterWindow,
+  onSpeakerNotesChange,
+  onSlideChange,
   onClose,
 }: {
-  slides: { index: number; url: string; title: string; transition?: SlideTransition }[];
+  slides: PlayModeSlide[];
+  initialIndex?: number;
+  projectId: string;
+  deckTitle: string;
+  presenterWindow?: Window | null;
+  onSpeakerNotesChange?: (index: number, note: string) => Promise<unknown>;
+  onSlideChange?: (slide: PlayModeSlide) => void;
   onClose: () => void;
 }) {
   const { t } = useI18n();
-  const [i, setI] = useState(0);
+  const [i, setI] = useState(() => Math.max(0, Math.min(slides.length - 1, initialIndex)));
   const [controlsVisible, setControlsVisible] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const presenterInitialized = useRef(false);
+  const channelId = useRef(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `present-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
 
-  const revealControls = useCallback(() => {
+  const showControls = useCallback(() => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
     setControlsVisible(true);
-    if (idleTimer.current) clearTimeout(idleTimer.current);
-    idleTimer.current = setTimeout(() => setControlsVisible(false), 2600);
+  }, []);
+
+  const scheduleHideControls = useCallback(() => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setControlsVisible(false), 420);
   }, []);
 
   const move = useCallback(
@@ -50,20 +83,29 @@ export default function PlayMode({
   );
 
   const close = useCallback(async () => {
+    if (presenterWindow && !presenterWindow.closed) {
+      try { presenterWindow.close(); } catch { /* window is already closing */ }
+    }
     if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
     onClose();
-  }, [onClose]);
+  }, [onClose, presenterWindow]);
 
   const toggleFullscreen = useCallback(async () => {
-    if (document.fullscreenElement) await document.exitFullscreen();
-    else await document.documentElement.requestFullscreen();
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
+    else await rootRef.current?.requestFullscreen().catch(() => undefined);
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (idleTimer.current) clearTimeout(idleTimer.current);
-    };
-  }, []);
+  const presenterSlides = useMemo(() => slides.map((slide) => ({
+    ...slide,
+    url: typeof window === "undefined" ? slide.url : new URL(slide.url, window.location.href).toString(),
+  })), [slides]);
+
+  useEffect(() => () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    if (presenterWindow && !presenterWindow.closed) {
+      try { presenterWindow.close(); } catch { /* already closed */ }
+    }
+  }, [presenterWindow]);
 
   useEffect(() => {
     const onFullscreen = () => setFullscreen(Boolean(document.fullscreenElement));
@@ -75,44 +117,125 @@ export default function PlayMode({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        close();
+        void close();
       } else if (["ArrowRight", "PageDown", " "].includes(event.key)) {
         event.preventDefault();
         move(1);
-        revealControls();
       } else if (["ArrowLeft", "PageUp"].includes(event.key)) {
         event.preventDefault();
         move(-1);
-        revealControls();
       } else if (event.key === "Home") {
         event.preventDefault();
         setI(0);
-        revealControls();
       } else if (event.key === "End") {
         event.preventDefault();
         setI(Math.max(0, slides.length - 1));
-        revealControls();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [close, move, revealControls, slides.length]);
+  }, [close, move, slides.length]);
+
+  useEffect(() => {
+    if (!slides.length) return;
+    const position = Math.max(0, Math.min(slides.length - 1, i));
+    onSlideChange?.(slides[position]);
+  }, [i, onSlideChange, slides]);
+
+  useEffect(() => {
+    if (!presenterWindow || presenterWindow.closed || presenterInitialized.current) return;
+    presenterInitialized.current = true;
+    const html = buildPresenterWindowHtml({
+      title: deckTitle,
+      channelId: channelId.current,
+      projectId,
+      slides: presenterSlides,
+      initialIndex: i,
+      labels: {
+        windowTitle: t("presenter.windowTitle"),
+        notesTitle: t("speakerNotes.title"),
+        pause: t("presenter.pause"),
+        resume: t("presenter.resume"),
+        reset: t("presenter.reset"),
+        previous: t("presenter.previous"),
+        next: t("presenter.next"),
+        empty: t("speakerNotes.emptyPresenter"),
+        slide: t("presenter.slide", { current: "{current}", total: "{total}" }),
+        save: t("speakerNotes.save"),
+        saved: t("speakerNotes.saved"),
+        saveFailed: t("speakerNotes.failed"),
+      },
+    });
+    presenterWindow.document.open();
+    presenterWindow.document.write(html);
+    presenterWindow.document.close();
+    presenterWindow.focus();
+  }, [deckTitle, i, presenterSlides, presenterWindow, projectId, t]);
+
+  useEffect(() => {
+    if (!presenterWindow || presenterWindow.closed) return;
+    presenterWindow.postMessage({
+      type: "ppt-anything:presenter-state",
+      channelId: channelId.current,
+      projectId,
+      position: i,
+      slides: presenterSlides,
+    }, "*");
+  }, [i, presenterSlides, presenterWindow, projectId]);
+
+  useEffect(() => {
+    if (!presenterWindow) return;
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== presenterWindow) return;
+      const message = event.data as {
+        type?: string;
+        channelId?: string;
+        projectId?: string;
+        position?: number;
+        index?: number;
+        note?: string;
+      } | null;
+      if (!message || message.channelId !== channelId.current || message.projectId !== projectId) return;
+      if (message.type === "ppt-anything:presenter-go" && typeof message.position === "number") {
+        setI(Math.max(0, Math.min(slides.length - 1, Math.floor(message.position))));
+      } else if (message.type === "ppt-anything:presenter-close") {
+        void close();
+      } else if (
+        message.type === "ppt-anything:presenter-notes-save"
+        && typeof message.index === "number"
+        && typeof message.note === "string"
+      ) {
+        Promise.resolve(onSpeakerNotesChange?.(message.index, message.note))
+          .then(() => presenterWindow.postMessage({
+            type: "ppt-anything:presenter-notes-status",
+            channelId: channelId.current,
+            projectId,
+            ok: true,
+          }, "*"))
+          .catch(() => presenterWindow.postMessage({
+            type: "ppt-anything:presenter-notes-status",
+            channelId: channelId.current,
+            projectId,
+            ok: false,
+          }, "*"));
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [close, onSpeakerNotesChange, presenterWindow, projectId, slides.length]);
 
   if (!slides.length) return null;
-  const currentIndex = Math.min(i, slides.length - 1);
+  const currentIndex = Math.max(0, Math.min(i, slides.length - 1));
   const slide = slides[currentIndex];
   const progress = ((currentIndex + 1) / slides.length) * 100;
 
   return (
     <div
+      ref={rootRef}
       className={`playmode${controlsVisible ? " controls-visible" : " controls-hidden"}`}
       role="dialog"
       aria-modal="true"
       aria-label={t("play.mode")}
-      onMouseMove={revealControls}
-      onMouseDown={revealControls}
-      onTouchStart={revealControls}
-      onMouseLeave={() => setControlsVisible(false)}
     >
       <div className="playmode-stage">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -124,59 +247,49 @@ export default function PlayMode({
         />
       </div>
 
-      <div className="playmode-top playmode-chrome">
-        <div className="playmode-keyhint" aria-hidden="true">
-          <kbd>←</kbd>
-          <kbd>→</kbd>
-          <span>{t("play.navigate")}</span>
-        </div>
-        <button className="playmode-exit" onClick={close} aria-label={t("play.exitPresentation")}>
-          <span>{t("play.exit")}</span>
-          <kbd>Esc</kbd>
-        </button>
-      </div>
-
       <button
-        className="playmode-nav playmode-nav-prev playmode-chrome"
+        type="button"
+        className="playmode-page-hit playmode-page-hit-prev"
         onClick={() => move(-1)}
         disabled={currentIndex === 0}
         aria-label={t("slide.previous")}
-      >
-        <Chevron direction="left" />
-      </button>
+      />
       <button
-        className="playmode-nav playmode-nav-next playmode-chrome"
+        type="button"
+        className="playmode-page-hit playmode-page-hit-next"
         onClick={() => move(1)}
         disabled={currentIndex === slides.length - 1}
         aria-label={t("slide.next")}
-      >
-        <Chevron direction="right" />
-      </button>
+      />
 
-      <div className="playmode-dock playmode-chrome">
-        <button onClick={() => move(-1)} disabled={currentIndex === 0} aria-label={t("slide.previous")}>
-          <Chevron direction="left" />
-        </button>
-        <div className="playmode-meta" aria-live="polite">
-          <div className="playmode-meta-line">
-            <strong>{currentIndex + 1} / {slides.length}</strong>
-            <span>{slide.title}</span>
+      <div
+        className="playmode-control-trigger"
+        onMouseEnter={showControls}
+        onMouseLeave={scheduleHideControls}
+        onTouchStart={showControls}
+      >
+        <div className="playmode-dock playmode-chrome">
+          <button onClick={() => move(-1)} disabled={currentIndex === 0} aria-label={t("slide.previous")}>
+            <Chevron direction="left" />
+          </button>
+          <div className="playmode-meta" aria-live="polite">
+            <div className="playmode-meta-line">
+              <strong>{currentIndex + 1} / {slides.length}</strong>
+              <span>{slide.title}</span>
+            </div>
+            <div className="playmode-progress" aria-hidden="true"><i style={{ width: `${progress}%` }} /></div>
           </div>
-          <div className="playmode-progress" aria-hidden="true">
-            <i style={{ width: `${progress}%` }} />
-          </div>
+          <button onClick={() => move(1)} disabled={currentIndex === slides.length - 1} aria-label={t("slide.next")}>
+            <Chevron direction="right" />
+          </button>
+          <span className="playmode-dock-sep" aria-hidden="true" />
+          <button onClick={toggleFullscreen} aria-label={fullscreen ? t("play.exitFullscreen") : t("play.enterFullscreen")}>
+            <FullscreenIcon active={fullscreen} />
+          </button>
+          <button className="playmode-dock-exit" onClick={() => void close()} aria-label={t("play.exitPresentation")}>
+            <span>{t("play.exit")}</span><kbd>Esc</kbd>
+          </button>
         </div>
-        <button
-          onClick={() => move(1)}
-          disabled={currentIndex === slides.length - 1}
-          aria-label={t("slide.next")}
-        >
-          <Chevron direction="right" />
-        </button>
-        <span className="playmode-dock-sep" aria-hidden="true" />
-        <button onClick={toggleFullscreen} aria-label={fullscreen ? t("play.exitFullscreen") : t("play.enterFullscreen")}>
-          <FullscreenIcon active={fullscreen} />
-        </button>
       </div>
     </div>
   );

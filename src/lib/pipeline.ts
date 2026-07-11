@@ -71,7 +71,7 @@ async function generateText(
     ? [
         prompt,
         "",
-        "The user attached these context items. Read them from disk and use their contents and visuals when answering:",
+        "These project Design Files are available as context. Read the files relevant to this task from disk and use their real contents and visuals:",
         ...localItems.map((item) => `- ${item.name}: ${item.path}`),
       ].join("\n")
     : prompt;
@@ -168,7 +168,14 @@ export async function planOutline(
   emit({ type: "agent", agent: engineLabel, engine: config.engine });
 
   emit({ type: "log", message: "Writing the outline…" });
-  const stagedAttachments = loadStagedInputAttachments(config.materialIds);
+  const checkpoint = opts.projectId ? loadProject(opts.projectId) : null;
+  if (opts.projectId && !checkpoint) throw new Error("project checkpoint not found");
+  // The home submit creates the project shell and archives its context items
+  // before any agent call. Local engines therefore receive stable Design Files
+  // paths; the staging path remains only for one-shot/API callers without a shell.
+  const inputAttachments = checkpoint
+    ? loadProjectInputAttachments(checkpoint.id, checkpoint.materials)
+    : loadStagedInputAttachments(config.materialIds);
   let emittedPages = 0;
   const emitNewPages = (text: string) => {
     const partial = normalizeOutline(completeJsonArrayObjects(text));
@@ -181,7 +188,7 @@ export async function planOutline(
     config.engine,
     buildOutlinePrompt(config),
     signal,
-    stagedAttachments,
+    inputAttachments,
     emitNewPages,
   );
   const outline = normalizeOutline(outlineRaw);
@@ -192,8 +199,6 @@ export async function planOutline(
   }
 
   const title = outline[0]?.title || config.requirement.slice(0, 40) || "Untitled deck";
-  const checkpoint = opts.projectId ? loadProject(opts.projectId) : null;
-  if (opts.projectId && !checkpoint) throw new Error("project checkpoint not found");
   const id = checkpoint?.id ?? newProjectId(title);
   const now = new Date().toISOString();
   const project: Project = checkpoint ?? {

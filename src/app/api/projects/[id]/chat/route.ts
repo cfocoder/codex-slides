@@ -264,16 +264,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const rawDesignFilePaths = Array.isArray(body?.designFilePaths)
       ? body.designFilePaths.map(String).slice(0, 12)
       : [];
+    const attachmentDesignFilePaths = turnRecords
+      .map((record) => record.designFilePath)
+      .filter((value): value is string => Boolean(value));
     const { references: designFiles, attachments: designFileAttachments } = loadProjectFileReferences(
       project.id,
-      rawDesignFilePaths,
+      [...attachmentDesignFilePaths, ...rawDesignFilePaths],
     );
     const attachments = [
       ...loadProjectInputAttachments(project.id, turnRecords),
       ...designFileAttachments,
     ];
     const plan = await planChatEdit(project, message, context, attachments, designFiles);
-    return NextResponse.json({ plan });
+    return NextResponse.json({ plan, designFiles });
   } catch (e: any) {
     return NextResponse.json({ error: String(e?.message ?? e) }, { status: 500 });
   }

@@ -108,7 +108,7 @@ export async function generateSlideImage(
 
   let b64: string | null = null;
   let completed: any = null;
-  for await (const ev of sseEvents(resp)) {
+  for await (const ev of sseEvents(resp, signal)) {
     const t = ev.type as string;
     if (t === "response.output_item.done" || t === "response.image_generation_call.done") {
       const item = ev.item ?? ev;

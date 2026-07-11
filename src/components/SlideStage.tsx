@@ -12,14 +12,17 @@ import {
 } from "@phosphor-icons/react";
 import MarkCanvas from "@/components/MarkCanvas";
 import PlayMode from "@/components/PlayMode";
+import SpeakerNotesPanel from "@/components/SpeakerNotesPanel";
 import TransitionPicker from "@/components/TransitionPicker";
 import {
   addProjectSlide,
   deleteProjectSlide,
   duplicateProjectSlide,
   fileUrl,
+  generateProjectSpeakerNotes,
   markSlide,
   saveMarkSource,
+  saveProjectSpeakerNote,
   setProjectSlideTransition,
   uploadProjectSlide,
   type UiSlide,
@@ -103,6 +106,7 @@ export default function SlideStage({
   headerExtra,
   onAskSlide,
   onMarkAgentEvent,
+  onStartMarkRun,
   focusSlideIndex,
   focusSlideKey = 0,
 }: {
@@ -122,6 +126,12 @@ export default function SlideStage({
   onAskSlide?: (slide: UiSlide) => void;
   /** Mirror visual-mark editing into the persistent deck conversation. */
   onMarkAgentEvent?: (event: MarkAgentEvent) => void;
+  /** Project workspaces can detach the long-running mark edit from this view. */
+  onStartMarkRun?: (input: {
+    slide: UiSlide;
+    note: string;
+    source: string;
+  }) => Promise<void>;
   /** External navigation request originating from a chat attachment. */
   focusSlideIndex?: number | null;
   /** Increment to repeat navigation to the same externally requested slide. */
@@ -132,7 +142,11 @@ export default function SlideStage({
   const [markTarget, setMarkTarget] = useState<number | null>(null);
   const [transitionTarget, setTransitionTarget] = useState<number | null>(null);
   const [transitionSaving, setTransitionSaving] = useState(false);
-  const [playing, setPlaying] = useState(false);
+  const [playSession, setPlaySession] = useState<{
+    initialIndex: number;
+    presenterWindow: Window | null;
+  } | null>(null);
+  const [playOpen, setPlayOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [actionError, setActionError] = useState("");
   const [structureBusy, setStructureBusy] = useState(false);
@@ -140,6 +154,7 @@ export default function SlideStage({
   const [enteringSlide, setEnteringSlide] = useState<number | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const exportRef = useRef<HTMLDivElement>(null);
+  const playRef = useRef<HTMLDivElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const uploadTarget = useRef<number | null>(null);
   const userPicked = useRef(false);
@@ -160,13 +175,14 @@ export default function SlideStage({
   }, [slides, selected]);
 
   useEffect(() => {
-    if (!exportOpen) return;
+    if (!exportOpen && !playOpen) return;
     const close = (event: MouseEvent) => {
       if (exportRef.current && !exportRef.current.contains(event.target as Node)) setExportOpen(false);
+      if (playRef.current && !playRef.current.contains(event.target as Node)) setPlayOpen(false);
     };
     window.addEventListener("mousedown", close);
     return () => window.removeEventListener("mousedown", close);
-  }, [exportOpen]);
+  }, [exportOpen, playOpen]);
 
   useEffect(() => {
     if (selected == null) return;
@@ -190,7 +206,7 @@ export default function SlideStage({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (playing || markTarget != null || transitionTarget != null) return;
+      if (playSession || markTarget != null || transitionTarget != null) return;
       const target = event.target as HTMLElement;
       if (target.closest("input, textarea, select, [contenteditable='true']")) return;
       if (event.key === "ArrowLeft" && currentPosition > 0) {
@@ -206,7 +222,7 @@ export default function SlideStage({
     return () => window.removeEventListener("keydown", onKeyDown);
     // pick intentionally closes per-page UI alongside navigation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPosition, markTarget, playing, slides, transitionTarget]);
+  }, [currentPosition, markTarget, playSession, slides, transitionTarget]);
 
   function replaceSlides(next: UiSlide[]) {
     onSlides(() => next);
@@ -420,6 +436,10 @@ export default function SlideStage({
       const markedImage = await saveMarkSource(projectId, index, blob);
       setMarkTarget(null);
       update(index, { status: "working" });
+      if (onStartMarkRun) {
+        await onStartMarkRun({ slide, note, source: markedImage });
+        return;
+      }
       onMarkAgentEvent?.({ type: "request", slide, note, markedImage });
       requestMirrored = true;
       const image = await markSlide(projectId, index, markedImage, note);
@@ -431,6 +451,7 @@ export default function SlideStage({
         update(index, { status: "rendered", error: undefined });
         onMarkAgentEvent?.({ type: "error", slide, note, error: message });
       } else {
+        update(index, { status: slide.image ? "rendered" : "pending", error: undefined });
         setActionError(message);
       }
     } finally {
@@ -445,7 +466,56 @@ export default function SlideStage({
       url: fileUrl(projectId!, slide.image, slide.bust),
       title: slide.title,
       transition: slide.transition ?? "none",
+      speakerNotes: slide.speakerNotes,
     }));
+
+  function playStartIndex(fromCurrent: boolean) {
+    if (!fromCurrent || !current || !playSlides.length) return 0;
+    const exact = playSlides.findIndex((slide) => slide.index === current.index);
+    if (exact >= 0) return exact;
+    const following = playSlides.findIndex((slide) => slide.index > current.index);
+    return following >= 0 ? following : playSlides.length - 1;
+  }
+
+  function startPlayback(fromCurrent: boolean, presenter: boolean) {
+    if (!projectId || !playSlides.length) return;
+    let presenterWindow: Window | null = null;
+    if (presenter) {
+      presenterWindow = window.open(
+        "",
+        `ppt-anything-presenter-${projectId}-${Date.now()}`,
+        "popup,width=1320,height=820,minWidth=720,minHeight=620",
+      );
+      if (!presenterWindow) {
+        setActionError(t("presenter.popupBlocked"));
+        setPlayOpen(false);
+        return;
+      }
+      presenterWindow.document.title = t("presenter.windowTitle");
+      if (presenterWindow.document.body) presenterWindow.document.body.textContent = t("presenter.opening");
+    }
+    setActionError("");
+    setPlayOpen(false);
+    setPlaySession({ initialIndex: playStartIndex(fromCurrent), presenterWindow });
+  }
+
+  async function persistSpeakerNote(index: number, note: string) {
+    if (!projectId) throw new Error(t("speakerNotes.unavailable"));
+    const result = await saveProjectSpeakerNote(projectId, index, note);
+    const saved = result.notes.find((item) => item.index === index)?.note ?? "";
+    update(index, { speakerNotes: saved || undefined });
+    return saved;
+  }
+
+  async function generateSlideNote(index: number, overwrite: boolean) {
+    if (!projectId) throw new Error(t("speakerNotes.unavailable"));
+    const result = await generateProjectSpeakerNotes(projectId, { index, overwrite });
+    const notes = new Map(result.notes.map((item) => [item.index, item.note]));
+    onSlides((items) => items.map((slide) => (
+      notes.has(slide.index) ? { ...slide, speakerNotes: notes.get(slide.index) || undefined } : slide
+    )));
+    return notes.get(index) ?? "";
+  }
   const transitionLabel = (transition: SlideTransition | undefined) => {
     switch (transition ?? "none") {
       case "fade": return t("transition.fade");
@@ -468,9 +538,41 @@ export default function SlideStage({
         </span>
 
         <div className="stage-actions">
-          <button className="iconbtn primary" disabled={!rendered} onClick={() => setPlaying(true)} title={t("slide.presentHelp")}>
-            ▶ {t("slide.present")}
-          </button>
+          <div ref={playRef} className="present-wrap">
+            <button
+              className="iconbtn primary"
+              disabled={!rendered}
+              onClick={() => setPlayOpen((open) => !open)}
+              title={t("slide.presentHelp")}
+              aria-haspopup="menu"
+              aria-expanded={playOpen}
+            >
+              ▶ {t("slide.present")} <span className="caret">▾</span>
+            </button>
+            {playOpen && rendered > 0 && (
+              <div className="pop down present-pop" role="menu">
+                <div className="pop-title">{t("presenter.audiencePlayback")}</div>
+                <button type="button" className="pop-item" role="menuitem" onClick={() => startPlayback(true, false)}>
+                  <span className="ic">▶</span>
+                  <span className="grow"><b>{t("presenter.fromCurrent")}</b><em>{t("presenter.fromCurrentHelp")}</em></span>
+                </button>
+                <button type="button" className="pop-item" role="menuitem" onClick={() => startPlayback(false, false)}>
+                  <span className="ic">↤</span>
+                  <span className="grow"><b>{t("presenter.fromBeginning")}</b><em>{t("presenter.fromBeginningHelp")}</em></span>
+                </button>
+                <div className="present-pop-sep" aria-hidden="true" />
+                <div className="pop-title">{t("presenter.mode")}</div>
+                <button type="button" className="pop-item" role="menuitem" onClick={() => startPlayback(true, true)}>
+                  <span className="ic">▣</span>
+                  <span className="grow"><b>{t("presenter.presenterFromCurrent")}</b><em>{t("presenter.modeHelp")}</em></span>
+                </button>
+                <button type="button" className="pop-item" role="menuitem" onClick={() => startPlayback(false, true)}>
+                  <span className="ic">▤</span>
+                  <span className="grow"><b>{t("presenter.presenterFromBeginning")}</b><em>{t("presenter.modeHelp")}</em></span>
+                </button>
+              </div>
+            )}
+          </div>
 
           <div ref={exportRef} className="export-wrap">
             <button className="iconbtn" disabled={!canExport} onClick={() => setExportOpen((open) => !open)} title={t("slide.exportHelp")}>
@@ -597,6 +699,13 @@ export default function SlideStage({
             />
           )}
         </div>
+
+        <SpeakerNotesPanel
+          slide={current}
+          disabled={!canEdit}
+          onSave={persistSpeakerNote}
+          onGenerate={generateSlideNote}
+        />
       </div>
 
       <div className="filmstrip" ref={stripRef}>
@@ -682,7 +791,17 @@ export default function SlideStage({
         onChange={(event) => handleUpload(event.target.files?.[0])}
       />
 
-      {playing && <PlayMode slides={playSlides} onClose={() => setPlaying(false)} />}
+      {playSession && projectId && (
+        <PlayMode
+          slides={playSlides}
+          initialIndex={playSession.initialIndex}
+          projectId={projectId}
+          deckTitle={title}
+          presenterWindow={playSession.presenterWindow}
+          onSpeakerNotesChange={persistSpeakerNote}
+          onClose={() => setPlaySession(null)}
+        />
+      )}
     </section>
   );
 }

@@ -57,6 +57,29 @@ export interface ContextUploadResult {
   errors: string[];
 }
 
+export interface ArchivedContextReference {
+  path: string;
+  relativePath: string;
+  name: string;
+  kind?: "document" | "image" | "data" | "code" | "other";
+}
+
+export function hasDraggedFiles(types: Iterable<string>): boolean {
+  return Array.from(types).some((type) => type.toLocaleLowerCase() === "files");
+}
+
+export function contextItemMatchesAccept(item: Pick<ContextItem, "name" | "mimeType">, accept: string): boolean {
+  const name = item.name.toLocaleLowerCase();
+  const mime = item.mimeType.toLocaleLowerCase();
+  return accept.split(",").some((raw) => {
+    const token = raw.trim().toLocaleLowerCase();
+    if (!token) return false;
+    if (token.startsWith(".")) return name.endsWith(token);
+    if (token.endsWith("/*")) return mime.startsWith(token.slice(0, -1));
+    return mime === token;
+  });
+}
+
 /** Upload files one at a time so one rejected item does not discard the rest. */
 export async function uploadContextItems(files: Iterable<File>): Promise<ContextUploadResult> {
   const items: ContextItem[] = [];
@@ -74,6 +97,30 @@ export async function uploadContextItems(files: Iterable<File>): Promise<Context
     }
   }
   return { items, errors };
+}
+
+/** Move staged composer items into a project's Design Files immediately before
+ * the turn is sent. The returned absolute paths are the durable agent context. */
+export async function archiveContextItems(
+  projectId: string,
+  items: ContextItem[],
+): Promise<ArchivedContextReference[]> {
+  if (!items.length) return [];
+  const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/files`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ materialIds: items.map((item) => item.id) }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  const references = Array.isArray(data.references) ? data.references : [];
+  if (!references.length) throw new Error("The uploaded files were not added to Design Files.");
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("ppt-anything:design-files-changed", {
+      detail: { projectId },
+    }));
+  }
+  return references as ArchivedContextReference[];
 }
 
 export function mergeContextItems(current: ContextItem[], incoming: ContextItem[]): ContextItem[] {

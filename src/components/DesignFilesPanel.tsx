@@ -93,8 +93,10 @@ function InspirationPreview({ file }: { file: Extract<DesignFile, { kind: "inspi
   if (community) {
     return (
       <div className="workflow-inspiration-preview">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={community.cover} alt={community.name} />
+        <div className="workflow-inspiration-media">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={community.cover} alt={community.name} />
+        </div>
         <div className="workflow-inspiration-copy">
           <span>{t(COMMUNITY_GROUP_KEYS[community.group])}</span>
           <h2>{community.name}</h2>

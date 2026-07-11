@@ -40,8 +40,9 @@ export async function buildPptx(project: Project): Promise<Buffer> {
   const { w, h } = aspectInches(project.config.aspect);
   pptx.defineLayout({ name: "PPTA", width: w, height: h });
   pptx.layout = "PPTA";
+  const pagesByIndex = new Map(project.pages.map((page) => [page.index, page]));
 
-  for (const { bytes } of imgs) {
+  for (const { index, bytes } of imgs) {
     const slide = pptx.addSlide();
     slide.addImage({
       data: `image/png;base64,${bytes.toString("base64")}`,
@@ -50,6 +51,8 @@ export async function buildPptx(project: Project): Promise<Buffer> {
       w,
       h,
     });
+    const notes = pagesByIndex.get(index)?.speakerNotes?.trim();
+    if (notes) slide.addNotes(notes);
   }
   const out = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
   return out;

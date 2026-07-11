@@ -2,6 +2,9 @@
 // image generation share. Zero-config: authenticated by the Codex CLI's token.
 
 import { getCodexAccessToken } from "./codex-auth";
+import { abortError } from "./responseStream";
+
+export { sseEvents } from "./responseStream";
 
 export const CODEX_RESPONSES_ENDPOINT =
   "https://chatgpt.com/backend-api/codex/responses";
@@ -35,6 +38,7 @@ export async function postCodexResponses(
   let lastErr: unknown;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (signal?.aborted) throw abortError();
     const ctrl = new AbortController();
     const onAbort = () => ctrl.abort();
     if (signal) signal.addEventListener("abort", onAbort, { once: true });
@@ -71,6 +75,7 @@ export async function postCodexResponses(
       return resp;
     } catch (e: any) {
       lastErr = e;
+      if (signal?.aborted) throw e;
       const retryable =
         e?.name === "AbortError" ||
         e?.name === "TypeError" || // fetch network error
@@ -83,30 +88,6 @@ export async function postCodexResponses(
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
-}
-
-/** Yield parsed JSON objects from the SSE `data:` lines of a Responses stream. */
-export async function* sseEvents(resp: Response): AsyncGenerator<any> {
-  if (!resp.body) throw new CodexResponsesError("Codex responses returned no body");
-  const decoder = new TextDecoder();
-  let buf = "";
-  // Node's fetch body is an async-iterable of Uint8Array chunks.
-  for await (const chunk of resp.body as any) {
-    buf += decoder.decode(chunk as Uint8Array, { stream: true });
-    let idx: number;
-    while ((idx = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, idx).trim();
-      buf = buf.slice(idx + 1);
-      if (!line.startsWith("data:")) continue;
-      const raw = line.slice(5).trim();
-      if (raw === "[DONE]") return;
-      try {
-        yield JSON.parse(raw);
-      } catch {
-        /* ignore keep-alive / partial */
-      }
-    }
-  }
 }
 
 function sleep(ms: number): Promise<void> {

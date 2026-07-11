@@ -2,7 +2,7 @@
 // generates a small set of tailored clarifying questions. The home page renders
 // them as a dynamic form; answers seed the PptConfig and augment the requirement.
 
-import { codexJson } from "./codex-text";
+import { codexJson, type CodexInputAttachment } from "./codex-text";
 import { CATEGORIES } from "./templates";
 import type { UiLocale } from "@/i18n/messages";
 import { scenarioPromptContext } from "./scenarios";
@@ -29,6 +29,7 @@ export function buildOnboardPrompt(
   requirement: string,
   uiLocale: UiLocale = "zh-CN",
   scenarioId?: string,
+  attachmentNames: string[] = [],
 ): string {
   const cats = CATEGORIES.map((c) => `${c.id} (${c.labelEn})`).join(", ");
   const responseLanguage = uiLocale === "zh-CN"
@@ -53,6 +54,9 @@ export function buildOnboardPrompt(
     `- Include ONE category question (field:\"category\", type:\"single\") choosing among: ${cats}. Pick the 3-4 most relevant as options, recommended the best fit.`,
     "- Add 1-2 topic-specific CONTENT questions (field:null) that clarify audience, goal, or emphasis; type single or text.",
     "- Adapt the content questions to the selected presentation scenario. Ask only what improves that workflow and do not ask the user to repeat information already present in the scenario or attached-source request.",
+    attachmentNames.length
+      ? `- Read the attached Design Files before asking questions. They are: ${attachmentNames.join(", ")}. Do not ask for facts already present in them.`
+      : "",
     "- Keep questions crisp. Options must be mutually exclusive. Every single-type question needs a recommended value.",
     "",
     "User topic:",
@@ -106,6 +110,7 @@ export async function generateOnboardQuestions(
   uiLocale: UiLocale = "zh-CN",
   scenarioId?: string,
   onQuestion?: (question: QuestionSpec, index: number) => void,
+  attachments: CodexInputAttachment[] = [],
 ): Promise<QuestionSpec[]> {
   let emitted = 0;
   const emitNewQuestions = (text: string) => {
@@ -115,9 +120,15 @@ export async function generateOnboardQuestions(
       emitted += 1;
     }
   };
-  const raw = await codexJson<any>(buildOnboardPrompt(requirement, uiLocale, scenarioId), {
+  const raw = await codexJson<any>(buildOnboardPrompt(
+    requirement,
+    uiLocale,
+    scenarioId,
+    attachments.map((attachment) => attachment.name),
+  ), {
     signal,
     onText: emitNewQuestions,
+    attachments,
   });
   const questions = normalizeQuestions(raw);
   while (emitted < questions.length) {

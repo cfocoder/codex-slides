@@ -36,9 +36,13 @@ CLI + MCP operation.
 | Whole-deck template/style restyle | Brand/template UI | `restyle` | `restyle_deck` |
 | Add, duplicate, delete, or transition slides | Slide controls | `slide` | `manage_slide` |
 | Generate or regenerate one slide | Slide/agent controls | `regenerate` | `regenerate_slide` |
+| Read per-slide speaker notes | Notes strip / presenter view | `speaker-notes`, `action:get` | `get_speaker_notes` |
+| Write or clear speaker notes | Inline notes editor | `speaker-notes`, `action:set` | `update_speaker_notes` |
+| Generate speaker notes with the project agent | Notes AI action | `speaker-notes`, `action:generate` | `generate_speaker_notes` |
 | Upload a reference or finished slide | Material/slide controls | `upload-material` / `upload-slide` | `upload_material` / `upload_slide_image` |
 | Apply a marked-up slide edit | Mark canvas | `mark-edit` | `mark_edit_slide` |
-| Play, navigate, and inspect visually | Project Play mode | `open` | `open_ppt_anything` |
+| Play from current slide or the beginning | Project Play menu | `open` | `open_ppt_anything` |
+| Dual-window presenter mode with notes and timer | Project Play menu | `open` | `open_ppt_anything` |
 | Export PDF or PPTX | Export menu | `export` | `export_deck` |
 
 Run `npm run check:skill`, `npm run check:mcp`, `npm run typecheck`,

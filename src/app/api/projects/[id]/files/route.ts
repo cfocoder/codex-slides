@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import { NextResponse } from "next/server";
 import { loadProject, syncProjectFiles } from "@/lib/store";
-import { listProjectFiles, uniqueUploadPath } from "@/lib/projectFiles";
+import { archiveStagedMaterialsToDesignFiles } from "@/lib/materials";
+import { listProjectFiles, loadProjectFileReferences, uniqueUploadPath } from "@/lib/projectFiles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,23 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   if (!loadProject(params.id)) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (req.headers.get("content-type")?.includes("application/json")) {
+    const body = await req.json().catch(() => ({}));
+    const rawMaterialIds: unknown[] = Array.isArray(body?.materialIds) ? body.materialIds : [];
+    const materialIds: string[] = [...new Set(rawMaterialIds.map((id) => String(id)))].slice(0, 16);
+    if (!materialIds.length) {
+      return NextResponse.json({ error: "materialIds required" }, { status: 400 });
+    }
+    const archivedPaths = archiveStagedMaterialsToDesignFiles(params.id, materialIds);
+    if (!archivedPaths.length) {
+      return NextResponse.json({ error: "no staged files found" }, { status: 404 });
+    }
+    const { references } = loadProjectFileReferences(params.id, archivedPaths);
+    return NextResponse.json({
+      files: listProjectFiles(params.id),
+      references,
+    });
+  }
   const form = await req.formData().catch(() => null);
   const uploads = form?.getAll("files") ?? [];
   if (!uploads.length || uploads.some((file) => !(file instanceof File))) {

@@ -21,6 +21,7 @@ const COMMANDS = [
   "upload-slide", "mark-edit", "export", "scenarios", "design-files",
   "read-design-file", "write-design-file", "upload-design-file",
   "get-brand-system", "set-brand-system",
+  "speaker-notes",
 ];
 
 const CAPABILITIES = [
@@ -34,6 +35,9 @@ const CAPABILITIES = [
   ["Rank visual inspiration", "inspiration", "script"],
   ["Render a confirmed draft", "render", "script + Browser"],
   ["List and inspect projects", "list / get", "script"],
+  ["Read per-slide speaker notes", "speaker-notes --action get", "script + Browser"],
+  ["Write or clear per-slide speaker notes", "speaker-notes --action set", "script + Browser"],
+  ["Generate a slide or full-deck talk track", "speaker-notes --action generate", "script + Browser"],
   ["Discover categories and templates", "templates", "script"],
   ["Discover 24 scenario workflows and required source slots", "scenarios", "script + Browser"],
   ["List project Design Files", "design-files", "script + Browser"],
@@ -247,6 +251,7 @@ function slideSummary(page) {
     status: page.status,
     image: page.image,
     transition: page.transition || "none",
+    speakerNotes: page.speakerNotes || "",
     error: page.error,
   };
 }
@@ -436,6 +441,35 @@ async function run(command, input) {
     const project = await apiJson(`/api/projects/${encodeURIComponent(input.projectId)}`);
     if (!input.includeChat) delete project.chat;
     return { project: { ...project, previewUrl: browserUrl(input.projectId) } };
+  }
+  if (command === "speaker-notes") {
+    if (!input.projectId) throw new Error("projectId is required.");
+    const action = input.action || "get";
+    const path = `/api/projects/${encodeURIComponent(input.projectId)}/speaker-notes`;
+    if (action === "get") {
+      const data = await apiJson(`${path}${input.index ? `?index=${input.index}` : ""}`);
+      return { ...data, previewUrl: browserUrl(input.projectId) };
+    }
+    if (action === "set") {
+      if (!(input.index && typeof input.note === "string") && !input.notes?.length) {
+        throw new Error("set requires index + note or a notes array.");
+      }
+      const data = await apiJson(path, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ index: input.index, note: input.note, notes: input.notes }),
+      });
+      return { ...data, previewUrl: browserUrl(input.projectId) };
+    }
+    if (action === "generate") {
+      const data = await postJson(path, {
+        index: input.index,
+        overwrite: input.overwrite === true,
+        instruction: input.instruction,
+      });
+      return { ...data, previewUrl: browserUrl(input.projectId) };
+    }
+    throw new Error("speaker-notes action must be get, set, or generate.");
   }
   if (command === "templates") {
     const data = await apiJson("/api/templates");

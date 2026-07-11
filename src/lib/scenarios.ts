@@ -70,11 +70,11 @@ export interface PresentationScenario {
   slots: ScenarioInputSlot[];
 }
 
-const deckAccept = ".ppt,.pptx,.pdf";
-const documentAccept = ".pdf,.doc,.docx,.rtf,.odt,.txt,.md,.ppt,.pptx";
+const deckAccept = ".ppt,.pptx,.html,.pdf";
+const documentAccept = ".pdf,.doc,.docx,.rtf,.odt,.txt,.md,.html,.ppt,.pptx";
 const dataAccept = ".csv,.tsv,.xls,.xlsx,.json";
 const imageAccept = "image/png,image/jpeg,image/webp,image/gif";
-const brandAccept = `${imageAccept},.pdf,.ppt,.pptx,.doc,.docx`;
+const brandAccept = `${imageAccept},.pdf,.html,.ppt,.pptx,.doc,.docx`;
 
 const JA_SCENARIO_TEXT: Record<string, string> = {
   "Create": "新規作成",
@@ -106,7 +106,7 @@ const JA_SCENARIO_TEXT: Record<string, string> = {
   "Reviewable, actionable proposal": "レビューと実行が可能な提案書",
   "Propose a plan for [client / project goal] covering context, goals, strategy, execution, timeline, resources, and expected outcomes.": "【顧客／プロジェクト目標】に向けて、背景、目標、戦略、実行方法、スケジュール、リソース、期待成果を含む計画を提案してください。",
   "Beautify a deck": "PPTを一括でブラッシュアップ",
-  "Upload PPTX / PDF and redesign the full deck while preserving its content": "PPTX／PDFをアップロードし、内容を維持したままデッキ全体を再デザイン",
+  "Upload PPTX / HTML / PDF and redesign the full deck while preserving its content": "PPTX／HTML／PDFをアップロードし、内容を維持したままデッキ全体を再デザイン",
   "Polished, consistent redesign": "洗練され、一貫性のあるリデザイン版",
   "Redesign the entire deck's visual hierarchy, layout, and consistency while preserving its facts, core copy, and slide order.": "事実、主要な文章、スライド順を維持しながら、デッキ全体の視覚的階層、レイアウト、一貫性を再設計してください。",
   "Document to deck": "文書・PRD・レポートからPPTへ",
@@ -194,7 +194,7 @@ const JA_SCENARIO_TEXT: Record<string, string> = {
   "Report material": "報告資料",
   "Documents / sheets / prior deck": "文書／表計算／過去のデッキ",
   "Company template": "会社テンプレート",
-  "PPTX / brand guide": "PPTX／ブランドガイド",
+  "PPTX / HTML / brand guide": "PPTX／HTML／ブランドガイド",
   "Business material": "事業資料",
   "Plan / product / metrics": "事業計画／プロダクト／指標",
   "Logo / product images": "ロゴ／商品画像",
@@ -203,16 +203,16 @@ const JA_SCENARIO_TEXT: Record<string, string> = {
   "Cases and proof": "事例と証拠",
   "Cases / data / images": "事例／データ／画像",
   "Source deck": "元のデッキ",
-  "PPTX / PPT / PDF · required": "PPTX／PPT／PDF・必須",
+  "PPTX / PPT / HTML / PDF · required": "PPTX／PPT／HTML／PDF・必須",
   "Brand system": "ブランドシステム",
   "Logo / brand guide / template": "ロゴ／ブランドガイド／テンプレート",
   "Target style": "目標スタイル",
   "Reference images": "参考画像",
   "Source document": "元の文書",
-  "PDF / DOCX / Markdown · required": "PDF／DOCX／Markdown・必須",
+  "PDF / DOCX / Markdown / HTML · required": "PDF／DOCX／Markdown／HTML・必須",
   "Logo / template": "ロゴ／テンプレート",
   "Notes or transcript": "議事録または文字起こし",
-  "DOCX / PDF / TXT / Markdown · required": "DOCX／PDF／TXT／Markdown・必須",
+  "DOCX / PDF / TXT / Markdown / HTML · required": "DOCX／PDF／TXT／Markdown／HTML・必須",
   "Supporting material": "補足資料",
   "Images / documents": "画像／文書",
   "Source visuals": "元のビジュアル資料",
@@ -229,7 +229,7 @@ const JA_SCENARIO_TEXT: Record<string, string> = {
   "History or targets": "過去データまたは目標",
   "Historical data / targets": "過去データ／目標",
   "Existing template": "既存テンプレート",
-  "PPTX / PDF": "PPTX／PDF",
+  "PPTX / HTML / PDF": "PPTX／HTML／PDF",
   "Financial data": "財務データ",
   "XLSX / CSV · required": "XLSX／CSV・必須",
   "Management commentary": "経営陣の説明",
@@ -251,7 +251,7 @@ const JA_SCENARIO_TEXT: Record<string, string> = {
   "Requirements / scorecard": "要件／評価表",
   "Papers and sources": "論文と資料",
   "PDF / literature notes": "PDF／文献メモ",
-  "PPTX / PDF · required": "PPTX／PDF・必須",
+  "PPTX / HTML / PDF · required": "PPTX／HTML／PDF・必須",
   "Brand guide / logo / template · required": "ブランドガイド／ロゴ／テンプレート・必須",
   "Visual reference": "参考画像",
   "Screenshot / image · required": "スクリーンショット／画像・必須",
@@ -274,7 +274,7 @@ const JA_SCENARIO_TEXT: Record<string, string> = {
   "Outcome data": "成果データ",
   "Metrics / feedback": "指標／フィードバック",
   "Slide template": "スライドテンプレート",
-  "PPTX / PDF / reference image · required": "PPTX／PDF／参考画像・必須",
+  "PPTX / HTML / PDF / reference image · required": "PPTX／HTML／PDF／参考画像・必須",
   "Batch data": "一括データ",
   "Related assets": "関連素材",
   "Product / profile images": "商品／人物画像",
@@ -348,7 +348,7 @@ export const PRESENTATION_SCENARIOS: PresentationScenario[] = [
     defaults: { pages: 10, aspect: "16:9", style: "executive business review, concise, structured, evidence-led" },
     slots: [
       slot("report-source", "汇报材料", "Report material", "文档 / 表格 / 旧汇报", "Documents / sheets / prior deck", `${documentAccept},${dataAccept}`),
-      slot("brand", "公司模板", "Company template", "PPTX / 品牌手册", "PPTX / brand guide", brandAccept),
+      slot("brand", "公司模板", "Company template", "PPTX / HTML / 品牌手册", "PPTX / HTML / brand guide", brandAccept),
     ],
   },
   {
@@ -389,14 +389,14 @@ export const PRESENTATION_SCENARIOS: PresentationScenario[] = [
     icon: "wand",
     featured: true,
     name: text("一键美化 PPT", "Beautify a deck"),
-    description: text("上传 PPTX / PDF，在保留内容的前提下重做整套视觉", "Upload PPTX / PDF and redesign the full deck while preserving its content"),
+    description: text("上传 PPTX / HTML / PDF，在保留内容的前提下重做整套视觉", "Upload PPTX / HTML / PDF and redesign the full deck while preserving its content"),
     output: text("统一、精致的重设计版本", "Polished, consistent redesign"),
     starter: text("在保留原始事实、核心文案和页序的前提下，重做整份演示的视觉层级、版式与一致性。", "Redesign the entire deck's visual hierarchy, layout, and consistency while preserving its facts, core copy, and slide order."),
-    instruction: "Treat the uploaded deck or PDF as the source of truth. Preserve facts and intended sequence unless the user asks to restructure. Rebuild each slide with a coherent design system, better hierarchy, spacing, typography, and chart treatment.",
+    instruction: "Treat the uploaded deck, HTML presentation, or PDF as the source of truth. Preserve facts and intended sequence unless the user asks to restructure. Rebuild each slide with a coherent design system, better hierarchy, spacing, typography, and chart treatment.",
     keywords: ["美化", "重做", "PPT", "PDF", "redesign", "polish", "beautify"],
     defaults: { pages: 8, aspect: "16:9", style: "polished coherent redesign with strong typography and layout consistency" },
     slots: [
-      slot("source-deck", "原始演示", "Source deck", "PPTX / PPT / PDF · 必需", "PPTX / PPT / PDF · required", deckAccept, true, false),
+      slot("source-deck", "原始演示", "Source deck", "PPTX / PPT / HTML / PDF · 必需", "PPTX / PPT / HTML / PDF · required", deckAccept, true, false),
       slot("brand", "品牌规范", "Brand system", "Logo / 品牌手册 / 模板", "Logo / brand guide / template", brandAccept),
       slot("reference", "目标风格", "Target style", "参考截图 / 贴图", "Reference images", imageAccept),
     ],
@@ -413,7 +413,7 @@ export const PRESENTATION_SCENARIOS: PresentationScenario[] = [
     keywords: ["文档", "PRD", "报告", "Word", "document", "brief", "report"],
     defaults: { pages: 10, aspect: "16:9", style: "editorial document-to-presentation design, concise and highly legible" },
     slots: [
-      slot("source-document", "源文档", "Source document", "PDF / DOCX / Markdown · 必需", "PDF / DOCX / Markdown · required", documentAccept, true),
+      slot("source-document", "源文档", "Source document", "PDF / DOCX / Markdown / HTML · 必需", "PDF / DOCX / Markdown / HTML · required", documentAccept, true),
       slot("brand", "品牌资产", "Brand assets", "Logo / 模板", "Logo / template", brandAccept),
     ],
   },
@@ -429,7 +429,7 @@ export const PRESENTATION_SCENARIOS: PresentationScenario[] = [
     keywords: ["会议", "纪要", "逐字稿", "访谈", "transcript", "meeting", "notes"],
     defaults: { pages: 8, aspect: "16:9", style: "clear synthesis deck with quotes, themes, decisions, and actions" },
     slots: [
-      slot("source-notes", "纪要或逐字稿", "Notes or transcript", "DOCX / PDF / TXT / Markdown · 必需", "DOCX / PDF / TXT / Markdown · required", documentAccept, true),
+      slot("source-notes", "纪要或逐字稿", "Notes or transcript", "DOCX / PDF / TXT / Markdown / HTML · 必需", "DOCX / PDF / TXT / Markdown / HTML · required", documentAccept, true),
       slot("supporting", "补充材料", "Supporting material", "图片 / 文档", "Images / documents", `${documentAccept},${imageAccept}`),
     ],
   },
@@ -464,7 +464,7 @@ export const PRESENTATION_SCENARIOS: PresentationScenario[] = [
     slots: [
       slot("dataset", "数据文件", "Dataset", "CSV / XLSX / TSV · 必需", "CSV / XLSX / TSV · required", dataAccept, true),
       slot("metric-guide", "指标口径", "Metric definitions", "数据字典 / 说明文档", "Data dictionary / notes", documentAccept),
-      slot("brand", "报告模板", "Report template", "PPTX / 品牌手册", "PPTX / brand guide", brandAccept),
+      slot("brand", "报告模板", "Report template", "PPTX / HTML / 品牌手册", "PPTX / HTML / brand guide", brandAccept),
     ],
   },
   {
@@ -481,7 +481,7 @@ export const PRESENTATION_SCENARIOS: PresentationScenario[] = [
     slots: [
       slot("period-data", "本期数据", "Current-period data", "CSV / XLSX · 必需", "CSV / XLSX · required", dataAccept, true),
       slot("history", "历史 / 目标", "History or targets", "历史数据 / 目标表", "Historical data / targets", dataAccept),
-      slot("template", "既有模板", "Existing template", "PPTX / PDF", "PPTX / PDF", deckAccept),
+      slot("template", "既有模板", "Existing template", "PPTX / HTML / PDF", "PPTX / HTML / PDF", deckAccept),
     ],
   },
   {
@@ -546,7 +546,7 @@ export const PRESENTATION_SCENARIOS: PresentationScenario[] = [
     defaults: { pages: 12, aspect: "16:9", style: "strategy research deck with market maps, timelines, and quantified evidence", research: true },
     slots: [
       slot("market-context", "内部判断", "Internal perspective", "已有报告 / 假设 / 数据", "Reports / hypotheses / data", `${documentAccept},${dataAccept}`),
-      slot("brand", "品牌模板", "Brand template", "PPTX / 品牌手册", "PPTX / brand guide", brandAccept),
+      slot("brand", "品牌模板", "Brand template", "PPTX / HTML / 品牌手册", "PPTX / HTML / brand guide", brandAccept),
     ],
   },
   {
@@ -593,7 +593,7 @@ export const PRESENTATION_SCENARIOS: PresentationScenario[] = [
     keywords: ["品牌", "VI", "套版", "brand", "guideline", "template"],
     defaults: { pages: 8, aspect: "16:9", style: "strict brand-system application with consistent components and spacing" },
     slots: [
-      slot("source-deck", "原始演示", "Source deck", "PPTX / PDF · 必需", "PPTX / PDF · required", deckAccept, true, false),
+      slot("source-deck", "原始演示", "Source deck", "PPTX / HTML / PDF · 必需", "PPTX / HTML / PDF · required", deckAccept, true, false),
       slot("brand-system", "品牌规范", "Brand system", "品牌手册 / Logo / 模板 · 必需", "Brand guide / logo / template · required", brandAccept, true),
     ],
   },
@@ -625,7 +625,7 @@ export const PRESENTATION_SCENARIOS: PresentationScenario[] = [
     keywords: ["翻译", "本地化", "中英", "translate", "localize", "language"],
     defaults: { pages: 8, aspect: "16:9", style: "layout-faithful localized presentation with clear typography" },
     slots: [
-      slot("source-deck", "原始演示", "Source deck", "PPTX / PDF · 必需", "PPTX / PDF · required", deckAccept, true, false),
+      slot("source-deck", "原始演示", "Source deck", "PPTX / HTML / PDF · 必需", "PPTX / HTML / PDF · required", deckAccept, true, false),
       slot("glossary", "术语表", "Glossary", "术语 / 翻译规范", "Terminology / translation guide", `${documentAccept},${dataAccept}`),
     ],
   },
@@ -641,7 +641,7 @@ export const PRESENTATION_SCENARIOS: PresentationScenario[] = [
     keywords: ["压缩", "扩展", "重组", "缩减", "restructure", "shorten", "expand"],
     defaults: { pages: 8, aspect: "16:9", style: "concise restructured presentation with a stronger narrative arc" },
     slots: [
-      slot("source-deck", "原始演示", "Source deck", "PPTX / PDF · 必需", "PPTX / PDF · required", deckAccept, true, false),
+      slot("source-deck", "原始演示", "Source deck", "PPTX / HTML / PDF · 必需", "PPTX / HTML / PDF · required", deckAccept, true, false),
       slot("new-brief", "新目标说明", "New brief", "受众 / 时长 / 目标", "Audience / duration / goal", documentAccept),
     ],
   },
@@ -705,7 +705,7 @@ export const PRESENTATION_SCENARIOS: PresentationScenario[] = [
     keywords: ["批量", "套版", "模板", "名单", "catalog", "batch", "merge"],
     defaults: { pages: 10, aspect: "16:9", style: "strict repeatable template system with consistent field mapping" },
     slots: [
-      slot("template", "页面模板", "Slide template", "PPTX / PDF / 参考图 · 必需", "PPTX / PDF / reference image · required", `${deckAccept},${imageAccept}`, true, false),
+      slot("template", "页面模板", "Slide template", "PPTX / HTML / PDF / 参考图 · 必需", "PPTX / HTML / PDF / reference image · required", `${deckAccept},${imageAccept}`, true, false),
       slot("records", "批量数据", "Batch data", "CSV / XLSX · 必需", "CSV / XLSX · required", dataAccept, true, true),
       slot("assets", "关联素材", "Related assets", "产品图 / 人物图", "Product / profile images", imageAccept),
     ],

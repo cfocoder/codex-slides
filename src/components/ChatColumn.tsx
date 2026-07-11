@@ -24,6 +24,7 @@ import {
   SidebarSimple,
   Sparkle,
   Trash,
+  UploadSimple,
   X,
   XCircle,
 } from "@phosphor-icons/react";
@@ -32,18 +33,21 @@ import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent 
 import ContextItems from "@/components/ContextItems";
 import ContextOptionItems from "@/components/ContextOptionItems";
 import { AgentToolActivity } from "@/components/AgentToolActivity";
+import { Markdown } from "@/components/Markdown";
 import { DesignFileMentionPicker } from "@/components/DesignFileMentionPicker";
 import { DesignFileReferenceList } from "@/components/DesignFileReferenceList";
 import ImagePreviewDialog from "@/components/ImagePreviewDialog";
 import {
   CONTEXT_ITEM_ACCEPT,
+  archiveContextItems,
+  hasDraggedFiles,
   mergeContextItems,
   uploadContextItems,
   type ContextItem,
 } from "@/lib/contextItems";
 import type { ChatRequest, GenStatus, SlideChatContext } from "@/lib/deckEdit";
 import type { QueuedChatRequest } from "@/lib/chatQueue";
-import type { AgentProcess } from "@/lib/agentActivity";
+import type { AgentProcess, GlobalTodoItem, MessageBlock } from "@/lib/agentActivity";
 import {
   fileMentionAtCursor,
   replaceFileMention,
@@ -51,7 +55,7 @@ import {
 } from "@/lib/designFileMentions";
 import { getCommunityTemplate } from "@/lib/community";
 import { shouldSubmitTextarea } from "@/lib/keyboard";
-import type { ContextOptionItem, DesignFileReference, ProjectFileRecord } from "@/lib/types";
+import type { ContextOptionItem, DesignFileReference, ProjectFileRecord, ProjectRunState } from "@/lib/types";
 import type { WorkflowProgress } from "@/lib/workflowProgress";
 import { useI18n } from "@/i18n/I18nProvider";
 import { translate, type UiLocale } from "@/i18n/messages";
@@ -82,6 +86,9 @@ export interface ChatMsg {
   /** Clickable next-step chips (step 6 guidance); clicking sends the text as a follow-up. */
   suggestions?: string[];
   process?: AgentProcess;
+  /** Interleaved transcript (Markdown text + tool blocks). Newer assistant turns
+   *  render `blocks` instead of `content` + `process`. */
+  blocks?: MessageBlock[];
   /** Inspiration step (参考灵感): an in-chat card with a Browse button that opens
    *  the style picker popup, or resolves to a chosen/skipped state after render. */
   inspiration?: {
@@ -134,51 +141,64 @@ function answerDurationLabel(ran: string | undefined, done: string) {
   return ran.replace(/^Ran for\s+/i, `${done} `);
 }
 
+// Rough $/token for the text model (~$10 per 1M output tokens). Used only when
+// the provider did not report an exact cost, so the figure is always an estimate.
+const OUTPUT_USD_PER_TOKEN = 0.00001;
+
+function formatUsd(value: number) {
+  if (value <= 0) return "$0.00";
+  if (value < 0.01) return `$${value.toFixed(4)}`;
+  if (value < 1) return `$${value.toFixed(3)}`;
+  return `$${value.toFixed(2)}`;
+}
+
+/** Plain text of an assistant turn, whether it uses `content` or `blocks`. */
+function messageAnswerText(message: ChatMsg): string {
+  if (message.blocks?.length) {
+    return message.blocks
+      .filter((block): block is Extract<MessageBlock, { type: "text" }> => block.type === "text")
+      .map((block) => block.text)
+      .join("\n\n")
+      .trim();
+  }
+  return message.content;
+}
+
+function messageBusy(message: ChatMsg): boolean {
+  if (message.process?.state === "running") return true;
+  return Boolean(message.blocks?.some((block) => block.type === "tool" && (block.tool.state === "running" || block.tool.state === "pending")));
+}
+
 function AnswerMeta({ message }: { message: ChatMsg }) {
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
-  const fallbackOutputTokens = estimateOutputTokens(message.content);
-  const reportedOutputTokens = message.usage?.outputTokens;
-  const reportedTotalTokens = message.usage?.totalTokens;
-  const hasReportedOutput = typeof reportedOutputTokens === "number";
-  const hasReportedTotal = typeof reportedTotalTokens === "number";
-  const tokenCount = reportedOutputTokens ?? reportedTotalTokens ?? fallbackOutputTokens;
-  const estimated = (!hasReportedOutput && !hasReportedTotal) || Boolean(message.usage?.estimated);
-  const tokenLabel = hasReportedTotal && !hasReportedOutput ? "total" : "output";
+  const answerText = messageAnswerText(message);
+  const reportedTokens = message.usage?.outputTokens ?? message.usage?.totalTokens;
+  const tokenCount = reportedTokens ?? estimateOutputTokens(answerText);
+  const estimated = typeof message.usage?.costUsd !== "number";
+  const costUsd = typeof message.usage?.costUsd === "number"
+    ? message.usage.costUsd
+    : tokenCount * OUTPUT_USD_PER_TOKEN;
 
   async function copyAnswer() {
-    if (!message.content.trim()) return;
-    await navigator.clipboard.writeText(message.content);
+    if (!answerText.trim()) return;
+    await navigator.clipboard.writeText(answerText);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
   }
 
-  if (!message.content.trim() || message.process?.state === "running") return null;
+  if (!answerText.trim() || messageBusy(message)) return null;
 
   return (
     <div className="answer-meta">
       <span className="answer-meta-summary">
         <span>{answerDurationLabel(message.ran, t("chat.answerDone"))}</span>
-        {tokenCount > 0 && (
+        {costUsd > 0 && (
           <>
             <i aria-hidden="true">·</i>
-            <span
-              title={estimated
-                ? t("chat.estimatedTokens")
-                : tokenLabel === "total"
-                  ? t("chat.reportedTotalTokens")
-                  : t("chat.reportedTokens")}
-            >
-              {t(tokenLabel === "total" ? "chat.totalTokens" : "chat.outputTokens", {
-                count: `${estimated ? "≈ " : ""}${formatTokenCount(tokenCount, locale)}`,
-              })}
+            <span title={estimated ? t("chat.estimatedCost") : t("chat.reportedCost")}>
+              {t("chat.costEstimate", { cost: `${estimated ? "≈ " : ""}${formatUsd(costUsd)}` })}
             </span>
-          </>
-        )}
-        {typeof message.usage?.costUsd === "number" && (
-          <>
-            <i aria-hidden="true">·</i>
-            <span>${message.usage.costUsd.toFixed(message.usage.costUsd < 0.01 ? 4 : 2)}</span>
           </>
         )}
       </span>
@@ -546,6 +566,74 @@ function AgentProcessCard({
   );
 }
 
+/** An assistant turn as an interleaved transcript: Markdown prose + tool rows. */
+function MessageBlocks({
+  blocks,
+  onOpenDesignFile,
+}: {
+  blocks: MessageBlock[];
+  onOpenDesignFile?: (relativePath: string) => void;
+}) {
+  return (
+    <div className="msg-blocks">
+      {blocks.map((block) =>
+        block.type === "text"
+          ? (block.text.trim() ? <Markdown key={block.id} source={block.text} className="assistant-markdown" /> : null)
+          : <AgentToolActivity key={block.id} tool={block.tool} onOpenDesignFile={onOpenDesignFile} />,
+      )}
+    </div>
+  );
+}
+
+/** Project-wide checklist pinned above the chat, grouped by the turn that made it. */
+function GlobalTodoPanel({ todos }: { todos: GlobalTodoItem[] }) {
+  const { t } = useI18n();
+  const [collapsed, setCollapsed] = useState(false);
+  if (!todos.length) return null;
+  const done = todos.filter((todo) => todo.status === "complete").length;
+  const active = todos.some((todo) => todo.status === "in_progress" || todo.status === "pending");
+  const groups: { label: string; items: GlobalTodoItem[] }[] = [];
+  for (const todo of todos) {
+    const label = todo.group ?? "";
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.items.push(todo);
+    else groups.push({ label, items: [todo] });
+  }
+  return (
+    <section className={`global-todo${active ? " active" : ""}`} aria-label={t("chat.tasks")}>
+      <button type="button" className="global-todo-head" onClick={() => setCollapsed((value) => !value)} aria-expanded={!collapsed}>
+        <span className="global-todo-title">
+          {active ? <CircleNotch size={14} className="spin" /> : <CheckCircle size={14} weight="fill" />}
+          <strong>{t("chat.tasks")}</strong>
+        </span>
+        <span className="global-todo-count">{t("chat.tasksProgress", { done, total: todos.length })}</span>
+      </button>
+      {!collapsed ? (
+        <div className="global-todo-body">
+          {groups.map((group, index) => (
+            <div className="global-todo-group" key={index}>
+              {group.label ? <p className="global-todo-group-label">{group.label}</p> : null}
+              <ul>
+                {group.items.map((todo) => (
+                  <li className={todo.status} key={todo.id}>
+                    <span aria-hidden="true">
+                      {todo.status === "complete" ? <CheckCircle size={14} weight="fill" />
+                        : todo.status === "in_progress" ? <CircleNotch size={14} className="spin" />
+                          : todo.status === "error" ? <XCircle size={14} weight="fill" />
+                            : <Circle size={14} />}
+                    </span>
+                    <span>{todo.content}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 /** Live progress card pinned to the bottom of the feed while work is in flight. */
 function StatusCard({ status }: { status: GenStatus }) {
   const { t } = useI18n();
@@ -608,6 +696,9 @@ export default function ChatColumn({
   workspaceTitle,
   messages,
   busy,
+  backgroundRun,
+  backgroundRunStopping = false,
+  onStopBackgroundRun,
   onSend,
   status = null,
   queued = [],
@@ -627,6 +718,7 @@ export default function ChatColumn({
   onInspire,
   onOpenDesignFile,
   workflow,
+  todos = [],
   conversations,
   activeConversationId,
   onSelectConversation,
@@ -641,6 +733,10 @@ export default function ChatColumn({
   workspaceTitle?: string;
   messages: ChatMsg[];
   busy: boolean;
+  /** Server-owned work that continues after this project view unmounts. */
+  backgroundRun?: ProjectRunState;
+  backgroundRunStopping?: boolean;
+  onStopBackgroundRun?: () => void;
   onSend?: (request: ChatRequest) => void | Promise<void>;
   /** live activity to surface as a pinned status card (null = idle) */
   status?: GenStatus | null;
@@ -673,6 +769,8 @@ export default function ChatColumn({
   onOpenDesignFile?: (id: string) => void;
   /** Persistent four-step project progress shown throughout the workflow. */
   workflow?: WorkflowProgress;
+  /** Project-wide checklist pinned above the chat (persists across turns). */
+  todos?: GlobalTodoItem[];
   /** Optional project-scoped multi-session controls. */
   conversations?: ChatConversationSummary[];
   activeConversationId?: string;
@@ -694,6 +792,8 @@ export default function ChatColumn({
   const [projectFilesLoading, setProjectFilesLoading] = useState(false);
   const [projectFilesLoaded, setProjectFilesLoaded] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [conversationOpen, setConversationOpen] = useState(false);
   const [conversationQuery, setConversationQuery] = useState("");
@@ -712,6 +812,7 @@ export default function ChatColumn({
   const fileRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const projectFilesRequestRef = useRef(0);
+  const composerDragDepthRef = useRef(0);
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationPanelRef = useRef<HTMLDivElement>(null);
   const activeContext = editingQueuedId ? editingContext : context;
@@ -832,6 +933,35 @@ export default function ChatColumn({
     setUploading(false);
   }
 
+  function handleComposerDragEnter(event: ReactDragEvent<HTMLDivElement>) {
+    if (!hasDraggedFiles(event.dataTransfer.types)) return;
+    event.preventDefault();
+    composerDragDepthRef.current += 1;
+    setDragActive(true);
+  }
+
+  function handleComposerDragOver(event: ReactDragEvent<HTMLDivElement>) {
+    if (!hasDraggedFiles(event.dataTransfer.types)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setDragActive(true);
+  }
+
+  function handleComposerDragLeave(event: ReactDragEvent<HTMLDivElement>) {
+    if (composerDragDepthRef.current === 0) return;
+    event.preventDefault();
+    composerDragDepthRef.current = Math.max(0, composerDragDepthRef.current - 1);
+    if (composerDragDepthRef.current === 0) setDragActive(false);
+  }
+
+  function handleComposerDrop(event: ReactDragEvent<HTMLDivElement>) {
+    if (!hasDraggedFiles(event.dataTransfer.types)) return;
+    event.preventDefault();
+    composerDragDepthRef.current = 0;
+    setDragActive(false);
+    void addFiles(Array.from(event.dataTransfer.files));
+  }
+
   function updateComposerText(value: string, cursor: number) {
     setText(value);
     setReferencedFiles((current) => current.filter((file) => value.includes(`@${file.name}`)));
@@ -890,6 +1020,8 @@ export default function ChatColumn({
     setFileMention(null);
     setEditingContext(null);
     setUploadError("");
+    composerDragDepthRef.current = 0;
+    setDragActive(false);
   }
 
   function editQueuedRequest(item: QueuedChatRequest) {
@@ -948,25 +1080,44 @@ export default function ChatColumn({
     setQueuedDropTarget(null);
   }
 
-  function submit() {
+  async function submit() {
     const m = text.trim()
       || (attachments.length ? t("chat.useAttachments") : "")
       || (referencedFiles.length ? t("chat.useDesignFiles") : "");
-    if (!m || !onSend || uploading) return; // allowed while busy → parent queues it
-    const request: ChatRequest = {
-      message: m,
-      context: activeContext ?? undefined,
-      attachments,
-      designFiles: referencedFiles,
-    };
-    if (editingQueuedId && onUpdateQueued) {
-      onUpdateQueued(editingQueuedId, request);
-      onEditingQueuedChange?.(null);
-    } else {
-      onSend(request);
-      onClearContext?.();
+    if (!m || !onSend || uploading || submitting) return; // allowed while busy → parent queues it
+    setSubmitting(true);
+    setUploadError("");
+    try {
+      const archived = projectId && attachments.length
+        ? await archiveContextItems(projectId, attachments)
+        : [];
+      const designFiles = [...referencedFiles, ...archived].filter((file, index, all) => (
+        all.findIndex((candidate) => candidate.path === file.path) === index
+      ));
+      if (archived.length) {
+        setProjectFilesLoaded(false);
+      }
+      const request: ChatRequest = {
+        message: m,
+        context: activeContext ?? undefined,
+        // Once a project exists the durable Design Files references replace the
+        // temporary chips. API-only/no-project callers retain staged attachments.
+        attachments: projectId ? [] : attachments,
+        designFiles,
+      };
+      if (editingQueuedId && onUpdateQueued) {
+        onUpdateQueued(editingQueuedId, request);
+        onEditingQueuedChange?.(null);
+      } else {
+        await onSend(request);
+        onClearContext?.();
+      }
+      resetComposerDraft();
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSubmitting(false);
     }
-    resetComposerDraft();
   }
 
   function toggleCollapsed() {
@@ -1039,7 +1190,30 @@ export default function ChatColumn({
           ) : null}
         </div>
         <div className="chatcol-head-actions">
-          {busy && <span className="chatcol-live">{t("chat.working")}</span>}
+          {backgroundRun ? (
+            <span
+              className={`chatcol-background-run${backgroundRun.status === "stopping" ? " stopping" : ""}`}
+              title={backgroundRun.detail || backgroundRun.label}
+            >
+              <CircleNotch size={13} className="spin" aria-hidden="true" />
+              <span role="status" aria-live="polite">
+                {backgroundRun.status === "stopping"
+                  ? t("chat.backgroundStopping")
+                  : `${t("chat.backgroundRunning")} · ${backgroundRun.label || t("chat.working")}`}
+              </span>
+              {onStopBackgroundRun ? (
+                <button
+                  type="button"
+                  onClick={onStopBackgroundRun}
+                  disabled={backgroundRunStopping || backgroundRun.status === "stopping"}
+                  aria-label={t("chat.stopBackgroundRun")}
+                  title={t("chat.stopBackgroundRun")}
+                >
+                  <XCircle size={14} weight="fill" aria-hidden="true" />
+                </button>
+              ) : null}
+            </span>
+          ) : busy ? <span className="chatcol-live">{t("chat.working")}</span> : null}
           {conversations?.length ? (
             <button
               type="button"
@@ -1184,6 +1358,7 @@ export default function ChatColumn({
       ) : null}
 
       <div className="chatfeed" ref={feedRef}>
+        {todos.length ? <GlobalTodoPanel todos={todos} /> : null}
         {!messages.length ? (
           <div className="chat-empty">
             <ChatsCircle size={22} />
@@ -1202,11 +1377,16 @@ export default function ChatColumn({
             {m.role === "user" && m.contextItems?.length ? <ContextItems items={m.contextItems} compact /> : null}
             {m.role === "user" && m.attachment ? <SlideAttachment slide={m.attachment} onSelectSlide={onSelectSlide} /> : null}
             {m.content && (
-              <div className={m.role === "user" ? "msg-user-bubble" : undefined} style={{ whiteSpace: "pre-wrap" }}>
-                {m.content}
-              </div>
+              m.role === "user" ? (
+                <div className="msg-user-bubble" style={{ whiteSpace: "pre-wrap" }}>
+                  {m.content}
+                </div>
+              ) : !m.blocks?.length ? (
+                <Markdown source={m.content} className="assistant-markdown" />
+              ) : null
             )}
-            {m.process && <AgentProcessCard process={m.process} onOpenDesignFile={onOpenDesignFile} />}
+            {m.blocks?.length ? <MessageBlocks blocks={m.blocks} onOpenDesignFile={onOpenDesignFile} /> : null}
+            {m.process && !m.blocks?.length && <AgentProcessCard process={m.process} onOpenDesignFile={onOpenDesignFile} />}
             {m.artifact && <ArtifactCard artifact={m.artifact} onOpenDesignFile={onOpenDesignFile} />}
             {m.doc && <OutlineDocumentCard doc={m.doc} onOpenDesignFile={onOpenDesignFile} />}
             {m.role !== "user" && m.attachment && <SlideAttachment slide={m.attachment} onSelectSlide={onSelectSlide} />}
@@ -1358,7 +1538,23 @@ export default function ChatColumn({
 
       {onSend && (
         <div className="chatcol-composer">
-          <div className="composer" ref={composerRef} style={{ padding: "10px 12px 8px", borderRadius: 16 }}>
+          <div
+            className={`composer${dragActive ? " context-drop-active" : ""}`}
+            ref={composerRef}
+            style={{ padding: "10px 12px 8px", borderRadius: 16 }}
+            onDragEnter={handleComposerDragEnter}
+            onDragOver={handleComposerDragOver}
+            onDragLeave={handleComposerDragLeave}
+            onDrop={handleComposerDrop}
+            aria-busy={uploading || submitting}
+          >
+            {dragActive ? (
+              <div className="context-drop-overlay" role="status" aria-live="polite">
+                <UploadSimple size={22} weight="bold" />
+                <strong>{t("composer.dropFiles")}</strong>
+                <span>{t("composer.dropFilesHelp")}</span>
+              </div>
+            ) : null}
             {editingQueuedId ? (
               <div className="chatcol-queue-editing" role="status">
                 <span><PencilSimple size={14} /> {t("chat.queueEditing")}</span>
@@ -1447,7 +1643,7 @@ export default function ChatColumn({
                   keyCode: e.nativeEvent.keyCode,
                 })) {
                   e.preventDefault();
-                  submit();
+                  void submit();
                 }
               }}
             />
@@ -1488,12 +1684,12 @@ export default function ChatColumn({
               <span className="spacer" />
               <button
                 className={`send-btn${editingQueuedId ? " queue-save" : ""}`}
-                disabled={uploading || (!text.trim() && !attachments.length && !referencedFiles.length)}
-                onClick={submit}
+                disabled={uploading || submitting || (!text.trim() && !attachments.length && !referencedFiles.length)}
+                onClick={() => void submit()}
                 title={editingQueuedId ? t("chat.queueSaveEdit") : busy ? t("chat.queue") : t("chat.send")}
                 aria-label={editingQueuedId ? t("chat.queueSaveEdit") : busy ? t("chat.queue") : t("chat.send")}
               >
-                {editingQueuedId ? <Check size={18} weight="bold" /> : busy ? <Plus size={18} /> : <ArrowUp size={18} />}
+                {submitting ? <CircleNotch size={18} className="spin" /> : editingQueuedId ? <Check size={18} weight="bold" /> : busy ? <Plus size={18} /> : <ArrowUp size={18} />}
               </button>
             </div>
           </div>

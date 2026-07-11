@@ -36,6 +36,9 @@ const expected = [
   "render_deck",
   "list_projects",
   "get_project",
+  "get_speaker_notes",
+  "update_speaker_notes",
+  "generate_speaker_notes",
   "list_templates",
   "list_scenarios",
   "list_design_files",
@@ -83,7 +86,7 @@ try {
 
   const capabilities = await client.callTool({ name: "get_capabilities", arguments: {} });
   assert.equal(capabilities.isError, undefined);
-  assert.equal(capabilities.structuredContent?.capabilities?.length, 30);
+  assert.equal(capabilities.structuredContent?.capabilities?.length, 33);
   assert.ok(capabilities.content.some((item) => item.type === "resource_link"));
 
   if (live) {

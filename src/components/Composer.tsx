@@ -1,11 +1,13 @@
 "use client";
 
 import { Check, Paperclip, Plus, UploadSimple } from "@phosphor-icons/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import ContextItems from "@/components/ContextItems";
 import ContextOptionItems from "@/components/ContextOptionItems";
 import {
   CONTEXT_ITEM_ACCEPT,
+  contextItemMatchesAccept,
+  hasDraggedFiles,
   mergeContextItems,
   uploadContextItems,
   type ContextItem,
@@ -64,18 +66,6 @@ function useOutside(ref: React.RefObject<HTMLElement>, close: () => void, active
   }, [ref, close, active]);
 }
 
-function matchesScenarioSlot(item: ContextItem, slot: ScenarioInputSlot): boolean {
-  const name = item.name.toLocaleLowerCase();
-  const mime = item.mimeType.toLocaleLowerCase();
-  return slot.accept.split(",").some((raw) => {
-    const token = raw.trim().toLocaleLowerCase();
-    if (!token) return false;
-    if (token.startsWith(".")) return name.endsWith(token);
-    if (token.endsWith("/*")) return mime.startsWith(token.slice(0, -1));
-    return mime === token;
-  });
-}
-
 /** Agent-native launcher input: textarea + toolbar (add / model / settings / send). */
 export default function Composer({
   config,
@@ -120,12 +110,15 @@ export default function Composer({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [slotAssignments, setSlotAssignments] = useState<Record<string, string[]>>({});
+  const [dragActive, setDragActive] = useState(false);
+  const [dragSlotId, setDragSlotId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const slotFileRef = useRef<HTMLInputElement>(null);
   const activeSlotRef = useRef<string | null>(null);
   const addRef = useRef<HTMLDivElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
   const setRef = useRef<HTMLDivElement>(null);
+  const dragDepthRef = useRef(0);
 
   useOutside(addRef, () => setMenu((m) => (m === "add" ? null : m)), menu === "add");
   useOutside(modelRef, () => setMenu((m) => (m === "model" ? null : m)), menu === "model");
@@ -153,7 +146,7 @@ export default function Composer({
       for (const item of materials) {
         if (assigned.has(item.id)) continue;
         const target = scenario.slots.find((candidate) =>
-          candidate.required && !next[candidate.id]?.length && matchesScenarioSlot(item, candidate),
+          candidate.required && !next[candidate.id]?.length && contextItemMatchesAccept(item, candidate.accept),
         );
         if (!target) continue;
         next[target.id] = [...(next[target.id] ?? []), item.id];
@@ -172,9 +165,15 @@ export default function Composer({
     if (result.items.length) {
       onAddItems(mergeContextItems(materials, result.items));
       if (slotId) {
+        const slot = scenario?.slots.find((candidate) => candidate.id === slotId);
+        const assignedItems = slot
+          ? result.items.filter((item) => contextItemMatchesAccept(item, slot.accept))
+          : [];
         setSlotAssignments((current) => ({
           ...current,
-          [slotId]: [...new Set([...(current[slotId] ?? []), ...result.items.map((item) => item.id)])],
+          ...(assignedItems.length
+            ? { [slotId]: [...new Set([...(current[slotId] ?? []), ...assignedItems.map((item) => item.id)])] }
+            : {}),
         }));
       }
     }
@@ -244,8 +243,64 @@ export default function Composer({
     input.click();
   }
 
+  function slotIdAt(target: EventTarget | null): string | null {
+    return target instanceof Element
+      ? target.closest<HTMLElement>("[data-scenario-slot]")?.dataset.scenarioSlot ?? null
+      : null;
+  }
+
+  function handleDragEnter(event: DragEvent<HTMLDivElement>) {
+    if (!hasDraggedFiles(event.dataTransfer.types)) return;
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setDragActive(true);
+    setDragSlotId(slotIdAt(event.target));
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    if (!hasDraggedFiles(event.dataTransfer.types)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setDragActive(true);
+    setDragSlotId(slotIdAt(event.target));
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLDivElement>) {
+    if (dragDepthRef.current === 0) return;
+    event.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) {
+      setDragActive(false);
+      setDragSlotId(null);
+    }
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    if (!hasDraggedFiles(event.dataTransfer.types)) return;
+    event.preventDefault();
+    const slotId = slotIdAt(event.target) ?? dragSlotId;
+    dragDepthRef.current = 0;
+    setDragActive(false);
+    setDragSlotId(null);
+    void addFiles(Array.from(event.dataTransfer.files), slotId);
+  }
+
   return (
-    <div className={`composer${focus ? " focus" : ""}`}>
+    <div
+      className={`composer${focus ? " focus" : ""}${dragActive ? " context-drop-active" : ""}`}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      aria-busy={uploading}
+    >
+      {dragActive && (
+        <div className="context-drop-overlay" role="status" aria-live="polite">
+          <UploadSimple size={22} weight="bold" />
+          <strong>{dragSlotId ? t("composer.dropIntoSlot") : t("composer.dropFiles")}</strong>
+          <span>{dragSlotId ? t("composer.dropIntoSlotHelp") : t("composer.dropFilesHelp")}</span>
+        </div>
+      )}
       <ContextOptionItems items={contextOptions} onRemove={removeContextOption} />
       {scenario && (
         <div className="scenario-composer-context">
@@ -263,7 +318,8 @@ export default function Composer({
                     <button
                       type="button"
                       key={slot.id}
-                      className={`scenario-context-slot${count ? " added" : ""}${slot.required && !count ? " required" : ""}`}
+                      data-scenario-slot={slot.id}
+                      className={`scenario-context-slot${count ? " added" : ""}${slot.required && !count ? " required" : ""}${dragSlotId === slot.id ? " drop-target" : ""}`}
                       onClick={() => openScenarioSlot(slot)}
                       title={scenarioText(slot.detail, locale)}
                       aria-label={t("scenario.addMaterial", { name: scenarioText(slot.label, locale) })}
@@ -305,7 +361,7 @@ export default function Composer({
       {uploadError && <div className="context-upload-error" role="alert">{uploadError}</div>}
 
       <textarea
-        rows={1}
+        rows={4}
         placeholder={scenario ? scenarioText(scenario.starter, locale) : t("composer.placeholder")}
         value={config.requirement}
         onFocus={() => setFocus(true)}
@@ -314,7 +370,7 @@ export default function Composer({
           setConfig({ requirement: e.target.value });
           const el = e.target;
           el.style.height = "auto";
-          el.style.height = Math.min(el.scrollHeight, 260) + "px";
+          el.style.height = Math.min(el.scrollHeight, 320) + "px";
         }}
         onPaste={(event) => {
           const files = Array.from(event.clipboardData.files);

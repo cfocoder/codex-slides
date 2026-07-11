@@ -1,0 +1,20 @@
+{
+  "name": "ppt-anything",
+  "interface": {
+    "displayName": "PPT Anything"
+  },
+  "plugins": [
+    {
+      "name": "ppt-anything",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

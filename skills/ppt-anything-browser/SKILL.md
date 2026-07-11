@@ -30,7 +30,8 @@ This specialized skill remains for compatibility. The canonical
 6. Verify the visible outcome before reporting completion.
 
 Use the Browser for scenario/slot selection, `@` Design File references, brand
-system editing, Play/presentation mode, slide navigation, direct on-canvas
+system editing, Play from the current slide or the beginning, dual-window
+presenter mode, speaker notes editing/AI generation, slide navigation, direct on-canvas
 marking, layout inspection, and other visual interactions. If the Browser
 capability is unavailable in the current Codex surface, return the resource
 link and explain that limitation rather than claiming it opened.

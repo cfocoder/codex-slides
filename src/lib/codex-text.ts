@@ -64,7 +64,7 @@ export async function codexText(
   let text = "";
   let completedText = "";
   let streamedText = "";
-  for await (const ev of sseEvents(resp)) {
+  for await (const ev of sseEvents(resp, opts.signal)) {
     if (ev.type === "response.output_text.delta" && typeof ev.delta === "string") {
       streamedText += ev.delta;
       opts.onText?.(streamedText);

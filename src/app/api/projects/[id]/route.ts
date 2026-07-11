@@ -42,6 +42,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       ...(next.workspaceMode === "canvas" || next.workspaceMode === "files" ? { workspaceMode: next.workspaceMode } : {}),
       ...(typeof next.selectedDesignFileId === "string" ? { selectedDesignFileId: next.selectedDesignFileId } : {}),
       ...(typeof next.inspirationSkipped === "boolean" ? { inspirationSkipped: next.inspirationSkipped } : {}),
+      ...(Array.isArray(next.queuedRequests) ? { queuedRequests: next.queuedRequests.slice(0, 20) } : {}),
     };
   }
 

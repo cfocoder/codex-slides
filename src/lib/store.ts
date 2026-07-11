@@ -32,9 +32,27 @@ export function newProjectId(title: string): string {
 export function saveProject(project: Project): void {
   const dir = projectDir(project.id);
   ensureDir(dir);
+  // Long-running render/edit functions hold a project snapshot while model
+  // calls are in flight. A manual stop can be persisted during that wait; the
+  // stale worker must never write its older `running` state back over the
+  // cancellation request when it saves page progress.
+  const projectFile = path.join(dir, "project.json");
+  if (project.activeRun?.status === "running" && fs.existsSync(projectFile)) {
+    try {
+      const persisted = JSON.parse(fs.readFileSync(projectFile, "utf8")) as Project;
+      if (
+        persisted.activeRun?.id === project.activeRun.id
+        && persisted.activeRun.status === "stopping"
+      ) {
+        project.activeRun = persisted.activeRun;
+      }
+    } catch {
+      // The normal write below remains the recovery path for malformed state.
+    }
+  }
   project.updatedAt = new Date().toISOString();
   fs.writeFileSync(
-    path.join(dir, "project.json"),
+    projectFile,
     JSON.stringify(project, null, 2),
     "utf8",
   );

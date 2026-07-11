@@ -158,22 +158,20 @@ export function BrandDesignSystemPanel({
           <span className="retune-heading-icon brand-system-heading-icon" aria-hidden="true">
             <Palette size={19} weight="regular" />
           </span>
-          <div>
+          <div className="brand-system-heading-copy">
             <h2 id="brand-design-system-title">{t("brandSystem.title")}</h2>
-            <p>{t("brandSystem.subtitle")}</p>
+            <div className="brand-system-heading-subline">
+              <p>{t("brandSystem.subtitle")}</p>
+              <span className="brand-system-context-chip" title={t("brandSystem.alwaysOnHelp")}>
+                <Robot size={12} weight="duotone" aria-hidden="true" />
+                {t("brandSystem.alwaysOn")}
+              </span>
+            </div>
           </div>
         </div>
         <button type="button" className="retune-close" disabled={locked} onClick={onClose} aria-label={t("brandSystem.close")}>
           <X size={17} weight="bold" aria-hidden="true" />
         </button>
-      </div>
-
-      <div className="brand-system-context-banner">
-        <Robot size={18} weight="duotone" aria-hidden="true" />
-        <span>
-          <strong>{t("brandSystem.alwaysOn")}</strong>
-          <small>{t("brandSystem.alwaysOnHelp")}</small>
-        </span>
       </div>
 
       <section className="brand-system-overview" aria-label={t("brandSystem.overview")}>
@@ -197,16 +195,18 @@ export function BrandDesignSystemPanel({
             <span key={key} title={`${t(label)} ${draft.colors[key]}`} style={{ background: validColor(draft.colors[key]) }} />
           ))}
         </div>
-        <div className="brand-system-overview-type">
+        <div className="brand-system-overview-meta">
+          <span>
+            <small>{t("brandSystem.visualStyle")}</small>
+            <strong>{draft.style.direction || t("brandSystem.systemReady")}</strong>
+          </span>
           <span style={{ fontFamily: draft.typography.headingFont.split("/")[0].trim() }}>
-            <b>Aa</b>
             <small>{t("brandSystem.headingFont")}</small>
-            <em>{draft.typography.headingFont}</em>
+            <strong>{draft.typography.headingFont} · {draft.typography.headingWeight}</strong>
           </span>
           <span style={{ fontFamily: draft.typography.bodyFont.split("/")[0].trim() }}>
-            <b>Ag</b>
             <small>{t("brandSystem.bodyFont")}</small>
-            <em>{draft.typography.bodyFont}</em>
+            <strong>{draft.typography.bodyFont} · {draft.typography.bodyWeight}</strong>
           </span>
         </div>
       </section>
@@ -223,7 +223,6 @@ export function BrandDesignSystemPanel({
           icon={<IdentificationCard size={17} />}
           title={t("brandSystem.identity")}
           description={t("brandSystem.identityHelp")}
-          defaultOpen
         >
           <div className="brand-system-fields two-col">
             <label className="brand-system-field">
@@ -309,7 +308,6 @@ export function BrandDesignSystemPanel({
           icon={<Palette size={17} />}
           title={t("brandSystem.colors")}
           description={t("brandSystem.colorsHelp")}
-          defaultOpen
         >
           <div className="brand-color-grid">
             {COLOR_FIELDS.map(({ key, label }) => (

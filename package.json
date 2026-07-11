@@ -1,14 +1,42 @@
 {
   "name": "ppt-anything-web",
-  "version": "0.1.0",
+  "version": "0.3.1",
   "private": true,
-  "description": "Zero-config PPT generation via image generation, driven by your local Codex agent.",
+  "description": "Browser-first AI presentation workspace for Codex with persistent projects, visual editing, and PDF/PPTX export.",
+  "license": "MIT",
+  "author": "Nexu and PPT Anything contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nexu-io/ppt-anything.git"
+  },
+  "homepage": "https://github.com/nexu-io/ppt-anything#readme",
+  "bugs": {
+    "url": "https://github.com/nexu-io/ppt-anything/issues"
+  },
+  "keywords": [
+    "codex",
+    "codex-plugin",
+    "presentations",
+    "slides",
+    "powerpoint",
+    "pptx",
+    "mcp",
+    "agent-skills",
+    "image-generation",
+    "deep-research"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev -p 4311",
     "build": "next build",
     "start": "next start -p 4311",
+    "test": "node --test src/lib/*.test.mjs",
     "typecheck": "tsc --noEmit",
     "check:i18n": "node scripts/check-i18n.mjs",
+    "check:project-sync": "node scripts/check-project-sync.mjs",
+    "check:project-sync:live": "node scripts/check-project-sync.mjs --live",
     "check:browser-first": "node scripts/check-browser-first-contract.mjs",
     "check:skill": "node --check skills/ppt-anything/scripts/ppt-anything.mjs && node --check skills/ppt-anything/scripts/probe.mjs && node skills/ppt-anything/scripts/probe.mjs && npm run check:browser-first",
     "check:skill:live": "node skills/ppt-anything/scripts/probe.mjs --live",

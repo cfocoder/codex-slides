@@ -37,6 +37,9 @@ const CAPABILITIES = [
   ["Render a confirmed draft", "render_deck", "MCP + Browser"],
   ["List existing decks", "list_projects", "MCP"],
   ["Read a deck and its slide state", "get_project", "MCP"],
+  ["Read per-slide speaker notes", "get_speaker_notes", "MCP + Browser"],
+  ["Write or clear per-slide speaker notes", "update_speaker_notes", "MCP + Browser"],
+  ["Generate a slide or full-deck talk track", "generate_speaker_notes", "MCP + Browser"],
   ["Discover categories and templates", "list_templates", "MCP"],
   ["Discover 24 scenario workflows and required source slots", "list_scenarios", "MCP + Browser"],
   ["List project Design Files", "list_design_files", "MCP + Browser"],
@@ -70,6 +73,7 @@ const server = new McpServer(
       "Use list_scenarios before scenario-led work, preserve required source-slot roles in materialContexts, and pass scenarioId through onboarding, research, and creation.",
       "Use list/read/write/upload Design File tools for the project file workspace; pass designFilePaths to outline or deck edits when those files are evidence.",
       "Use get_brand_design_system before update_brand_design_system. Brand updates are always-on project context; redraw existing slides only when requested.",
+      "Use get_speaker_notes, update_speaker_notes, and generate_speaker_notes for presenter-only talk tracks. Speaker notes are project data, appear in presenter mode, and are embedded in PPTX export.",
     ].join(" "),
   },
 );
@@ -294,6 +298,7 @@ function slideSummary(page) {
     status: page.status,
     image: page.image,
     transition: page.transition || "none",
+    speakerNotes: page.speakerNotes || "",
     error: page.error,
   };
 }
@@ -714,6 +719,95 @@ register(
       `“${project.title}” has ${project.pages?.length || 0} slides and is ${project.status || "ready"}.`,
       { project: { ...project, previewUrl: browserUrl(projectId) } },
       [projectLink(projectId)],
+    );
+  },
+);
+
+register(
+  "get_speaker_notes",
+  {
+    title: "Get deck speaker notes",
+    description: "Read presenter-only notes for every slide or one slide. Notes stay off-canvas, appear in presenter mode, and export into PowerPoint.",
+    inputSchema: {
+      projectId: z.string(),
+      index: z.number().int().min(1).optional(),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ projectId, index }) => {
+    const query = index ? `?index=${index}` : "";
+    const data = await apiJson(`/api/projects/${encodeURIComponent(projectId)}/speaker-notes${query}`);
+    const authored = (data.notes || []).filter((item) => item.note?.trim()).length;
+    return ok(
+      authored
+        ? `Loaded ${authored}/${data.notes?.length || 0} authored speaker note${authored === 1 ? "" : "s"}.`
+        : "This selection has no speaker notes yet.",
+      { ...data, previewUrl: browserUrl(projectId) },
+      [projectLink(projectId, "Open speaker notes in the deck")],
+    );
+  },
+);
+
+register(
+  "update_speaker_notes",
+  {
+    title: "Update deck speaker notes",
+    description: "Write, replace, or clear presenter notes without redrawing the slide. Set one index + note or send several indexed notes.",
+    inputSchema: {
+      projectId: z.string(),
+      index: z.number().int().min(1).optional(),
+      note: z.string().max(20_000).optional(),
+      notes: z.array(z.object({
+        index: z.number().int().min(1),
+        note: z.string().max(20_000),
+      })).max(100).optional(),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+  },
+  async ({ projectId, index, note, notes }, extra) => {
+    if (!(index && typeof note === "string") && !notes?.length) {
+      throw new Error("Provide index + note or a non-empty notes array.");
+    }
+    const data = await apiJson(`/api/projects/${encodeURIComponent(projectId)}/speaker-notes`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ index, note, notes }),
+      signal: extra.signal,
+    });
+    return ok(
+      `Saved speaker notes for ${notes?.length || 1} slide${(notes?.length || 1) === 1 ? "" : "s"}.`,
+      { ...data, previewUrl: browserUrl(projectId) },
+      [projectLink(projectId, "Inspect speaker notes")],
+    );
+  },
+);
+
+register(
+  "generate_speaker_notes",
+  {
+    title: "Generate deck speaker notes",
+    description: "Ask the project's selected agent to generate a natural talk track for one slide or every slide, preserving existing notes by default.",
+    inputSchema: {
+      projectId: z.string(),
+      index: z.number().int().min(1).optional().describe("Omit to generate all missing notes."),
+      overwrite: z.boolean().optional().describe("Replace existing notes. Defaults to false."),
+      instruction: z.string().max(2_000).optional().describe("Optional tone, audience, or timing direction."),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+  },
+  async ({ projectId, index, overwrite = false, instruction }, extra) => {
+    const data = await postJson(`/api/projects/${encodeURIComponent(projectId)}/speaker-notes`, {
+      index,
+      overwrite,
+      instruction,
+    }, extra.signal);
+    const count = data.generated?.length || 0;
+    return ok(
+      count
+        ? `Generated speaker notes for slide${count === 1 ? "" : "s"} ${data.generated.join(", ")}.`
+        : "No notes were generated because the requested slides already have notes. Use overwrite:true to replace them.",
+      { ...data, previewUrl: browserUrl(projectId) },
+      [projectLink(projectId, "Review generated speaker notes")],
     );
   },
 );

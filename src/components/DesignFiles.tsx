@@ -361,6 +361,16 @@ export default function DesignFiles({
   }, [projectId, refresh, selectPath, updateFiles]);
 
   useEffect(() => {
+    function handleDesignFilesChanged(event: Event) {
+      const changedProjectId = (event as CustomEvent<{ projectId?: string }>).detail?.projectId;
+      if (changedProjectId && changedProjectId !== projectId) return;
+      void refresh(undefined, { showSkeleton: false });
+    }
+    window.addEventListener("ppt-anything:design-files-changed", handleDesignFilesChanged);
+    return () => window.removeEventListener("ppt-anything:design-files-changed", handleDesignFilesChanged);
+  }, [projectId, refresh]);
+
+  useEffect(() => {
     if (!initialPath) return;
     preferredPathRef.current = initialPath;
     if (filesRef.current.some((file) => file.path === initialPath)) {

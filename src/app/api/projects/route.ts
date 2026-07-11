@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { coerceConfig } from "@/lib/config";
 import { attachMaterialsToProject } from "@/lib/materials";
-import { listProjects, newProjectId, saveProject } from "@/lib/store";
+import { ensureProjectRun } from "@/lib/projectRuns";
+import { listProjects, loadProject, newProjectId, saveProject } from "@/lib/store";
 import type { Project } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -9,7 +10,8 @@ export const dynamic = "force-dynamic";
 
 /** List projects (slim summaries for the home "recent projects" strip). */
 export async function GET() {
-  const projects = listProjects().map((p) => {
+  const projects = listProjects().map((stored) => {
+    const p = stored.activeRun ? ensureProjectRun(stored.id) ?? stored : stored;
     const rendered = p.pages.filter((s) => s.status === "rendered");
     return {
       id: p.id,
@@ -21,6 +23,7 @@ export async function GET() {
       rendered: rendered.length,
       cover: rendered[0]?.image ?? null,
       workflowStage: p.workflow?.stage,
+      activeRun: p.activeRun,
     };
   });
   return NextResponse.json({ projects });
@@ -38,7 +41,12 @@ export async function POST(req: Request) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 80) || "Untitled deck";
-  const id = newProjectId(title);
+  const requestedId = typeof body.id === "string" && /^[a-zA-Z0-9_-]{8,120}$/.test(body.id)
+    ? body.id
+    : undefined;
+  const id = requestedId ?? newProjectId(title);
+  const existing = loadProject(id);
+  if (existing) return NextResponse.json(existing);
   const now = new Date().toISOString();
   const project: Project = {
     id,

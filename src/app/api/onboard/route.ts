@@ -1,4 +1,6 @@
 import { generateOnboardQuestions } from "@/lib/onboard";
+import { loadProjectInputAttachments } from "@/lib/materials";
+import { loadProject } from "@/lib/store";
 import { isUiLocale } from "@/i18n/messages";
 import type { ProgressEvent } from "@/lib/types";
 
@@ -11,6 +13,7 @@ export async function POST(req: Request) {
   const requirement = String(body?.requirement ?? "").trim();
   const uiLocale = isUiLocale(body?.uiLocale) ? body.uiLocale : "zh-CN";
   const scenarioId = String(body?.scenarioId ?? "");
+  const projectId = String(body?.projectId ?? "").trim();
   if (!requirement) {
     return new Response(JSON.stringify({ error: "requirement is required" }), {
       status: 400,
@@ -31,12 +34,17 @@ export async function POST(req: Request) {
         }
       };
       try {
+        const project = projectId ? loadProject(projectId) : null;
+        const attachments = project
+          ? loadProjectInputAttachments(project.id, project.materials)
+          : [];
         const questions = await generateOnboardQuestions(
           requirement,
           abort.signal,
           uiLocale,
           scenarioId,
           (question, index) => send({ type: "question", question, index }),
+          attachments,
         );
         send({ type: "questions_done", questions });
       } catch (e: any) {
