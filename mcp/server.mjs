@@ -625,11 +625,12 @@ register(
     const changed = [];
     if (plan.action === "add") {
       const afterIndex = Number.isInteger(plan.afterIndex) ? plan.afterIndex : project.pages.length;
-      const added = await postJson(`/api/projects/${encodeURIComponent(projectId)}/slides`, { action: "add", afterIndex }, extra.signal);
+      const added = await postJson(`/api/projects/${encodeURIComponent(projectId)}/slides`, { action: "add", afterIndex, title: plan.title }, extra.signal);
       const index = Math.min(Math.max(afterIndex + 1, 1), added.pages.length);
       const generated = await postJson(`/api/projects/${encodeURIComponent(projectId)}/regenerate`, {
         index,
         instruction: plan.instruction || instruction,
+        title: plan.title,
       }, extra.signal);
       changed.push(slideSummary(generated.page));
     } else if (plan.action === "edit") {
@@ -637,6 +638,7 @@ register(
         const generated = await postJson(`/api/projects/${encodeURIComponent(projectId)}/regenerate`, {
           index,
           instruction: plan.instruction || instruction,
+          title: plan.targets?.length === 1 ? plan.title : undefined,
         }, extra.signal);
         changed.push(slideSummary(generated.page));
       }

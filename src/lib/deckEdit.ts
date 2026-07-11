@@ -220,8 +220,8 @@ async function slideAction(
   return (data.pages ?? []).map(toUiSlide);
 }
 
-export function addProjectSlide(projectId: string, afterIndex?: number): Promise<UiSlide[]> {
-  return slideAction(projectId, "POST", { action: "add", afterIndex });
+export function addProjectSlide(projectId: string, afterIndex?: number, title?: string): Promise<UiSlide[]> {
+  return slideAction(projectId, "POST", { action: "add", afterIndex, title });
 }
 
 export function duplicateProjectSlide(projectId: string, index: number): Promise<UiSlide[]> {
@@ -244,11 +244,12 @@ export async function generateSingleSlide(
   projectId: string,
   index: number,
   instruction: string,
+  title?: string,
 ): Promise<UiSlide> {
   const response = await fetch(`/api/projects/${projectId}/regenerate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ index, instruction }),
+    body: JSON.stringify({ index, instruction, title }),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
@@ -278,11 +279,12 @@ export async function regenerateSlide(
   projectId: string,
   index: number,
   instruction?: string,
+  title?: string,
 ): Promise<string> {
   const r = await fetch(`/api/projects/${projectId}/regenerate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ index, instruction: instruction || undefined }),
+    body: JSON.stringify({ index, instruction: instruction || undefined, title: title || undefined }),
   });
   const d = await r.json();
   if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
@@ -338,6 +340,7 @@ export interface ChatPlan {
   reply: string;
   targets: number[];
   afterIndex?: number;
+  title?: string;
   instruction: string;
 }
 

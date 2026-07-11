@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { Image as ImageIcon } from "@phosphor-icons/react";
 import type { QuestionSpec } from "@/lib/onboard";
-import { templatesByCategory } from "@/lib/templates";
 import { uploadContextItems, type ContextItem } from "@/lib/contextItems";
 import type { PptConfig } from "@/lib/types";
 
@@ -127,11 +126,11 @@ export default function OnboardForm({
           patch.style = asStr;
           break;
         case "category": {
-          // auto-pick the top template of the chosen category so gen-UI users
-          // get a styled deck without visiting the template picker.
-          const top = templatesByCategory(asStr)[0]?.id;
-          if (top) patch.template = top;
-          prefs.push(`Deck category: ${asStr}`);
+          // Capture the scenario as CONTENT context only — do NOT auto-assign a
+          // visual template here. Leaving config.template unset is what lets the
+          // post-outline style-selection (inspiration) step surface community
+          // styles when the user hasn't already picked one at the launcher.
+          prefs.push(`Deck scenario: ${asStr}`);
           break;
         }
         default: // free content preference

@@ -6,9 +6,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const body = await req.json().catch(() => ({}));
   const project = loadProject(params.id);
   if (!project) return NextResponse.json({ error: "project not found" }, { status: 404 });
-  const body = await req.json().catch(() => ({}));
   const action = String(body?.action ?? "add");
   const index = Number(body?.index);
 
@@ -17,9 +17,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const insertAt = Number.isInteger(requestedAfter)
       ? Math.max(0, Math.min(project.pages.length, requestedAfter))
       : project.pages.length;
+    const requestedTitle = String(body?.title ?? "").trim().slice(0, 80);
     const page: SlidePage = {
       index: insertAt + 1,
-      title: `Slide ${insertAt + 1}`,
+      title: requestedTitle || `Slide ${insertAt + 1}`,
       points: [],
       status: "pending",
     };
@@ -63,9 +64,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 }
 
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  const body = await req.json().catch(() => ({}));
   const project = loadProject(params.id);
   if (!project) return NextResponse.json({ error: "project not found" }, { status: 404 });
-  const body = await req.json().catch(() => ({}));
   const index = Number(body?.index);
   if (!Number.isInteger(index)) return NextResponse.json({ error: "index required" }, { status: 400 });
   try {

@@ -386,13 +386,13 @@ async function run(command, input) {
     const changed = [];
     if (plan.action === "add") {
       const afterIndex = Number.isInteger(plan.afterIndex) ? plan.afterIndex : project.pages.length;
-      const added = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/slides`, { action: "add", afterIndex });
+      const added = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/slides`, { action: "add", afterIndex, title: plan.title });
       const index = Math.min(Math.max(afterIndex + 1, 1), added.pages.length);
-      const generated = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/regenerate`, { index, instruction: plan.instruction || input.instruction });
+      const generated = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/regenerate`, { index, instruction: plan.instruction || input.instruction, title: plan.title });
       changed.push(slideSummary(generated.page));
     } else if (plan.action === "edit") {
       for (const index of plan.targets || []) {
-        const generated = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/regenerate`, { index, instruction: plan.instruction || input.instruction });
+        const generated = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/regenerate`, { index, instruction: plan.instruction || input.instruction, title: plan.targets?.length === 1 ? plan.title : undefined });
         changed.push(slideSummary(generated.page));
       }
     }

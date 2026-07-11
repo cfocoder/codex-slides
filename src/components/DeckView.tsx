@@ -360,7 +360,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             ],
           },
         }));
-        const next = await addProjectSlide(projectId, afterIndex);
+        const next = await addProjectSlide(projectId, afterIndex, plan.title);
         const insertedIndex = Math.min(Math.max(afterIndex + 1, 1), next.length);
         setSlides(next.map((slide) => (slide.index === insertedIndex ? { ...slide, status: "working" } : slide)));
         updateChatMessage(runId, (current) => ({
@@ -376,6 +376,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             projectId,
             insertedIndex,
             plan.instruction || message,
+            plan.title,
           );
           setSlides((items) => items.map((slide) => (slide.index === insertedIndex ? generated : slide)));
           updateChatMessage(runId, (current) => ({
@@ -442,14 +443,31 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         }));
         setSlides((s) => s.map((x) => (x.index === t ? { ...x, status: "working" } : x)));
         try {
-          const image = await regenerateSlide(projectId, t, plan.instruction);
+          const image = await regenerateSlide(
+            projectId,
+            t,
+            plan.instruction,
+            plan.targets.length === 1 ? plan.title : undefined,
+          );
           const bust = Date.now();
           setSlides((s) =>
-            s.map((x) => (x.index === t ? { ...x, status: "rendered", image, bust } : x)),
+            s.map((x) =>
+              x.index === t
+                ? {
+                    ...x,
+                    title: plan.targets.length === 1 && plan.title ? plan.title : x.title,
+                    status: "rendered",
+                    image,
+                    bust,
+                  }
+                : x,
+            ),
           );
           lastAttachment = {
             slideIndex: t,
-            title: slides.find((slide) => slide.index === t)?.title || `Slide ${t}`,
+            title: (plan.targets.length === 1 ? plan.title : undefined)
+              || slides.find((slide) => slide.index === t)?.title
+              || `Slide ${t}`,
             imageUrl: fileUrl(projectId, image, bust),
           };
           updateChatMessage(runId, (current) => ({

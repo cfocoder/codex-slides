@@ -14,9 +14,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 /** Re-tune an existing deck: change template / style, add materials. Then the
  *  caller regenerates slides (which read the updated project.config). */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const body = await req.json().catch(() => ({}));
   const project = loadProject(params.id);
   if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
-  const body = await req.json().catch(() => ({}));
 
   if (typeof body.template !== "undefined") project.config.template = body.template || undefined;
   if (typeof body.style === "string") project.config.style = body.style;

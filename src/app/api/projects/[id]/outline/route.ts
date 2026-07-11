@@ -20,8 +20,6 @@ function coercePoints(raw: any): string[] {
 
 /** Replace the outline with an edited list of pages (draft only, drops images). */
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const project = loadProject(params.id);
-  if (!project) return NextResponse.json({ error: "project not found" }, { status: 404 });
   const body = await req.json().catch(() => ({}));
   const incoming = Array.isArray(body?.pages) ? body.pages : [];
   const pages: SlidePage[] = incoming
@@ -32,6 +30,8 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       status: "pending" as const,
     }));
   if (!pages.length) return NextResponse.json({ error: "at least one slide is required" }, { status: 400 });
+  const project = loadProject(params.id);
+  if (!project) return NextResponse.json({ error: "project not found" }, { status: 404 });
   project.status = "draft";
   replaceProjectPages(project, pages);
   return NextResponse.json({ pages: project.pages });

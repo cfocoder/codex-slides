@@ -10,6 +10,7 @@ export interface ChatPlan {
   reply: string;
   targets: number[]; // 1-based slide indices to regenerate
   afterIndex?: number; // add a new slide after this 1-based index; 0 = before slide 1
+  title?: string; // exact resulting title when adding or explicitly retitling one slide
   instruction: string; // self-contained imperative change
 }
 
@@ -46,11 +47,12 @@ export function buildChatPrompt(
     `The user says: "${message}"`,
     "",
     "Decide whether to edit existing slides, add one new slide, or just reply. Return ONLY this JSON:",
-    '{"action": "edit|add|reply", "reply": "one short sentence back to the user", "targets": [slide numbers], "afterIndex": 0, "instruction": "a self-contained imperative instruction"}',
+    '{"action": "edit|add|reply", "reply": "one short sentence back to the user", "targets": [slide numbers], "afterIndex": 0, "title": "short exact slide title when applicable", "instruction": "a self-contained imperative instruction"}',
     "",
     "Rules:",
     "- action=edit changes existing slides. Put their 1-based indices in targets and omit afterIndex.",
-    "- action=add inserts exactly one new slide. targets=[] and afterIndex is the slide number it follows (0 means before slide 1). instruction must fully describe the new slide's role, content, and visual direction.",
+    "- action=add inserts exactly one new slide. targets=[] and afterIndex is the slide number it follows (0 means before slide 1). title must be the short exact title for the new slide. instruction must fully describe the new slide's role, content, and visual direction.",
+    "- For action=edit, include title only when the user explicitly asks to rename/retitle exactly one target slide; otherwise omit it.",
     "- action=reply makes no deck change. targets=[] and omit afterIndex.",
     "- When an attached slide exists, resolve contextual wording against it. If the user asks to edit it, target that slide. If the user asks to add after it, afterIndex is that slide number. If they ask to add before it, afterIndex is one less.",
     "- If the user means the whole deck (all / 整体 / 全部 / every slide / restyle), targets = ALL slide numbers.",
@@ -82,11 +84,13 @@ export function parseChatPlan(raw: any, pageCount: number): ChatPlan {
       : rawAction === "edit" || targets.length
         ? "edit"
         : "reply";
+  const title = String(raw?.title ?? "").trim().slice(0, 80);
   return {
     action,
     reply: String(raw?.reply ?? "Done."),
     targets: action === "edit" ? targets : [],
     afterIndex: action === "add" ? (afterIndex ?? pageCount) : undefined,
+    title: action !== "reply" && title ? title : undefined,
     instruction: String(raw?.instruction ?? "").trim(),
   };
 }

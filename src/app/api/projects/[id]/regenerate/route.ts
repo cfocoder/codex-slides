@@ -9,11 +9,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const body = await req.json().catch(() => ({}));
   const index = Number(body?.index);
   const instruction = body?.instruction ? String(body.instruction) : undefined;
+  const title = body?.title ? String(body.title) : undefined;
   if (!Number.isInteger(index)) {
     return NextResponse.json({ error: "index required" }, { status: 400 });
   }
   try {
-    const page = await regeneratePage(params.id, index, instruction);
+    const page = await regeneratePage(params.id, index, instruction, title);
     return NextResponse.json({ page });
   } catch (e: any) {
     return NextResponse.json({ error: String(e?.message ?? e) }, { status: 500 });

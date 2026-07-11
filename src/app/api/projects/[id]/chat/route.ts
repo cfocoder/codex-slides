@@ -10,8 +10,6 @@ export const maxDuration = 120;
 
 /** Persist the full conversation so reopening the project restores the dialogue. */
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const project = loadProject(params.id);
-  if (!project) return NextResponse.json({ error: "project not found" }, { status: 404 });
   const body = await req.json().catch(() => ({}));
   const raw = Array.isArray(body?.messages) ? body.messages : [];
   const chat: StoredChatMessage[] = raw
@@ -54,6 +52,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       ts: typeof m.ts === "number" ? m.ts : undefined,
     }))
     .slice(-200);
+  // Read the project only after the request body has been consumed. Chat saves
+  // run in the background and can overlap a structural slide edit; loading
+  // before the await allowed an old page array to overwrite a just-inserted
+  // slide when this PUT eventually reached saveProject().
+  const project = loadProject(params.id);
+  if (!project) return NextResponse.json({ error: "project not found" }, { status: 404 });
   project.chat = chat;
   saveProject(project);
   return NextResponse.json({ ok: true, count: chat.length });

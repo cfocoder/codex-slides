@@ -8,12 +8,7 @@ export async function POST(
   req: Request,
   { params }: { params: { id: string; index: string } },
 ) {
-  const project = loadProject(params.id);
-  if (!project) return NextResponse.json({ error: "project not found" }, { status: 404 });
   const index = Number(params.index);
-  const page = project.pages.find((candidate) => candidate.index === index);
-  if (!page) return NextResponse.json({ error: "page not found" }, { status: 404 });
-
   const form = await req.formData();
   const image = form.get("image");
   if (!(image instanceof File)) return NextResponse.json({ error: "image required" }, { status: 400 });
@@ -25,6 +20,13 @@ export async function POST(
   if (pngSignature !== "89504e470d0a1a0a") {
     return NextResponse.json({ error: "invalid PNG" }, { status: 400 });
   }
+
+  // Decoding an uploaded image is asynchronous. Load the project afterwards so
+  // this endpoint cannot write a stale page array over a concurrent insertion.
+  const project = loadProject(params.id);
+  if (!project) return NextResponse.json({ error: "project not found" }, { status: 404 });
+  const page = project.pages.find((candidate) => candidate.index === index);
+  if (!page) return NextResponse.json({ error: "page not found" }, { status: 404 });
 
   const suppliedTitle = String(form.get("title") ?? "").trim();
   if (suppliedTitle) page.title = suppliedTitle.slice(0, 80);

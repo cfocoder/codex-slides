@@ -319,6 +319,7 @@ export async function regeneratePage(
   id: string,
   index: number,
   instruction?: string,
+  requestedTitle?: string,
   signal?: AbortSignal,
 ): Promise<SlidePage> {
   const project = loadProject(id);
@@ -328,15 +329,23 @@ export async function regeneratePage(
   const total = project.pages.length;
   const projectAttachments = loadProjectInputAttachments(id, project.materials);
 
+  const exactTitle = requestedTitle?.trim().slice(0, 80);
+  if (exactTitle) page.title = exactTitle;
   if (instruction) {
     const isBlank = !page.image && page.status === "pending" && page.points.length === 0;
     if (isBlank) {
-      page.title = instruction.trim().slice(0, 80) || `Slide ${index}`;
+      if (!exactTitle && /^Slide \d+$/i.test(page.title)) {
+        const explicitTitle = instruction.match(/(?:标题(?:为|是|[:：])?|title(?:d)?(?:\s+is|[:：])?)\s*[「『“"']([^」』”"'\n]{1,80})[」』”"']/i)?.[1]?.trim();
+        page.title = explicitTitle || `Slide ${index}`;
+      }
       page.points = [instruction.trim()];
       project.outline[index - 1] = { title: page.title, points: [...page.points] };
     } else {
       page.points = [...page.points, `(edit) ${instruction}`];
     }
+  }
+  if (exactTitle && project.outline[index - 1]) {
+    project.outline[index - 1] = { ...project.outline[index - 1], title: exactTitle };
   }
   const descPrompt = buildPageDescriptionPrompt(
     project.config,
@@ -363,8 +372,17 @@ export async function regeneratePage(
   page.image = saveSlideImage(id, index, bytes);
   page.status = "rendered";
   page.error = undefined;
-  saveProject(project);
-  return page;
+  // Text/image generation can take minutes while chat persistence continues in
+  // parallel. Commit only this page into the latest project snapshot so those
+  // background saves cannot be lost (and a stale snapshot cannot drop pages).
+  const latest = loadProject(id);
+  if (!latest) throw new Error("project not found");
+  const latestPage = latest.pages.find((candidate) => candidate.index === index);
+  if (!latestPage) throw new Error("page not found");
+  Object.assign(latestPage, page);
+  latest.outline[index - 1] = { title: latestPage.title, points: [...latestPage.points] };
+  saveProject(latest);
+  return latestPage;
 }
 
 /**
@@ -396,6 +414,13 @@ export async function markEditPage(
   page.image = saveSlideImage(id, index, bytes);
   page.status = "rendered";
   page.error = undefined;
-  saveProject(project);
-  return page;
+  const latest = loadProject(id);
+  if (!latest) throw new Error("project not found");
+  const latestPage = latest.pages.find((candidate) => candidate.index === index);
+  if (!latestPage) throw new Error("page not found");
+  latestPage.image = page.image;
+  latestPage.status = page.status;
+  latestPage.error = undefined;
+  saveProject(latest);
+  return latestPage;
 }

@@ -50,6 +50,8 @@ export default function MarkCanvas({
   const [tool, setToolState] = useState<MarkTool>("pen");
   const [note, setNote] = useState("");
   const [ready, setReady] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [, setHistoryVersion] = useState(0);
   const [hoveredText, setHoveredText] = useState<number | null>(null);
   const [draggingText, setDraggingText] = useState(false);
@@ -336,10 +338,16 @@ export default function MarkCanvas({
     redraw();
   }
 
-  function submit() {
+  async function submit() {
+    if (busy || submitting) return;
     const canvas = canvasRef.current;
     const image = imageRef.current;
-    if (!canvas || !image || !ready) return;
+    if (!canvas || !image || !ready) {
+      setSubmitError("The slide image is still loading. Please try again.");
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError("");
     // Fold any open text draft into the marks before compositing.
     const draft = textDraftRef.current;
     if (draft && draft.value.trim()) {
@@ -352,14 +360,28 @@ export default function MarkCanvas({
     output.width = canvas.width;
     output.height = canvas.height;
     const context = output.getContext("2d");
-    if (!context) return;
+    if (!context) {
+      setSubmitting(false);
+      setSubmitError("Unable to prepare the marked image. Please try again.");
+      return;
+    }
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, output.width, output.height);
     context.drawImage(image, 0, 0, output.width, output.height);
     marksRef.current.forEach((mark) => drawMark(context, mark, output.width));
-    output.toBlob((blob) => {
-      if (blob) onSubmit(blob, note.trim());
-    }, "image/png");
+    try {
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        output.toBlob((result) => {
+          if (result) resolve(result);
+          else reject(new Error("Unable to prepare the marked image."));
+        }, "image/png");
+      });
+      await onSubmit(blob, note.trim());
+    } catch (cause: any) {
+      setSubmitError(String(cause?.message ?? cause));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const canUndo = marksRef.current.length > 0 || Boolean(textDraft);
@@ -420,22 +442,39 @@ export default function MarkCanvas({
         <button type="button" onClick={onCancel} disabled={busy} aria-label="Close mark tool" title="Close"><X size={17} /></button>
       </div>
 
-      <div className="mark-comment-row" onPointerDown={(event) => event.stopPropagation()}>
+      <form
+        className="mark-comment-row"
+        onPointerDown={(event) => event.stopPropagation()}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
         <div className="mark-comment-main">
           <textarea
             rows={1}
             placeholder="Comment for Deck Agent"
             value={note}
             onChange={(event) => setNote(event.target.value)}
-            disabled={busy}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+              event.preventDefault();
+              event.stopPropagation();
+              event.currentTarget.form?.requestSubmit();
+            }}
+            disabled={busy || submitting}
           />
-          {error && <span className="mark-submit-error" role="alert">{error} Your marks are still here—press Send to retry.</span>}
+          {(error || submitError) && (
+            <span className="mark-submit-error" role="alert">
+              {error || submitError} Your marks are still here—press Send to retry.
+            </span>
+          )}
         </div>
-        <button type="button" className="mark-send" onClick={submit} disabled={busy || !ready}>
+        <button type="submit" className="mark-send" disabled={busy || submitting || !ready}>
           <PaperPlaneRight size={17} />
-          <span>{busy ? "Editing" : error ? "Retry" : "Send"}</span>
+          <span>{busy ? "Editing" : submitting ? "Sending" : error || submitError ? "Retry" : "Send"}</span>
         </button>
-      </div>
+      </form>
     </div>
   );
 }
