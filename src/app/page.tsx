@@ -211,14 +211,12 @@ export default function Home() {
         setQuestions(nextQuestions);
         say({
           role: "assistant",
-          content: locale === "zh-CN"
-            ? `我准备了 ${nextQuestions.length} 个确认问题。它们会作为 Design File 保留，后面可以随时回看。`
-            : `I prepared ${nextQuestions.length} clarification questions. They will stay available as a Design File.`,
+          content: t("designFiles.questionsPrepared", { count: nextQuestions.length }),
           artifact: {
             id: "questions",
             kind: "questions",
-            title: locale === "zh-CN" ? "需求确认问题" : "Clarification questions",
-            subtitle: locale === "zh-CN" ? `${nextQuestions.length} 个问题 · 待确认` : `${nextQuestions.length} questions · pending`,
+            title: t("designFiles.questionsTitle"),
+            subtitle: t("designFiles.questionsPending", { count: nextQuestions.length }),
           },
         });
       } else {
@@ -240,7 +238,7 @@ export default function Home() {
   }
 
   function skipClarify() {
-    setClarifyAnswerSummary(locale === "zh-CN" ? "已跳过问题确认" : "Clarification skipped");
+    setClarifyAnswerSummary(t("designFiles.questionsSkipped"));
     setWorkspaceMode("canvas");
     say({ role: "user", content: t("flow.skipClarify") });
     proceedToOutline(config);
@@ -803,10 +801,10 @@ export default function Home() {
       files.push({
         id: "questions",
         kind: "questions",
-        title: locale === "zh-CN" ? "需求确认问题" : "Clarification questions",
+        title: t("designFiles.questionsTitle"),
         subtitle: clarifyAnswerSummary
-          ? locale === "zh-CN" ? `${questions.length} 个问题 · 已确认` : `${questions.length} questions · confirmed`
-          : locale === "zh-CN" ? `${questions.length} 个问题 · 待确认` : `${questions.length} questions · pending`,
+          ? t("designFiles.questionsConfirmed", { count: questions.length })
+          : t("designFiles.questionsPending", { count: questions.length }),
         questions,
         answerSummary: clarifyAnswerSummary || undefined,
       });
@@ -815,10 +813,10 @@ export default function Home() {
       files.push({
         id: "outline",
         kind: "outline",
-        title: title || (locale === "zh-CN" ? "演示文稿大纲" : "Presentation outline"),
+        title: title || t("designFiles.outlineTitle"),
         subtitle: stage === "outline"
-          ? locale === "zh-CN" ? `${outline.length} 页 · 编辑中` : `${outline.length} pages · editing`
-          : locale === "zh-CN" ? `${outline.length} 页 · 已确认` : `${outline.length} pages · confirmed`,
+          ? t("designFiles.outlineEditing", { count: outline.length })
+          : t("designFiles.outlineConfirmed", { count: outline.length }),
         pages: outline.map((page) => ({ title: page.title, points: [...page.points] })),
       });
     }
@@ -827,19 +825,19 @@ export default function Home() {
       files.push({
         id: "inspiration",
         kind: "inspiration",
-        title: locale === "zh-CN" ? "视觉参考灵感" : "Visual inspiration",
+        title: t("designFiles.inspirationTitle"),
         subtitle: inspirationSkipped
-          ? locale === "zh-CN" ? "已跳过 · 默认风格" : "Skipped · default style"
+          ? t("designFiles.inspirationSkipped")
           : config.template
-            ? locale === "zh-CN" ? "已选择 · 可回看" : "Selected · reviewable"
-            : locale === "zh-CN" ? "候选方向 · 待选择" : "Candidates · pending",
+            ? t("designFiles.inspirationSelected")
+            : t("designFiles.inspirationPending"),
         selectedTemplateId: config.template,
         candidateTemplateIds: matchCommunityTemplates(matchQuery, 4).map((template) => template.id),
         skipped: inspirationSkipped,
       });
     }
     return files;
-  }, [clarifyAnswerSummary, config.requirement, config.template, inspirationSkipped, locale, outline, questions, stage, title]);
+  }, [clarifyAnswerSummary, config.requirement, config.template, inspirationSkipped, outline, questions, stage, t, title]);
 
   // ---------------- WORK VIEW (clarify → outline → deck) ----------------
   if (phase === "work") {
