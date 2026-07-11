@@ -68,6 +68,16 @@ import {
   stopRunningTools,
 } from "@/lib/agentActivity";
 import { outlineSnapshotMessage, styleSnapshotMessage } from "@/lib/chatArtifacts";
+import {
+  createQueuedChatRequest,
+  loadQueuedChatRequests,
+  prioritizeQueuedChatRequest,
+  reorderConversationQueue,
+  saveQueuedChatRequests,
+  snapshotChatRequest,
+  updateQueuedChatRequest,
+  type QueuedChatRequest,
+} from "@/lib/chatQueue";
 import { useChatConversations } from "@/lib/useChatConversations";
 import { buildWorkflowProgress } from "@/lib/workflowProgress";
 import type { DesignFile, WorkspaceMode } from "@/lib/designFiles";
@@ -126,7 +136,12 @@ export default function Home() {
   });
   const chat = conversationState.messages;
   const setChat = conversationState.setMessages;
-  const [queue, setQueue] = useState<ChatRequest[]>([]);
+  const [queue, setQueue] = useState<QueuedChatRequest[]>([]);
+  const queueRef = useRef<QueuedChatRequest[]>([]);
+  const queueProjectRef = useRef<string | null>(null);
+  const queueStartingRef = useRef<string | null>(null);
+  const [queueDrainTick, setQueueDrainTick] = useState(0);
+  const [editingQueuedRequestId, setEditingQueuedRequestId] = useState<string | null>(null);
   const [chatContext, setChatContext] = useState<SlideChatContext | null>(null);
   const [chatFocusKey, setChatFocusKey] = useState(0);
   const [focusSlideIndex, setFocusSlideIndex] = useState<number | null>(null);
@@ -140,6 +155,10 @@ export default function Home() {
   const latestCheckpointRef = useRef<ProjectCheckpointPatch | null>(null);
   const creatingProjectRef = useRef(false);
   const markRunRef = useRef<{ id: string; startedAt: number; slideIndex: number } | null>(null);
+
+  const currentConversationQueue = queue.filter(
+    (item) => item.conversationId === conversationState.activeConversationId,
+  );
 
   useEffect(() => {
     fetch("/api/agents")
@@ -397,7 +416,11 @@ export default function Home() {
     setWorkspaceMode("canvas");
     setSelectedDesignFileId("questions");
     setChatContext(null);
+    queueRef.current = [];
+    queueProjectRef.current = null;
+    queueStartingRef.current = null;
     setQueue([]);
+    setEditingQueuedRequestId(null);
     setQuestions([]);
 
     conversationState.resetConversations([
@@ -1035,26 +1058,104 @@ export default function Home() {
     }
   }
 
+  function commitQueue(next: QueuedChatRequest[]) {
+    queueRef.current = next;
+    setQueue(next);
+    if (projectId) saveQueuedChatRequests(projectId, next);
+  }
+
+  function addQueuedRequest(conversationId: string, request: ChatRequest) {
+    commitQueue([...queueRef.current, createQueuedChatRequest(conversationId, request)]);
+  }
+
+  function removeQueuedRequest(id: string) {
+    commitQueue(queueRef.current.filter((item) => item.id !== id));
+    if (editingQueuedRequestId === id) setEditingQueuedRequestId(null);
+  }
+
+  function updateQueuedRequest(id: string, request: ChatRequest) {
+    commitQueue(queueRef.current.map((item) => (
+      item.id === id ? updateQueuedChatRequest(item, request) : item
+    )));
+  }
+
+  function reorderQueuedRequests(orderedIds: string[]) {
+    commitQueue(reorderConversationQueue(
+      queueRef.current,
+      conversationState.activeConversationId,
+      orderedIds,
+    ));
+  }
+
+  function prioritizeQueuedRequest(id: string) {
+    commitQueue(prioritizeQueuedChatRequest(queueRef.current, id));
+    setQueueDrainTick((tick) => tick + 1);
+  }
+
   /** Route a chat turn to the right handler for the current stage. */
-  function runRequest(request: ChatRequest) {
-    if (stage === "outline") handleOutlineChat(request);
-    else handleChat(request);
+  function runRequest(request: ChatRequest): Promise<void> {
+    if (stage === "outline") return handleOutlineChat(request);
+    return handleChat(request);
   }
 
   /** Queue follow-ups typed while work is in flight; run immediately when idle. */
   function enqueueOrRun(request: ChatRequest) {
-    if (running || busy || !projectId) setQueue((q) => [...q, request]);
-    else runRequest(request);
+    const conversationId = conversationState.activeConversationId;
+    const hasQueuedTurn = queueRef.current.some((item) => item.conversationId === conversationId);
+    if (running || busy || clarifyBusy || !projectId || hasQueuedTurn || queueStartingRef.current) {
+      addQueuedRequest(conversationId, request);
+      return;
+    }
+    void runRequest(snapshotChatRequest(request));
   }
 
-  // Drain one queued follow-up whenever the pipeline goes idle.
   useEffect(() => {
-    if (running || busy || !projectId || !queue.length) return;
-    const [next, ...rest] = queue;
-    setQueue(rest);
-    runRequest(next);
+    if (!projectId) return;
+    if (queueRef.current.length > 0 && queueProjectRef.current == null) {
+      queueProjectRef.current = projectId;
+      saveQueuedChatRequests(projectId, queueRef.current);
+      setQueue((current) => [...current]);
+      return;
+    }
+    const restored = loadQueuedChatRequests(projectId);
+    queueProjectRef.current = projectId;
+    queueRef.current = restored;
+    setQueue(restored);
+    queueStartingRef.current = null;
+    setEditingQueuedRequestId(null);
+  }, [projectId]);
+
+  // Drain exactly one queued follow-up whenever the active conversation goes
+  // idle. Editing the head pauses the drain until the user saves or cancels.
+  useEffect(() => {
+    if (running || busy || clarifyBusy || !projectId) {
+      queueStartingRef.current = null;
+      return;
+    }
+    if (queueStartingRef.current) return;
+    const next = queueRef.current.find(
+      (item) => item.conversationId === conversationState.activeConversationId,
+    );
+    if (!next || editingQueuedRequestId === next.id) return;
+    queueStartingRef.current = next.id;
+    commitQueue(queueRef.current.filter((item) => item.id !== next.id));
+    void runRequest(snapshotChatRequest(next));
+    queueMicrotask(() => {
+      if (queueStartingRef.current !== next.id) return;
+      queueStartingRef.current = null;
+      setQueueDrainTick((tick) => tick + 1);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [running, busy, projectId, queue]);
+  }, [
+    running,
+    busy,
+    clarifyBusy,
+    projectId,
+    queue,
+    queueDrainTick,
+    conversationState.activeConversationId,
+    editingQueuedRequestId,
+  ]);
 
   // Persist all conversations once the project exists, including the active selection.
   useEffect(() => {
@@ -1242,7 +1343,13 @@ export default function Home() {
           busy={running || busy || clarifyBusy}
           onSend={enqueueOrRun}
           status={status}
-          queued={queue}
+          queued={currentConversationQueue}
+          editingQueuedId={editingQueuedRequestId}
+          onEditingQueuedChange={setEditingQueuedRequestId}
+          onUpdateQueued={updateQueuedRequest}
+          onRemoveQueued={removeQueuedRequest}
+          onReorderQueued={reorderQueuedRequests}
+          onPrioritizeQueued={prioritizeQueuedRequest}
           context={chatContext}
           onClearContext={() => setChatContext(null)}
           focusKey={chatFocusKey}
@@ -1254,18 +1361,22 @@ export default function Home() {
           activeConversationId={projectId ? conversationState.activeConversationId : undefined}
           onSelectConversation={projectId ? (id) => {
             if (running || busy || clarifyBusy) return;
-            setQueue([]);
+            setEditingQueuedRequestId(null);
             setChatContext(null);
             conversationState.selectConversation(id);
           } : undefined}
           onCreateConversation={projectId ? () => {
             if (running || busy || clarifyBusy) return;
-            setQueue([]);
+            setEditingQueuedRequestId(null);
             setChatContext(null);
             conversationState.createConversation();
           } : undefined}
           onRenameConversation={projectId ? conversationState.renameConversation : undefined}
-          onDeleteConversation={projectId ? conversationState.deleteConversation : undefined}
+          onDeleteConversation={projectId ? (id) => {
+            conversationState.deleteConversation(id);
+            commitQueue(queueRef.current.filter((item) => item.conversationId !== id));
+            setEditingQueuedRequestId(null);
+          } : undefined}
           conversationManagementDisabled={running || busy || clarifyBusy}
           placeholder={placeholder}
         />

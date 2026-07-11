@@ -32,6 +32,7 @@ CLI + MCP operation.
 | Save brand rules without replacing slides | Brand panel Save | `set-brand-system`, `redraw:false` | `update_brand_design_system`, `redraw:false` |
 | Apply brand rules to existing slides | Brand panel Save & redraw | `set-brand-system`, `redraw:true` | `update_brand_design_system`, `redraw:true` |
 | Natural-language deck editing | Deck Agent | `edit` | `edit_deck` |
+| Queue project-chat turns; edit text/images/files, reorder, delete, or prioritize before serial execution | Deck Agent queue | — interactive Browser session control | — interactive Browser session control |
 | Whole-deck template/style restyle | Brand/template UI | `restyle` | `restyle_deck` |
 | Add, duplicate, delete, or transition slides | Slide controls | `slide` | `manage_slide` |
 | Generate or regenerate one slide | Slide/agent controls | `regenerate` | `regenerate_slide` |

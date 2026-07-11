@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const read = (path) => readFileSync(join(root, path), "utf8");
+
+const skill = read("skills/ppt-anything/SKILL.md");
+assert.match(skill, /## Browser-first default/);
+assert.match(skill, /Call `open_ppt_anything` \/ CLI `open` \*\*without\*\* a project id/);
+assert.match(skill, /Do not call `deep_research`[\s\S]*before opening the Browser/);
+assert.match(skill, /Do not default to `create_deck`/);
+
+const mcp = read("mcp/server.mjs");
+assert.match(mcp, /"start_project"/);
+assert.match(mcp, /postJson\("\/api\/projects"/);
+assert.match(mcp, /interactionMode: "browser-guided"/);
+assert.match(mcp, /Use create_deck only when the user explicitly asks/);
+
+const cli = read("skills/ppt-anything/scripts/ppt-anything.mjs");
+assert.match(cli, /"start-project"/);
+assert.match(cli, /interactionMode: "browser-guided"/);
+
+const manifest = JSON.parse(read(".codex-plugin/plugin.json"));
+assert.match(manifest.version, /^0\.3\.1\+codex\./);
+assert.ok(manifest.interface.defaultPrompt.some((prompt) => /Browser.*step by step/i.test(prompt)));
+assert.ok(manifest.interface.capabilities.includes("Guided project checkpoints"));
+
+process.stdout.write("Browser-first Codex contract passed.\n");

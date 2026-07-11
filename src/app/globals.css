@@ -3756,6 +3756,7 @@ body:has(.project-ws) .global-settings-trigger {
 .chatcol.collapsed .chatfeed,
 .chatcol.collapsed .workflow-progress,
 .chatcol.collapsed .conversation-panel,
+.chatcol.collapsed .chatcol-queue,
 .chatcol.collapsed .chatcol-composer {
   display: none;
 }
@@ -5162,21 +5163,174 @@ button.doc-card:focus-visible {
   animation: spin 1.4s linear infinite;
 }
 
-/* queued follow-up bubbles */
-.msg.user.queued {
-  opacity: 0.72;
+/* Durable project-chat queue. It sits outside the transcript so queued turns
+   stay editable without pretending they have already been sent. */
+.chatcol-queue {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 10px 16px 0;
+  border-top: 1px solid var(--border);
+  background: #fff;
 }
-.msg.user.queued .msg-user-bubble {
-  border-style: dashed;
-  background: var(--bg-soft);
+.chatcol-queue-head {
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 4px 5px;
 }
-.queued-tag {
-  display: block;
-  font-size: 11px;
-  font-weight: 650;
+.chatcol-queue-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
   color: var(--muted);
-  margin-bottom: 4px;
-  letter-spacing: 0.01em;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.chatcol-queue-heading strong {
+  color: var(--text);
+  font-weight: 700;
+}
+.chatcol-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.chatcol-queue-list.scrollable {
+  max-height: 208px;
+  padding-right: 3px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
+}
+.chatcol-queue-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 43px;
+  padding: 5px 6px 5px 4px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--bg-soft);
+  transition:
+    background-color 140ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 140ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.chatcol-queue-row.next {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--bg-soft) 74%, #fff);
+}
+.chatcol-queue-row:hover {
+  background: var(--panel-2);
+}
+.chatcol-queue-row.editing {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 36%, #fff);
+}
+.chatcol-queue-row.dragging {
+  opacity: 0.42;
+}
+.chatcol-queue-row.drop-before::before,
+.chatcol-queue-row.drop-after::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  left: 28px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.chatcol-queue-row.drop-before::before { top: -3px; }
+.chatcol-queue-row.drop-after::after { bottom: -3px; }
+.chatcol-queue-grip,
+.chatcol-queue-actions button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+}
+.chatcol-queue-grip {
+  color: var(--muted);
+  cursor: grab;
+}
+.chatcol-queue-grip:active:not(:disabled) { cursor: grabbing; }
+.chatcol-queue-grip:disabled { cursor: default; opacity: 0.36; }
+.chatcol-queue-grip:hover:not(:disabled),
+.chatcol-queue-actions button:hover:not(:disabled) {
+  border-color: var(--border);
+  background: #fff;
+  color: var(--text);
+}
+.chatcol-queue-grip:focus-visible,
+.chatcol-queue-actions button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.chatcol-queue-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.chatcol-queue-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.25;
+}
+.chatcol-queue-main > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chatcol-queue-meta {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+}
+.chatcol-queue-meta i {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 120px;
+  padding: 2px 5px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-style: normal;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chatcol-queue-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+.chatcol-queue-more {
+  display: block;
+  padding: 4px 4px 0 33px;
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .chatcol-composer {
@@ -5184,8 +5338,43 @@ button.doc-card:focus-visible {
   border-top: 1px solid var(--border);
   background: #fff;
 }
+.chatcol-queue + .chatcol-composer {
+  padding-top: 8px;
+  border-top: 0;
+}
 .chatcol-composer .composer {
   position: relative;
+}
+.chatcol-queue-editing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -2px 0 7px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 650;
+}
+.chatcol-queue-editing span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.chatcol-queue-editing button {
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+.chatcol-queue-editing button:hover {
+  background: var(--bg-soft);
+  color: var(--text);
+}
+.send-btn.queue-save {
+  background: var(--accent);
 }
 .chatcol-composer .composer textarea {
   min-height: 72px;

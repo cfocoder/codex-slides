@@ -84,6 +84,9 @@ function buildSeed(
         messages: Array.isArray(conversation.messages)
           ? conversation.messages as unknown as ChatMsg[]
           : [],
+        todos: Array.isArray(conversation.todos)
+          ? conversation.todos as GlobalTodoItem[]
+          : [],
       }))
     : [];
   const conversations = hydrated.length ? hydrated : [makeConversation(fallbackMessages, fallbackTitle)];

@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  ArrowUp,
   At,
   ArrowsOut,
   Check,
@@ -12,6 +13,7 @@ import {
   CopySimple,
   CrosshairSimple,
   DotsThree,
+  DotsSixVertical,
   FileText,
   Images,
   MagnifyingGlass,
@@ -26,7 +28,7 @@ import {
   XCircle,
 } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 import ContextItems from "@/components/ContextItems";
 import ContextOptionItems from "@/components/ContextOptionItems";
 import { AgentToolActivity } from "@/components/AgentToolActivity";
@@ -40,6 +42,7 @@ import {
   type ContextItem,
 } from "@/lib/contextItems";
 import type { ChatRequest, GenStatus, SlideChatContext } from "@/lib/deckEdit";
+import type { QueuedChatRequest } from "@/lib/chatQueue";
 import type { AgentProcess } from "@/lib/agentActivity";
 import {
   fileMentionAtCursor,
@@ -608,6 +611,12 @@ export default function ChatColumn({
   onSend,
   status = null,
   queued = [],
+  editingQueuedId = null,
+  onEditingQueuedChange,
+  onUpdateQueued,
+  onRemoveQueued,
+  onReorderQueued,
+  onPrioritizeQueued,
   placeholder,
   homeHref,
   onHome,
@@ -636,7 +645,16 @@ export default function ChatColumn({
   /** live activity to surface as a pinned status card (null = idle) */
   status?: GenStatus | null;
   /** follow-ups the user queued while work was in flight */
-  queued?: ChatRequest[];
+  queued?: QueuedChatRequest[];
+  /** The queued turn currently restored into the composer for editing. */
+  editingQueuedId?: string | null;
+  onEditingQueuedChange?: (id: string | null) => void;
+  onUpdateQueued?: (id: string, request: ChatRequest) => void;
+  onRemoveQueued?: (id: string) => void;
+  onReorderQueued?: (orderedIds: string[]) => void;
+  /** Move a queued turn to the head. It still waits for the active run so deck
+   * mutations remain strictly serialized. */
+  onPrioritizeQueued?: (id: string) => void;
   placeholder?: string;
   /** Optional compact product link used when the workspace is a standalone page. */
   homeHref?: string;
@@ -683,6 +701,12 @@ export default function ChatColumn({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [editingContext, setEditingContext] = useState<SlideChatContext | null>(null);
+  const [draggedQueuedId, setDraggedQueuedId] = useState<string | null>(null);
+  const [queuedDropTarget, setQueuedDropTarget] = useState<{
+    id: string;
+    edge: "before" | "after";
+  } | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -690,6 +714,7 @@ export default function ChatColumn({
   const projectFilesRequestRef = useRef(0);
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationPanelRef = useRef<HTMLDivElement>(null);
+  const activeContext = editingQueuedId ? editingContext : context;
 
   const filteredConversations = useMemo(() => {
     const query = conversationQuery.trim().toLocaleLowerCase();
@@ -758,6 +783,16 @@ export default function ChatColumn({
   useEffect(() => {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy, status, queued.length]);
+
+  useEffect(() => {
+    if (!editingQueuedId) return;
+    if (queued.some((item) => item.id === editingQueuedId)) return;
+    resetComposerDraft();
+    onEditingQueuedChange?.(null);
+    // resetComposerDraft is intentionally local state only; adding it to the
+    // dependency list would make this lifecycle effect fire on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingQueuedId, queued, onEditingQueuedChange]);
 
   useEffect(() => {
     if (!focusKey) return;
@@ -848,23 +883,90 @@ export default function ChatColumn({
     if (file) setText((current) => current.replace(`@${file.name}`, "").replace(/ {2,}/g, " "));
   }
 
+  function resetComposerDraft() {
+    setText("");
+    setAttachments([]);
+    setReferencedFiles([]);
+    setFileMention(null);
+    setEditingContext(null);
+    setUploadError("");
+  }
+
+  function editQueuedRequest(item: QueuedChatRequest) {
+    setText(item.message);
+    setAttachments(item.attachments?.map((attachment) => ({ ...attachment })) ?? []);
+    setReferencedFiles(item.designFiles?.map((file) => ({ ...file })) ?? []);
+    setEditingContext(item.context ? { ...item.context } : null);
+    setFileMention(null);
+    setUploadError("");
+    onEditingQueuedChange?.(item.id);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      const end = item.message.length;
+      textareaRef.current?.setSelectionRange(end, end);
+    });
+  }
+
+  function cancelQueuedEdit() {
+    resetComposerDraft();
+    onEditingQueuedChange?.(null);
+  }
+
+  function clearComposerContext() {
+    if (editingQueuedId) setEditingContext(null);
+    else onClearContext?.();
+  }
+
+  function queueDropEdge(event: ReactDragEvent<HTMLElement>): "before" | "after" {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+  }
+
+  function dropQueuedRequest(
+    event: ReactDragEvent<HTMLDivElement>,
+    targetId: string,
+  ) {
+    event.preventDefault();
+    const draggingId = draggedQueuedId || event.dataTransfer.getData("text/plain");
+    if (!draggingId || draggingId === targetId) {
+      setDraggedQueuedId(null);
+      setQueuedDropTarget(null);
+      return;
+    }
+    const ids = queued.map((item) => item.id);
+    const sourceIndex = ids.indexOf(draggingId);
+    if (sourceIndex < 0) return;
+    ids.splice(sourceIndex, 1);
+    const targetIndex = ids.indexOf(targetId);
+    if (targetIndex < 0) return;
+    const edge = queuedDropTarget?.id === targetId
+      ? queuedDropTarget.edge
+      : queueDropEdge(event);
+    ids.splice(edge === "after" ? targetIndex + 1 : targetIndex, 0, draggingId);
+    onReorderQueued?.(ids);
+    setDraggedQueuedId(null);
+    setQueuedDropTarget(null);
+  }
+
   function submit() {
     const m = text.trim()
       || (attachments.length ? t("chat.useAttachments") : "")
       || (referencedFiles.length ? t("chat.useDesignFiles") : "");
     if (!m || !onSend || uploading) return; // allowed while busy → parent queues it
-    setText("");
-    onSend({
+    const request: ChatRequest = {
       message: m,
-      context: context ?? undefined,
+      context: activeContext ?? undefined,
       attachments,
       designFiles: referencedFiles,
-    });
-    setAttachments([]);
-    setReferencedFiles([]);
-    setFileMention(null);
-    setUploadError("");
-    onClearContext?.();
+    };
+    if (editingQueuedId && onUpdateQueued) {
+      onUpdateQueued(editingQueuedId, request);
+      onEditingQueuedChange?.(null);
+    } else {
+      onSend(request);
+      onClearContext?.();
+    }
+    resetComposerDraft();
   }
 
   function toggleCollapsed() {
@@ -1148,22 +1250,121 @@ export default function ChatColumn({
           </div>
         )}
 
-        {queued.map((q, i) => (
-          <div key={`q${i}`} className="msg user queued" title={t("chat.queuedHelp")}>
-            <span className="queued-tag">⏳ {t("chat.queued")}</span>
-            {q.context && <SlideAttachment slide={q.context} compact onSelectSlide={onSelectSlide} />}
-            {q.designFiles?.length ? (
-              <DesignFileReferenceList files={q.designFiles} compact onOpen={onOpenDesignFile} />
-            ) : null}
-            {q.attachments?.length ? <ContextItems items={q.attachments} compact /> : null}
-            <div className="msg-user-bubble" style={{ whiteSpace: "pre-wrap" }}>{q.message}</div>
-          </div>
-        ))}
       </div>
+
+      {queued.length > 0 ? (
+        <section className="chatcol-queue" aria-label={t("chat.queueRegion")}>
+          <div className="chatcol-queue-head">
+            <span className="chatcol-queue-heading">
+              <strong>{t("chat.queueCount", { count: queued.length })}</strong>
+              <span aria-hidden="true">↩</span>
+              <span>{t("chat.queueToSend")}</span>
+            </span>
+          </div>
+          <div className={`chatcol-queue-list${queued.length > 4 ? " scrollable" : ""}`}>
+            {queued.map((item, index) => {
+              const normalized = item.message.replace(/\s+/g, " ").trim();
+              const summary = normalized.length > 68 ? `${normalized.slice(0, 67)}…` : normalized;
+              const imageCount = item.attachments?.filter((attachment) => attachment.kind === "image").length ?? 0;
+              const fileCount = (item.attachments?.length ?? 0) - imageCount;
+              const meta = [
+                imageCount ? t("chat.queueImages", { count: imageCount }) : "",
+                fileCount ? t("chat.queueFiles", { count: fileCount }) : "",
+                item.designFiles?.length ? t("chat.queueDesignFiles", { count: item.designFiles.length }) : "",
+                item.context ? t("chat.queueSlide", { index: item.context.slideIndex }) : "",
+              ].filter(Boolean);
+              const dropClass = queuedDropTarget?.id === item.id && draggedQueuedId !== item.id
+                ? ` drop-${queuedDropTarget.edge}`
+                : "";
+              return (
+                <div
+                  key={item.id}
+                  className={`chatcol-queue-row${index === 0 ? " next" : ""}${editingQueuedId === item.id ? " editing" : ""}${draggedQueuedId === item.id ? " dragging" : ""}${dropClass}`}
+                  onDragOver={(event) => {
+                    if (!draggedQueuedId || draggedQueuedId === item.id) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    setQueuedDropTarget({ id: item.id, edge: queueDropEdge(event) });
+                  }}
+                  onDrop={(event) => dropQueuedRequest(event, item.id)}
+                >
+                  <button
+                    type="button"
+                    className="chatcol-queue-grip"
+                    draggable={queued.length > 1}
+                    disabled={queued.length <= 1}
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", item.id);
+                      setDraggedQueuedId(item.id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedQueuedId(null);
+                      setQueuedDropTarget(null);
+                    }}
+                    aria-label={t("chat.queueReorder")}
+                    title={t("chat.queueReorder")}
+                  >
+                    <DotsSixVertical size={15} />
+                  </button>
+                  <div className="chatcol-queue-main" title={item.message}>
+                    <span>{summary || t("chat.queueAttachmentOnly")}</span>
+                    {meta.length > 0 ? (
+                      <span className="chatcol-queue-meta">
+                        {meta.map((label) => <i key={label}>{label}</i>)}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="chatcol-queue-actions">
+                    <button
+                      type="button"
+                      onClick={() => editQueuedRequest(item)}
+                      aria-label={t("chat.queueEdit")}
+                      title={t("chat.queueEdit")}
+                    >
+                      <PencilSimple size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onPrioritizeQueued?.(item.id)}
+                      disabled={!onPrioritizeQueued}
+                      aria-label={t("chat.queuePrioritize")}
+                      title={t("chat.queuePrioritize")}
+                    >
+                      <ArrowUp size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (editingQueuedId === item.id) cancelQueuedEdit();
+                        onRemoveQueued?.(item.id);
+                      }}
+                      disabled={!onRemoveQueued}
+                      aria-label={t("chat.queueDelete")}
+                      title={t("chat.queueDelete")}
+                    >
+                      <Trash size={15} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {queued.length > 4 ? (
+            <span className="chatcol-queue-more">{t("chat.queueMore", { count: queued.length - 4 })}</span>
+          ) : null}
+        </section>
+      ) : null}
 
       {onSend && (
         <div className="chatcol-composer">
           <div className="composer" ref={composerRef} style={{ padding: "10px 12px 8px", borderRadius: 16 }}>
+            {editingQueuedId ? (
+              <div className="chatcol-queue-editing" role="status">
+                <span><PencilSimple size={14} /> {t("chat.queueEditing")}</span>
+                <button type="button" onClick={cancelQueuedEdit}>{t("chat.queueCancelEdit")}</button>
+              </div>
+            ) : null}
             {fileMention && projectId ? (
               <DesignFileMentionPicker
                 files={filteredProjectFiles}
@@ -1176,10 +1377,10 @@ export default function ChatColumn({
                 onRefresh={() => void refreshProjectFiles(true)}
               />
             ) : null}
-            {context && (
+            {activeContext && (
               <div className="composer-context">
-                <SlideAttachment slide={context} compact onSelectSlide={onSelectSlide} />
-                <button type="button" onClick={onClearContext} aria-label={t("chat.removeSlideContext", { index: context.slideIndex })}>×</button>
+                <SlideAttachment slide={activeContext} compact onSelectSlide={onSelectSlide} />
+                <button type="button" onClick={clearComposerContext} aria-label={t("chat.removeSlideContext", { index: activeContext.slideIndex })}>×</button>
               </div>
             )}
             {attachments.length > 0 && (
@@ -1203,10 +1404,12 @@ export default function ChatColumn({
               ref={textareaRef}
               rows={3}
               placeholder={
-                busy
+                editingQueuedId
+                  ? t("chat.queueEditingPlaceholder")
+                  : busy
                   ? t("chat.queuePlaceholder")
-                  : context
-                    ? t("chat.slidePlaceholder", { index: context.slideIndex })
+                  : activeContext
+                    ? t("chat.slidePlaceholder", { index: activeContext.slideIndex })
                     : placeholder ?? t("chat.defaultPlaceholder")
               }
               value={text}
@@ -1284,12 +1487,13 @@ export default function ChatColumn({
               ) : null}
               <span className="spacer" />
               <button
-                className="send-btn"
+                className={`send-btn${editingQueuedId ? " queue-save" : ""}`}
                 disabled={uploading || (!text.trim() && !attachments.length && !referencedFiles.length)}
                 onClick={submit}
-                title={busy ? t("chat.queue") : t("chat.send")}
+                title={editingQueuedId ? t("chat.queueSaveEdit") : busy ? t("chat.queue") : t("chat.send")}
+                aria-label={editingQueuedId ? t("chat.queueSaveEdit") : busy ? t("chat.queue") : t("chat.send")}
               >
-                {busy ? "＋" : "↑"}
+                {editingQueuedId ? <Check size={18} weight="bold" /> : busy ? <Plus size={18} /> : <ArrowUp size={18} />}
               </button>
             </div>
           </div>

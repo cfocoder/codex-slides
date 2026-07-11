@@ -43,6 +43,16 @@ import {
 import type { OutlinePage, ProgressEvent, Project } from "@/lib/types";
 import { normalizeDeckDesignSystem } from "@/lib/designSystem";
 import { outlineSnapshotMessage, styleSnapshotMessage } from "@/lib/chatArtifacts";
+import {
+  createQueuedChatRequest,
+  loadQueuedChatRequests,
+  prioritizeQueuedChatRequest,
+  reorderConversationQueue,
+  saveQueuedChatRequests,
+  snapshotChatRequest,
+  updateQueuedChatRequest,
+  type QueuedChatRequest,
+} from "@/lib/chatQueue";
 import { useChatConversations } from "@/lib/useChatConversations";
 import { buildWorkflowProgress } from "@/lib/workflowProgress";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -248,7 +258,11 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   });
   const chat = conversationState.messages;
   const setChat = conversationState.setMessages;
-  const [queue, setQueue] = useState<ChatRequest[]>([]);
+  const [queue, setQueue] = useState<QueuedChatRequest[]>([]);
+  const queueRef = useRef<QueuedChatRequest[]>([]);
+  const queueStartingRef = useRef<string | null>(null);
+  const [queueDrainTick, setQueueDrainTick] = useState(0);
+  const [editingQueuedRequestId, setEditingQueuedRequestId] = useState<string | null>(null);
   const [chatContext, setChatContext] = useState<SlideChatContext | null>(null);
   const [chatFocusKey, setChatFocusKey] = useState(0);
   const [focusSlideIndex, setFocusSlideIndex] = useState<number | null>(null);
@@ -272,6 +286,10 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   const [retuning, setRetuning] = useState(false);
   const [designSystemProgress, setDesignSystemProgress] = useState(0);
   const designSystemTriggerRef = useRef<HTMLButtonElement>(null);
+
+  const currentConversationQueue = queue.filter(
+    (item) => item.conversationId === conversationState.activeConversationId,
+  );
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -320,26 +338,96 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     setWorkspaceView("files");
   }
 
+  function commitQueue(next: QueuedChatRequest[]) {
+    queueRef.current = next;
+    setQueue(next);
+    saveQueuedChatRequests(projectId, next);
+  }
+
+  function addQueuedRequest(conversationId: string, request: ChatRequest) {
+    commitQueue([...queueRef.current, createQueuedChatRequest(conversationId, request)]);
+  }
+
+  function removeQueuedRequest(id: string) {
+    commitQueue(queueRef.current.filter((item) => item.id !== id));
+    if (editingQueuedRequestId === id) setEditingQueuedRequestId(null);
+  }
+
+  function updateQueuedRequest(id: string, request: ChatRequest) {
+    commitQueue(queueRef.current.map((item) => (
+      item.id === id ? updateQueuedChatRequest(item, request) : item
+    )));
+  }
+
+  function reorderQueuedRequests(orderedIds: string[]) {
+    commitQueue(reorderConversationQueue(
+      queueRef.current,
+      conversationState.activeConversationId,
+      orderedIds,
+    ));
+  }
+
+  function prioritizeQueuedRequest(id: string) {
+    commitQueue(prioritizeQueuedChatRequest(queueRef.current, id));
+    setQueueDrainTick((tick) => tick + 1);
+  }
+
   /** Route a chat turn to the right handler for the current stage. */
-  function runRequest(request: ChatRequest) {
-    if (stage === "outline") handleOutlineChat(request);
-    else handleChat(request);
+  function runRequest(request: ChatRequest): Promise<void> {
+    if (stage === "outline") return handleOutlineChat(request);
+    return handleChat(request);
   }
 
-  /** Queue follow-ups typed while work is in flight; run when idle. */
+  /** Queue follow-ups typed while work is in flight. A pre-existing queue also
+   * wins over a fresh send so a late click can never jump ahead of FIFO order. */
   function enqueueOrRun(request: ChatRequest) {
-    if (busy || running) setQueue((q) => [...q, request]);
-    else runRequest(request);
+    const conversationId = conversationState.activeConversationId;
+    const hasQueuedTurn = queueRef.current.some((item) => item.conversationId === conversationId);
+    if (busy || running || hasQueuedTurn || queueStartingRef.current) {
+      addQueuedRequest(conversationId, request);
+      return;
+    }
+    void runRequest(snapshotChatRequest(request));
   }
 
-  // Drain one queued follow-up whenever the workspace goes idle.
   useEffect(() => {
-    if (busy || running || !queue.length) return;
-    const [next, ...rest] = queue;
-    setQueue(rest);
-    runRequest(next);
+    const restored = loadQueuedChatRequests(projectId);
+    queueRef.current = restored;
+    setQueue(restored);
+    queueStartingRef.current = null;
+    setEditingQueuedRequestId(null);
+  }, [projectId]);
+
+  // Drain exactly one queued follow-up whenever the active conversation goes
+  // idle. The ref is a synchronous launch lock, so React Strict Mode and rapid
+  // state changes cannot start two deck mutations concurrently.
+  useEffect(() => {
+    if (busy || running) {
+      queueStartingRef.current = null;
+      return;
+    }
+    if (queueStartingRef.current) return;
+    const next = queueRef.current.find(
+      (item) => item.conversationId === conversationState.activeConversationId,
+    );
+    if (!next || editingQueuedRequestId === next.id) return;
+    queueStartingRef.current = next.id;
+    commitQueue(queueRef.current.filter((item) => item.id !== next.id));
+    void runRequest(snapshotChatRequest(next));
+    queueMicrotask(() => {
+      if (queueStartingRef.current !== next.id) return;
+      queueStartingRef.current = null;
+      setQueueDrainTick((tick) => tick + 1);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy, running, queue]);
+  }, [
+    busy,
+    running,
+    queue,
+    queueDrainTick,
+    conversationState.activeConversationId,
+    editingQueuedRequestId,
+  ]);
 
   // Persist every conversation (debounced) so switching/reloading never loses a turn.
   useEffect(() => {
@@ -1215,7 +1303,13 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         busy={busy || running}
         onSend={enqueueOrRun}
         status={status}
-        queued={queue}
+        queued={currentConversationQueue}
+        editingQueuedId={editingQueuedRequestId}
+        onEditingQueuedChange={setEditingQueuedRequestId}
+        onUpdateQueued={updateQueuedRequest}
+        onRemoveQueued={removeQueuedRequest}
+        onReorderQueued={reorderQueuedRequests}
+        onPrioritizeQueued={prioritizeQueuedRequest}
         context={chatContext}
         onClearContext={() => setChatContext(null)}
         focusKey={chatFocusKey}
@@ -1227,18 +1321,22 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         activeConversationId={conversationState.activeConversationId}
         onSelectConversation={(id) => {
           if (busy || running) return;
-          setQueue([]);
+          setEditingQueuedRequestId(null);
           setChatContext(null);
           conversationState.selectConversation(id);
         }}
         onCreateConversation={() => {
           if (busy || running) return;
-          setQueue([]);
+          setEditingQueuedRequestId(null);
           setChatContext(null);
           conversationState.createConversation();
         }}
         onRenameConversation={conversationState.renameConversation}
-        onDeleteConversation={conversationState.deleteConversation}
+        onDeleteConversation={(id) => {
+          conversationState.deleteConversation(id);
+          commitQueue(queueRef.current.filter((item) => item.conversationId !== id));
+          setEditingQueuedRequestId(null);
+        }}
         conversationManagementDisabled={busy || running}
         placeholder={
           stage === "outline"
