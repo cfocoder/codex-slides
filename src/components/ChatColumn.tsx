@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowLeft,
   At,
   ArrowsOut,
   Check,
@@ -601,7 +602,7 @@ function StatusCard({ status }: { status: GenStatus }) {
  */
 export default function ChatColumn({
   projectId,
-  label,
+  workspaceTitle,
   messages,
   busy,
   onSend,
@@ -609,6 +610,7 @@ export default function ChatColumn({
   queued = [],
   placeholder,
   homeHref,
+  onHome,
   context = null,
   onClearContext,
   focusKey = 0,
@@ -626,7 +628,8 @@ export default function ChatColumn({
 }: {
   /** Enables @ mentions for the physical files owned by this project. */
   projectId?: string | null;
-  label?: string;
+  /** Project title shown beside the product-level back control. */
+  workspaceTitle?: string;
   messages: ChatMsg[];
   busy: boolean;
   onSend?: (request: ChatRequest) => void | Promise<void>;
@@ -637,6 +640,8 @@ export default function ChatColumn({
   placeholder?: string;
   /** Optional compact product link used when the workspace is a standalone page. */
   homeHref?: string;
+  /** In-page workspaces use this to exit immediately even when already on `/`. */
+  onHome?: () => void;
   /** Slide attached by the per-page Ask AI action. */
   context?: SlideChatContext | null;
   onClearContext?: () => void;
@@ -903,16 +908,33 @@ export default function ChatColumn({
     <aside className={`chatcol${collapsed ? " collapsed" : ""}${collapseSettled ? " collapse-settled" : ""}`}>
       <div className="chatcol-head">
         <div className="chatcol-head-main">
-          {homeHref && (
-            <>
-              <Link className="workspace-home" href={homeHref} aria-label={t("topbar.backProjects")}>
-                <span className="glyph" aria-hidden="true">◈</span>
-                <span>PPT Anything</span>
-              </Link>
-              <span className="workspace-head-sep" aria-hidden="true" />
-            </>
-          )}
-          <span className="chatcol-title">▦ {label ?? t("composer.slides")}</span>
+          {onHome ? (
+            <button
+              type="button"
+              className="workspace-home"
+              onClick={onHome}
+              aria-label={t("topbar.backProjects")}
+              title={t("topbar.backProjects")}
+            >
+              <span className="glyph" aria-hidden="true">
+                <ArrowLeft size={14} weight="bold" />
+              </span>
+            </button>
+          ) : homeHref ? (
+            <Link
+              className="workspace-home"
+              href={homeHref}
+              aria-label={t("topbar.backProjects")}
+              title={t("topbar.backProjects")}
+            >
+              <span className="glyph" aria-hidden="true">
+                <ArrowLeft size={14} weight="bold" />
+              </span>
+            </Link>
+          ) : null}
+          {workspaceTitle ? (
+            <span className="chatcol-project-title" title={workspaceTitle}>{workspaceTitle}</span>
+          ) : null}
         </div>
         <div className="chatcol-head-actions">
           {busy && <span className="chatcol-live">{t("chat.working")}</span>}

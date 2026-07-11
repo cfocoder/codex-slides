@@ -37,7 +37,7 @@ export default function GlobalSettings() {
         aria-controls="global-settings-popover"
         title={t("settings.title")}
       >
-        <GearSix size={18} weight={open ? "fill" : "regular"} />
+        <GearSix size={16} weight={open ? "fill" : "regular"} />
       </button>
       {open && (
         <div id="global-settings-popover" className="global-settings-popover" role="dialog" aria-label={t("settings.title")}>
@@ -65,7 +65,7 @@ export default function GlobalSettings() {
                 onClick={() => setLocale(value)}
               >
                 <span>
-                  <b>{value === "zh-CN" ? "文" : value.slice(0, 2).toUpperCase()}</b>
+                  <b>{value === "zh-CN" ? "文" : value === "ja" ? "日" : value.slice(0, 2).toUpperCase()}</b>
                   <span>{LOCALE_LABEL[value]}</span>
                 </span>
                 {locale === value && <Check size={16} weight="bold" aria-hidden="true" />}

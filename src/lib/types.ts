@@ -152,12 +152,75 @@ export interface SlidePage {
  */
 export type ProjectStatus = "draft" | "rendering" | "ready";
 
+/** Durable position inside the create flow. A project exists from the first
+ * clarification screen onward, so leaving or reloading never discards work. */
+export type ProjectWorkflowStage =
+  | "clarify"
+  | "outlining"
+  | "outline"
+  | "inspire"
+  | "rendering"
+  | "deck";
+
+export interface ProjectWorkflowQuestion {
+  id: string;
+  question: string;
+  type: "single" | "multi" | "text" | "number";
+  options?: Array<{ value: string; label: string }>;
+  placeholder?: string;
+  recommended?: string;
+  field?: "pages" | "aspect" | "language" | "style" | "category" | null;
+}
+
+export interface ClarifyFormState {
+  answers: Record<string, string | string[]>;
+  custom: Record<string, string>;
+  images?: Record<string, string[]>;
+}
+
+export interface ProjectWorkflowState {
+  stage: ProjectWorkflowStage;
+  updatedAt?: number;
+  questions?: ProjectWorkflowQuestion[];
+  clarifyForm?: ClarifyFormState;
+  clarifyAnswerSummary?: string;
+  workspaceMode?: "canvas" | "files";
+  selectedDesignFileId?: string;
+  inspirationSkipped?: boolean;
+}
+
 /** A non-file choice attached to a user turn, displayed like other context. */
 export interface ContextOptionItem {
   id: string;
   kind: "research" | "style" | "setting" | "speed" | "scenario";
   label: string;
   value?: string;
+}
+
+/** JSON-safe mirror of an AgentToolCall (see lib/agentActivity.ts). */
+export interface StoredAgentTool {
+  id: string;
+  name: string;
+  label: string;
+  detail?: string;
+  kind?: "tool" | "read" | "write" | "edit" | "bash" | "todo" | "files" | "search";
+  path?: string;
+  relativePath?: string;
+  command?: string;
+  output?: string;
+  todos?: Array<{ id: string; content: string; status: "pending" | "in_progress" | "complete" | "error" }>;
+  files?: DesignFileReference[];
+  state: "pending" | "running" | "complete" | "error";
+}
+
+/** One task in the project-wide checklist that persists across chat turns. */
+export interface StoredGlobalTodo {
+  id: string;
+  content: string;
+  status: "pending" | "in_progress" | "complete" | "error";
+  group?: string;
+  turnId?: string;
+  ts?: number;
 }
 
 /** A persisted conversation turn (mirrors the client ChatMsg, JSON-safe). */
@@ -188,21 +251,14 @@ export interface StoredChatMessage {
     state: "running" | "complete" | "error";
     title: string;
     notes?: string[];
-    tools: {
-      id: string;
-      name: string;
-      label: string;
-      detail?: string;
-      kind?: "tool" | "read" | "write" | "edit" | "bash" | "todo" | "files" | "search";
-      path?: string;
-      relativePath?: string;
-      command?: string;
-      output?: string;
-      todos?: Array<{ id: string; content: string; status: "pending" | "in_progress" | "complete" | "error" }>;
-      files?: DesignFileReference[];
-      state: "pending" | "running" | "complete" | "error";
-    }[];
+    tools: StoredAgentTool[];
   };
+  /** Interleaved transcript: ordered Markdown text + tool blocks. Newer chat
+   *  turns use this instead of `content` + `process` (kept for legacy turns). */
+  blocks?: Array<
+    | { id: string; type: "text"; text: string }
+    | { id: string; type: "tool"; tool: StoredAgentTool }
+  >;
   inspiration?: {
     query: string;
     coverIds: string[];
@@ -230,6 +286,8 @@ export interface StoredConversation {
   createdAt: number;
   updatedAt: number;
   messages: StoredChatMessage[];
+  /** Project-wide checklist for this conversation, shown pinned above the chat. */
+  todos?: StoredGlobalTodo[];
 }
 
 export interface Project {
@@ -244,6 +302,8 @@ export interface Project {
   materials?: MaterialRecord[];
   researchDoc?: string;
   status?: ProjectStatus;
+  /** Persisted create-flow checkpoint used for full-chain resume. */
+  workflow?: ProjectWorkflowState;
   /** Full conversation history so reopening a project restores the dialogue. */
   chat?: StoredChatMessage[];
   /** Multi-session history. `chat` remains as a backwards-compatible mirror of
@@ -266,9 +326,12 @@ export interface DetectedAgent {
 // ---- SSE progress events streamed by /api/generate, /api/outline, /api/.../render ----
 export type ProgressEvent =
   | { type: "agent"; agent: string; engine: Engine }
+  | { type: "question"; question: ProjectWorkflowQuestion; index: number }
+  | { type: "questions_done"; questions: ProjectWorkflowQuestion[] }
   | { type: "project"; id: string }
   | { type: "research"; phase: "searching" | "synthesizing" | "brief"; detail?: string; markdown?: string }
   | { type: "outline"; outline: OutlinePage[]; title: string }
+  | { type: "outline_page"; page: OutlinePage; index: number }
   | { type: "page_start"; index: number; total: number; title: string }
   | { type: "page_described"; index: number }
   | { type: "page_rendered"; index: number; image: string }

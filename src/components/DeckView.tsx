@@ -122,7 +122,7 @@ function enrichProjectChat(project: Project, messages: ChatMsg[], locale: UiLoca
         title: translate(locale, "designFiles.questionsTitle"),
         subtitle: confirmedLines > 0
           ? translate(locale, "designFiles.questionsConfirmed", { count: confirmedLines })
-          : locale === "zh-CN" ? "已确认 · 打开项目简报" : "Confirmed · Open project brief",
+          : translate(locale, "designFiles.questionsConfirmedOpenBrief"),
       },
     });
   }
@@ -131,15 +131,15 @@ function enrichProjectChat(project: Project, messages: ChatMsg[], locale: UiLoca
     let inspirationIndex = -1;
     for (let index = next.length - 1; index >= 0; index -= 1) {
       const message = next[index];
-      if (message.id?.startsWith("inspire-") || /视觉参考|visual reference|挑一个|pick a style/i.test(message.content)) {
+      if (message.id?.startsWith("inspire-") || /视觉参考|visual reference|ビジュアルリファレンス|挑一个|pick a style|スタイルを選/i.test(message.content)) {
         inspirationIndex = index;
         break;
       }
     }
     const snapshot = styleSnapshotMessage(project.config.template, project.config.requirement);
-    const localizedContent = locale === "zh-CN"
-      ? snapshot.content
-      : `Visual reference confirmed: ${getCommunityTemplate(project.config.template)?.name ?? project.config.template}. You can reopen this selection at any time.`;
+    const localizedContent = translate(locale, "flow.styleConfirmed", {
+      name: getCommunityTemplate(project.config.template)?.name ?? project.config.template,
+    });
     if (inspirationIndex >= 0) {
       next[inspirationIndex] = {
         ...next[inspirationIndex],
@@ -172,14 +172,14 @@ function enrichProjectChat(project: Project, messages: ChatMsg[], locale: UiLoca
       process: {
         state: failed ? "error" : "complete",
         title: failed
-          ? locale === "zh-CN" ? "页面生成完成，部分失败" : "Generation finished with errors"
-          : locale === "zh-CN" ? "页面生成完成" : "Slides generated",
-        notes: [locale === "zh-CN" ? "已恢复并保留这次生成记录。" : "This generation record was restored from the project history."],
+          ? translate(locale, "flow.renderFinishedWithErrors")
+          : translate(locale, "flow.renderFinished"),
+        notes: [translate(locale, "flow.renderRestored")],
         tools: [{
           id: "render",
           name: "render_deck",
-          label: locale === "zh-CN" ? "生成演示页面" : "Render presentation pages",
-          detail: `${rendered} / ${project.pages.length}${failed ? ` · ${failed} failed` : ""}`,
+          label: translate(locale, "flow.renderTool"),
+          detail: `${rendered} / ${project.pages.length}${failed ? ` · ${translate(locale, "flow.failedCount", { count: failed })}` : ""}`,
           state: failed ? "error" : "complete",
         }],
       },
@@ -539,12 +539,12 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       content: startContent,
       process: {
         state: "running",
-        title: locale === "zh-CN" ? "正在生成页面" : "Generating slides",
-        notes: [locale === "zh-CN" ? "大纲与视觉参考已锁定，正在逐页绘制。" : "The outline and visual reference are locked while pages render."],
+        title: t("flow.renderingTitle"),
+        notes: [t("flow.renderingNote")],
         tools: [{
           id: "render",
           name: "render_deck",
-          label: locale === "zh-CN" ? "生成演示页面" : "Render presentation pages",
+          label: t("flow.renderTool"),
           detail: `0 / ${outline.length}`,
           state: "running",
         }],
@@ -564,8 +564,8 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             process: patchAgentTool(current.process!, "render", {
               state: "running",
               detail: ev.type === "page_start"
-                ? `${rendered} / ${outline.length} · ${locale === "zh-CN" ? `正在生成第 ${ev.index} 页` : `Rendering slide ${ev.index}`}`
-                : `${rendered} / ${outline.length}${failed ? ` · ${failed} failed` : ""}`,
+                ? `${rendered} / ${outline.length} · ${t("flow.renderingSlide", { index: ev.index })}`
+                : `${rendered} / ${outline.length}${failed ? ` · ${t("flow.failedCount", { count: failed })}` : ""}`,
             }),
           }));
         }
@@ -574,7 +574,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       updateChatMessage(runId, (current) => ({
         ...current,
         content: `${current.content}\n\n${t("flow.renderDone", { count: rendered })}`,
-        ran: elapsedRunLabel(startedAt),
+        ran: elapsedRunLabel(startedAt, locale),
         suggestions: rendered > 0 ? [
           t("flow.suggestionSummary"),
           t("flow.suggestionBusiness"),
@@ -584,23 +584,21 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         process: {
           ...patchAgentTool(current.process!, "render", {
             state: failed ? "error" : "complete",
-            detail: `${rendered} / ${outline.length}${failed ? ` · ${failed} failed` : ""}`,
+            detail: `${rendered} / ${outline.length}${failed ? ` · ${t("flow.failedCount", { count: failed })}` : ""}`,
           }),
           state: failed ? "error" : "complete",
-          title: failed
-            ? locale === "zh-CN" ? "页面生成完成，部分失败" : "Generation finished with errors"
-            : locale === "zh-CN" ? "页面生成完成" : "Slides generated",
+          title: failed ? t("flow.renderFinishedWithErrors") : t("flow.renderFinished"),
         },
       }));
     } catch (e: any) {
       updateChatMessage(runId, (current) => ({
         ...current,
         content: `${current.content}\n\n⚠ ${e?.message ?? e}`,
-        ran: elapsedRunLabel(startedAt),
+        ran: elapsedRunLabel(startedAt, locale),
         process: {
           ...patchAgentTool(current.process!, "render", { state: "error", detail: String(e?.message ?? e) }),
           state: "error",
-          title: locale === "zh-CN" ? "页面生成中断" : "Slide generation stopped",
+          title: t("flow.renderStopped"),
         },
       }));
     } finally {
@@ -1134,7 +1132,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     <div className="ws project-ws">
       <ChatColumn
         projectId={projectId}
-        label={t("chat.deckAgent")}
+        workspaceTitle={project.title}
         homeHref="/"
         messages={chat}
         busy={busy || running}
@@ -1178,6 +1176,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
           <DesignFiles
             projectId={projectId}
             title={project.title}
+            showProjectTitle={false}
             initialPath={designFilePath}
             selectionRequestKey={designFileOpenKey}
             headerPrefix={workspaceTabs}
@@ -1186,6 +1185,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         ) : stage === "outline" ? (
           <OutlineBoard
             title={project.title}
+            showTitle={false}
             aspect={project.config.aspect}
             outline={outline}
             onChange={onOutlineChange}
@@ -1203,6 +1203,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             projectId={projectId}
             aspect={project.config.aspect}
             title={project.title}
+            showTitle={false}
             slides={slides}
             onSlides={(u) => setSlides(u)}
             busy={busy}

@@ -6,6 +6,7 @@ import { codexJson } from "./codex-text";
 import { CATEGORIES } from "./templates";
 import type { UiLocale } from "@/i18n/messages";
 import { scenarioPromptContext } from "./scenarios";
+import { completeJsonArrayObjects } from "./streamingJson";
 
 export type QuestionType = "single" | "multi" | "text" | "number";
 export type ConfigField = "pages" | "aspect" | "language" | "style" | "category" | null;
@@ -30,7 +31,11 @@ export function buildOnboardPrompt(
   scenarioId?: string,
 ): string {
   const cats = CATEGORIES.map((c) => `${c.id} (${c.labelEn})`).join(", ");
-  const responseLanguage = uiLocale === "zh-CN" ? "Simplified Chinese" : "English";
+  const responseLanguage = uiLocale === "zh-CN"
+    ? "Simplified Chinese"
+    : uiLocale === "ja"
+      ? "Japanese"
+      : "English";
   return [
     "You are an onboarding assistant for an AI slide-deck generator.",
     "Given the user's topic, produce 4-6 SHORT clarifying questions that will make the deck much better.",
@@ -100,7 +105,24 @@ export async function generateOnboardQuestions(
   signal?: AbortSignal,
   uiLocale: UiLocale = "zh-CN",
   scenarioId?: string,
+  onQuestion?: (question: QuestionSpec, index: number) => void,
 ): Promise<QuestionSpec[]> {
-  const raw = await codexJson<any>(buildOnboardPrompt(requirement, uiLocale, scenarioId), { signal });
-  return normalizeQuestions(raw);
+  let emitted = 0;
+  const emitNewQuestions = (text: string) => {
+    const partial = normalizeQuestions(completeJsonArrayObjects(text));
+    while (emitted < partial.length) {
+      onQuestion?.(partial[emitted], emitted);
+      emitted += 1;
+    }
+  };
+  const raw = await codexJson<any>(buildOnboardPrompt(requirement, uiLocale, scenarioId), {
+    signal,
+    onText: emitNewQuestions,
+  });
+  const questions = normalizeQuestions(raw);
+  while (emitted < questions.length) {
+    onQuestion?.(questions[emitted], emitted);
+    emitted += 1;
+  }
+  return questions;
 }

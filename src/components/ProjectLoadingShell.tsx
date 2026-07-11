@@ -15,8 +15,10 @@ export default function ProjectLoadingShell({ title }: ProjectLoadingShellProps)
     <div className="ws project-ws project-route-loading" role="status" aria-live="polite" aria-label={message}>
       <aside className="project-loading-agent" aria-hidden="true">
         <div className="project-loading-head">
-          <span className="project-loading-logo">◇</span>
-          <span className="project-loading-line wide" />
+          <span className="project-loading-logo">←</span>
+          {title
+            ? <span className="project-loading-project-title">{title}</span>
+            : <span className="project-loading-line project-title" />}
           <span className="project-loading-pill" />
         </div>
         <div className="project-loading-feed">
@@ -32,7 +34,7 @@ export default function ProjectLoadingShell({ title }: ProjectLoadingShellProps)
 
       <main className="project-loading-stage" aria-hidden="true">
         <div className="project-loading-stage-head">
-          <span className="project-loading-line title" />
+          <span className="project-loading-tabs" />
           <span className="project-loading-pill count" />
           <span className="project-loading-action" />
           <span className="project-loading-action" />

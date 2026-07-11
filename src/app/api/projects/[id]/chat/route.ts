@@ -3,7 +3,13 @@ import { planChatEdit } from "@/lib/chat";
 import { attachMaterialsToProject, loadProjectInputAttachments } from "@/lib/materials";
 import { loadProjectFileReferences } from "@/lib/projectFiles";
 import { loadProject, saveProject } from "@/lib/store";
-import type { DesignFileReference, StoredChatMessage, StoredConversation } from "@/lib/types";
+import type {
+  DesignFileReference,
+  StoredAgentTool,
+  StoredChatMessage,
+  StoredConversation,
+  StoredGlobalTodo,
+} from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +35,61 @@ function sanitizeDesignFiles(raw: unknown): DesignFileReference[] {
       return true;
     })
     .slice(0, 12);
+}
+
+const TOOL_KINDS = ["tool", "read", "write", "edit", "bash", "todo", "files", "search"];
+const TODO_STATUS = ["pending", "in_progress", "complete", "error"];
+
+function sanitizeTool(tool: any, index: number): StoredAgentTool {
+  return {
+    id: String(tool?.id ?? `tool-${index}`),
+    name: String(tool?.name ?? "tool"),
+    label: String(tool?.label ?? "Tool call"),
+    detail: tool?.detail ? String(tool.detail).slice(0, 4_000) : undefined,
+    kind: TOOL_KINDS.includes(tool?.kind) ? tool.kind : undefined,
+    path: tool?.path ? String(tool.path).slice(0, 2_000) : undefined,
+    relativePath: tool?.relativePath ? String(tool.relativePath).slice(0, 500) : undefined,
+    command: tool?.command ? String(tool.command).slice(0, 8_000) : undefined,
+    output: tool?.output ? String(tool.output).slice(0, 24_000) : undefined,
+    todos: Array.isArray(tool?.todos)
+      ? tool.todos.slice(0, 80).map((todo: any, todoIndex: number) => ({
+          id: String(todo?.id ?? `todo-${todoIndex}`).slice(0, 120),
+          content: String(todo?.content ?? "").slice(0, 1_000),
+          status: TODO_STATUS.includes(todo?.status) ? todo.status : "pending",
+        }))
+      : undefined,
+    files: sanitizeDesignFiles(tool?.files),
+    state: TODO_STATUS.includes(tool?.state) ? tool.state : "complete",
+  };
+}
+
+function sanitizeBlocks(raw: unknown): StoredChatMessage["blocks"] {
+  if (!Array.isArray(raw)) return undefined;
+  const blocks = raw
+    .slice(0, 120)
+    .map((block: any, index: number) => {
+      if (block?.type === "text") {
+        return { id: String(block?.id ?? `text-${index}`), type: "text" as const, text: String(block?.text ?? "").slice(0, 40_000) };
+      }
+      if (block?.type === "tool") {
+        return { id: String(block?.id ?? `tool-${index}`), type: "tool" as const, tool: sanitizeTool(block?.tool, index) };
+      }
+      return null;
+    })
+    .filter(Boolean) as NonNullable<StoredChatMessage["blocks"]>;
+  return blocks.length ? blocks : undefined;
+}
+
+function sanitizeTodos(raw: unknown): StoredGlobalTodo[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.slice(0, 200).map((todo: any, index: number) => ({
+    id: String(todo?.id ?? `todo-${index}`).slice(0, 120),
+    content: String(todo?.content ?? "").slice(0, 1_000),
+    status: TODO_STATUS.includes(todo?.status) ? todo.status : "pending",
+    group: todo?.group ? String(todo.group).slice(0, 200) : undefined,
+    turnId: todo?.turnId ? String(todo.turnId).slice(0, 120) : undefined,
+    ts: finiteNonNegative(todo?.ts),
+  }));
 }
 
 function sanitizeMessages(raw: unknown): StoredChatMessage[] {
@@ -81,35 +142,11 @@ function sanitizeMessages(raw: unknown): StoredChatMessage[] {
             title: String(m.process.title ?? "Agent activity"),
             notes: Array.isArray(m.process.notes) ? m.process.notes.map(String).slice(0, 12) : undefined,
             tools: Array.isArray(m.process.tools)
-              ? m.process.tools.slice(0, 40).map((tool: any, index: number) => ({
-                  id: String(tool?.id ?? `tool-${index}`),
-                  name: String(tool?.name ?? "tool"),
-                  label: String(tool?.label ?? "Tool call"),
-                  detail: tool?.detail ? String(tool.detail).slice(0, 4_000) : undefined,
-                  kind: ["tool", "read", "write", "edit", "bash", "todo", "files", "search"].includes(tool?.kind)
-                    ? tool.kind
-                    : undefined,
-                  path: tool?.path ? String(tool.path).slice(0, 2_000) : undefined,
-                  relativePath: tool?.relativePath ? String(tool.relativePath).slice(0, 500) : undefined,
-                  command: tool?.command ? String(tool.command).slice(0, 8_000) : undefined,
-                  output: tool?.output ? String(tool.output).slice(0, 24_000) : undefined,
-                  todos: Array.isArray(tool?.todos)
-                    ? tool.todos.slice(0, 80).map((todo: any, todoIndex: number) => ({
-                        id: String(todo?.id ?? `todo-${todoIndex}`).slice(0, 120),
-                        content: String(todo?.content ?? "").slice(0, 1_000),
-                        status: ["pending", "in_progress", "complete", "error"].includes(todo?.status)
-                          ? todo.status
-                          : "pending",
-                      }))
-                    : undefined,
-                  files: sanitizeDesignFiles(tool?.files),
-                  state: ["pending", "running", "complete", "error"].includes(tool?.state)
-                    ? tool.state
-                    : "complete",
-                }))
+              ? m.process.tools.slice(0, 40).map((tool: any, index: number) => sanitizeTool(tool, index))
               : [],
           }
         : undefined,
+      blocks: sanitizeBlocks(m.blocks),
       inspiration: m.inspiration && typeof m.inspiration === "object"
         ? {
             query: String(m.inspiration.query ?? ""),
@@ -149,6 +186,7 @@ function sanitizeConversations(raw: unknown): StoredConversation[] {
         createdAt,
         updatedAt: finiteNonNegative(conversation.updatedAt) ?? createdAt,
         messages: sanitizeMessages(conversation.messages),
+        todos: sanitizeTodos(conversation.todos),
       };
     });
 }

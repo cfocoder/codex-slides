@@ -366,7 +366,7 @@ register(
     inputSchema: {
       topic: z.string().min(1),
       scenarioId: z.string().optional().describe("Scenario id from list_scenarios."),
-      uiLocale: z.enum(["zh-CN", "en"]).optional(),
+      uiLocale: z.enum(["zh-CN", "en", "ja"]).optional(),
     },
     annotations: { readOnlyHint: true, openWorldHint: true },
   },
@@ -702,7 +702,7 @@ register(
       group: z.enum(["create", "transform", "data", "research", "optimize", "delivery"]).optional(),
       query: z.string().optional(),
       featured: z.boolean().optional(),
-      locale: z.enum(["zh-CN", "en"]).optional(),
+      locale: z.enum(["zh-CN", "en", "ja"]).optional(),
       scenarioId: z.string().optional().describe("Preselect this scenario in the returned Browser link."),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },

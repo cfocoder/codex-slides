@@ -17,6 +17,7 @@ export default function OutlineBoard({
   onConfirm,
   busy = false,
   streaming = false,
+  showTitle = true,
   researchDoc,
   headerPrefix,
   headerExtra,
@@ -30,6 +31,8 @@ export default function OutlineBoard({
   busy?: boolean;
   /** true while the outline is still being written by the agent. */
   streaming?: boolean;
+  /** The shared workspace header can own the project title instead. */
+  showTitle?: boolean;
   researchDoc?: string;
   headerPrefix?: ReactNode;
   headerExtra?: ReactNode;
@@ -67,9 +70,10 @@ export default function OutlineBoard({
 
   return (
     <section className="stage outline-stage">
-      <div className="stage-head">
+      <div className={`stage-head${showTitle ? "" : " without-title"}`}>
         {headerPrefix}
-        <span className="title">{title || t("outline.draft")}</span>
+        {showTitle ? <span className="title">{title || t("outline.draft")}</span> : null}
+        {!showTitle && title ? <span className="stage-collapsed-title" title={title}>{title}</span> : null}
         <span className="count">{t("outline.pageCount", { count, aspect })}</span>
         <div className="stage-actions">
           {headerExtra}

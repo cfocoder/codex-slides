@@ -98,6 +98,7 @@ export default function SlideStage({
   busy,
   setBusy,
   streaming = false,
+  showTitle = true,
   headerPrefix,
   headerExtra,
   onAskSlide,
@@ -113,6 +114,8 @@ export default function SlideStage({
   busy: boolean;
   setBusy: (b: boolean) => void;
   streaming?: boolean;
+  /** The shared workspace header can own the project title instead. */
+  showTitle?: boolean;
   headerPrefix?: React.ReactNode;
   headerExtra?: React.ReactNode;
   /** Attach a page to the deck-agent conversation for a scoped follow-up. */
@@ -456,9 +459,10 @@ export default function SlideStage({
 
   return (
     <section className="stage" ref={stageRef}>
-      <div className="stage-head">
+      <div className={`stage-head${showTitle ? "" : " without-title"}`}>
         {headerPrefix}
-        <span className="title">{title || t("slide.untitled")}</span>
+        {showTitle ? <span className="title">{title || t("slide.untitled")}</span> : null}
+        {!showTitle && title ? <span className="stage-collapsed-title" title={title}>{title}</span> : null}
         <span className="count">
           {currentPosition >= 0 ? currentPosition + 1 : 0}/{slides.length || "…"} · {aspect}
         </span>

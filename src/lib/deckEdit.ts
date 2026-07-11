@@ -3,7 +3,15 @@
 
 import type { ContextItem } from "@/lib/contextItems";
 import type { AgentToolCall } from "@/lib/agentActivity";
-import type { DesignFileReference, OutlinePage, PptConfig, ProgressEvent, SlideTransition } from "@/lib/types";
+import type {
+  DesignFileReference,
+  OutlinePage,
+  PptConfig,
+  ProgressEvent,
+  Project,
+  ProjectWorkflowState,
+  SlideTransition,
+} from "@/lib/types";
 
 export interface UiSlide {
   index: number;
@@ -98,13 +106,82 @@ export async function readSSE(
 export async function streamOutline(
   config: PptConfig,
   onEvent: (ev: ProgressEvent) => void,
+  projectId?: string | null,
 ): Promise<void> {
   const resp = await fetch("/api/outline", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(config),
+    body: JSON.stringify({ ...config, projectId: projectId || undefined }),
   });
   await readSSE(resp, onEvent);
+}
+
+/** Create the project before clarification so every later step has a durable id. */
+export async function createProjectCheckpoint(config: PptConfig): Promise<Project> {
+  const response = await fetch("/api/projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ config }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data as Project;
+}
+
+const CHECKPOINT_CACHE_PREFIX = "ppt-anything:project-checkpoint:v1:";
+
+export function readProjectCheckpointCache(projectId: string): {
+  config?: PptConfig;
+  title?: string;
+  researchDoc?: string;
+  workflow?: Partial<ProjectWorkflowState>;
+} | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return JSON.parse(window.localStorage.getItem(`${CHECKPOINT_CACHE_PREFIX}${projectId}`) ?? "null");
+  } catch {
+    return null;
+  }
+}
+
+/** Best-effort workflow checkpoint. Project files and generation state remain
+ * server-owned; this stores the client-only position and clarification form. */
+export async function saveProjectCheckpoint(
+  projectId: string,
+  patch: {
+    config?: PptConfig;
+    title?: string;
+    researchDoc?: string;
+    workflow?: Partial<ProjectWorkflowState>;
+  },
+): Promise<void> {
+  const workflow = patch.workflow
+    ? { ...patch.workflow, updatedAt: Date.now() }
+    : undefined;
+  const cachedPatch = { ...patch, workflow };
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.setItem(
+        `${CHECKPOINT_CACHE_PREFIX}${projectId}`,
+        JSON.stringify(cachedPatch),
+      );
+    } catch {
+      // The project JSON remains canonical when local storage is unavailable.
+    }
+  }
+  const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...cachedPatch,
+      materialIds: patch.config?.materialIds,
+    }),
+    keepalive: true,
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `HTTP ${response.status}`);
+  }
 }
 
 /** Step 5: render the confirmed draft's slides, one image per slide. */

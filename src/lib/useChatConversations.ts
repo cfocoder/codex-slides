@@ -178,6 +178,19 @@ export function useChatConversations({
     setActiveConversationId(next.id);
   }, [initialTitle]);
 
+  const restoreConversations = useCallback((
+    stored: StoredConversation[] | undefined,
+    requestedActiveId: string | undefined,
+    fallbackMessages: ChatMsg[] = [],
+    fallbackTitle = initialTitle,
+  ) => {
+    const next = buildSeed(stored, requestedActiveId, fallbackMessages, fallbackTitle);
+    seedRef.current = next;
+    setConversations(next.conversations);
+    activeConversationIdRef.current = next.activeConversationId;
+    setActiveConversationId(next.activeConversationId);
+  }, [initialTitle]);
+
   const summaries = useMemo<ConversationSummary[]>(() => conversations.map((conversation) => ({
     id: conversation.id,
     title: conversation.title,
@@ -196,5 +209,6 @@ export function useChatConversations({
     renameConversation,
     deleteConversation,
     resetConversations,
+    restoreConversations,
   };
 }

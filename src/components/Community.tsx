@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { COMMUNITY_GROUPS, COMMUNITY_TEMPLATES } from "@/lib/community";
-import { CATEGORIES, getTemplate } from "@/lib/templates";
+import { CATEGORIES, categoryLabel, getTemplate } from "@/lib/templates";
 import { useI18n } from "@/i18n/I18nProvider";
 import { COMMUNITY_GROUP_KEYS } from "@/i18n/community";
 
@@ -98,7 +98,7 @@ export default function Community({
   const itemSub = (item: GalleryItem) => {
     if (!item.categoryId) return groupLabel(item.sub);
     const category = CATEGORIES.find((candidate) => candidate.id === item.categoryId);
-    return category ? (locale === "zh-CN" ? category.labelZh : category.labelEn) : item.sub;
+    return category ? categoryLabel(category, locale) : item.sub;
   };
 
   return (

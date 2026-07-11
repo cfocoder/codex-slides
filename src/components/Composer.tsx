@@ -39,13 +39,19 @@ const QUALITY_KEYS = {
   medium: "composer.medium",
   low: "composer.low",
 } as const;
-const ASPECTS: { label: string; value: PptConfig["aspect"]; w: number; h: number }[] = [
-  { label: "16:9", value: "16:9", w: 22, h: 13 },
-  { label: "9:16", value: "9:16", w: 12, h: 20 },
-  { label: "4:3", value: "4:3", w: 20, h: 15 },
-  { label: "3:4", value: "3:4", w: 15, h: 20 },
-  { label: "1:1", value: "1:1", w: 17, h: 17 },
-];
+const QUALITY_TOOLTIP_KEYS = {
+  auto: "composer.qualityTip.auto",
+  high: "composer.qualityTip.high",
+  medium: "composer.qualityTip.medium",
+  low: "composer.qualityTip.low",
+} as const;
+const ASPECTS = [
+  { label: "16:9", value: "16:9", w: 22, h: 13, tip: "composer.aspectTip.16x9" },
+  { label: "9:16", value: "9:16", w: 12, h: 20, tip: "composer.aspectTip.9x16" },
+  { label: "4:3", value: "4:3", w: 20, h: 15, tip: "composer.aspectTip.4x3" },
+  { label: "3:4", value: "3:4", w: 15, h: 20, tip: "composer.aspectTip.3x4" },
+  { label: "1:1", value: "1:1", w: 17, h: 17, tip: "composer.aspectTip.1x1" },
+] as const;
 
 function useOutside(ref: React.RefObject<HTMLElement>, close: () => void, active: boolean) {
   useEffect(() => {
@@ -128,6 +134,8 @@ export default function Composer({
   const engine = engines.find((e) => e.engine === config.engine);
   const modelLabel = engine ? engine.label.replace(/\s*\(.*\)$/, "") : "Codex";
   const qualityLabel = t(QUALITY_KEYS[quality]);
+  const qualityResolution = QUALITY.find((item) => item.id === quality)?.res ?? "2K";
+  const qualitySummary = `${qualityLabel} ${qualityResolution}`;
   const aspectLabel = aspectSel === "auto" ? t("composer.auto") : aspectSel;
 
   useEffect(() => setSlotAssignments({}), [scenario?.id]);
@@ -188,7 +196,7 @@ export default function Composer({
       ? [{ id: "style", kind: "style" as const, label: t("composer.design"), value: styleTemplate.name }]
       : []),
     ...(quality !== "auto"
-      ? [{ id: "quality", kind: "setting" as const, label: t("composer.quality"), value: qualityLabel }]
+      ? [{ id: "quality", kind: "setting" as const, label: t("composer.quality"), value: qualitySummary }]
       : []),
     ...(aspectSel !== "auto"
       ? [{ id: "aspect", kind: "setting" as const, label: t("composer.aspect"), value: aspectSel }]
@@ -422,10 +430,10 @@ export default function Composer({
         {/* settings: quality · aspect */}
         <div ref={setRef} style={{ position: "relative" }}>
           <button className="cbtn" onClick={() => setMenu(menu === "settings" ? null : "settings")}>
-            {qualityLabel} · {aspectLabel} <span className="caret">▾</span>
+            {qualitySummary} · {aspectLabel} <span className="caret">▾</span>
           </button>
           {menu === "settings" && (
-            <div className="pop up" style={{ minWidth: 288, padding: 14 }}>
+            <div className="pop up composer-settings-pop" style={{ minWidth: 360, padding: 14 }}>
               <div className="pop-section" style={{ padding: "0 0 8px" }}>
                 {t("composer.quality")}
               </div>
@@ -433,13 +441,16 @@ export default function Composer({
                 {QUALITY.map((q) => (
                   <button
                     key={q.id}
-                    className={quality === q.id ? "on" : ""}
+                    className={`setting-option-tooltip quality-option${quality === q.id ? " on" : ""}`}
+                    data-tooltip={t(QUALITY_TOOLTIP_KEYS[q.id])}
+                    aria-label={`${t(QUALITY_KEYS[q.id])} ${q.res}. ${t(QUALITY_TOOLTIP_KEYS[q.id])}`}
                     onClick={() => {
                       setQuality(q.id);
                       setConfig({ resolution: q.res });
                     }}
                   >
-                    {t(QUALITY_KEYS[q.id])}
+                    <span>{t(QUALITY_KEYS[q.id])}</span>
+                    <small>{q.res}</small>
                   </button>
                 ))}
               </div>
@@ -448,7 +459,9 @@ export default function Composer({
               </div>
               <div className="aspect-grid">
                 <button
-                  className={`aspect-cell ${aspectSel === "auto" ? "on" : ""}`}
+                  className={`aspect-cell setting-option-tooltip ${aspectSel === "auto" ? "on" : ""}`}
+                  data-tooltip={t("composer.aspectTip.auto")}
+                  aria-label={`${t("composer.auto")}. ${t("composer.aspectTip.auto")}`}
                   onClick={() => {
                     setAspectSel("auto");
                     setConfig({ aspect: "16:9" });
@@ -460,7 +473,9 @@ export default function Composer({
                 {ASPECTS.map((a) => (
                   <button
                     key={a.value}
-                    className={`aspect-cell ${aspectSel === a.value ? "on" : ""}`}
+                    className={`aspect-cell setting-option-tooltip ${aspectSel === a.value ? "on" : ""}`}
+                    data-tooltip={t(a.tip)}
+                    aria-label={`${a.label}. ${t(a.tip)}`}
                     onClick={() => {
                       setAspectSel(a.value);
                       setConfig({ aspect: a.value });

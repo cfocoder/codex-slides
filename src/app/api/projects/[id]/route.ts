@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { coerceConfig } from "@/lib/config";
 import { normalizeDeckDesignSystem } from "@/lib/designSystem";
 import { attachMaterialsToProject } from "@/lib/materials";
 import { loadProject, saveProject } from "@/lib/store";
@@ -9,6 +10,31 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const project = loadProject(params.id);
   if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  if (body.config && typeof body.config === "object") {
+    project.config = coerceConfig({ ...project.config, ...body.config });
+  }
+  if (typeof body.title === "string" && body.title.trim()) project.title = body.title.trim().slice(0, 120);
+  if (typeof body.researchDoc === "string") {
+    project.researchDoc = body.researchDoc || undefined;
+    project.config.researchDoc = body.researchDoc || undefined;
+  }
+
+  const workflowStages = new Set(["clarify", "outlining", "outline", "inspire", "rendering", "deck"]);
+  if (body.workflow && typeof body.workflow === "object") {
+    const next = body.workflow;
+    project.workflow = {
+      ...(project.workflow ?? { stage: "outline" as const }),
+      ...(workflowStages.has(next.stage) ? { stage: next.stage } : {}),
+      ...(typeof next.updatedAt === "number" && Number.isFinite(next.updatedAt) ? { updatedAt: next.updatedAt } : {}),
+      ...(Array.isArray(next.questions) ? { questions: next.questions.slice(0, 12) } : {}),
+      ...(next.clarifyForm && typeof next.clarifyForm === "object" ? { clarifyForm: next.clarifyForm } : {}),
+      ...(typeof next.clarifyAnswerSummary === "string" ? { clarifyAnswerSummary: next.clarifyAnswerSummary } : {}),
+      ...(next.workspaceMode === "canvas" || next.workspaceMode === "files" ? { workspaceMode: next.workspaceMode } : {}),
+      ...(typeof next.selectedDesignFileId === "string" ? { selectedDesignFileId: next.selectedDesignFileId } : {}),
+      ...(typeof next.inspirationSkipped === "boolean" ? { inspirationSkipped: next.inspirationSkipped } : {}),
+    };
+  }
   return NextResponse.json(project);
 }
 
@@ -22,8 +48,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (typeof body.template !== "undefined") project.config.template = body.template || undefined;
   if (typeof body.style === "string") project.config.style = body.style;
 
-  const requestedMaterialIds: string[] = Array.isArray(body.materialIds)
-    ? Array.from(new Set<string>(body.materialIds.map((id: unknown) => String(id)))).slice(0, 16)
+  const materialIdsInput = Array.isArray(body.materialIds)
+    ? body.materialIds
+    : Array.isArray(body.config?.materialIds)
+      ? body.config.materialIds
+      : [];
+  const requestedMaterialIds: string[] = Array.isArray(materialIdsInput)
+    ? Array.from(new Set<string>(materialIdsInput.map((id: unknown) => String(id)))).slice(0, 16)
     : [];
   if (requestedMaterialIds.length) {
     const existingIds = new Set((project.materials ?? []).map((item) => item.id));
@@ -33,10 +64,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     );
     if (records.length) project.materials = [...(project.materials ?? []), ...records];
     const availableIds = new Set((project.materials ?? []).map((item) => item.id));
-    project.config.materialIds = Array.from(new Set([
-      ...(project.config.materialIds ?? []),
-      ...requestedMaterialIds.filter((id) => availableIds.has(id)),
-    ]));
+    project.config.materialIds = Array.from(availableIds);
   }
 
   if (body.designSystem === null) {

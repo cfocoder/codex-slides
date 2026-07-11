@@ -31,6 +31,37 @@ export interface AgentProcess {
   tools: AgentToolCall[];
 }
 
+/**
+ * An assistant turn can be an ordered mix of Markdown prose and tool calls so
+ * the chat reads like a real agent transcript (text → tool → text → tool)
+ * instead of one monolithic activity card.
+ */
+export interface MessageTextBlock {
+  id: string;
+  type: "text";
+  /** GitHub-flavored Markdown. */
+  text: string;
+}
+export interface MessageToolBlock {
+  id: string;
+  type: "tool";
+  tool: AgentToolCall;
+}
+export type MessageBlock = MessageTextBlock | MessageToolBlock;
+
+/** A task in the project-wide (cross-turn) checklist shown pinned above the chat. */
+export type GlobalTodoStatus = "pending" | "in_progress" | "complete" | "error";
+export interface GlobalTodoItem {
+  id: string;
+  content: string;
+  status: GlobalTodoStatus;
+  /** Label of the request that spawned this task, so the panel can group tasks. */
+  group?: string;
+  /** Id of the assistant turn that owns this task. */
+  turnId?: string;
+  ts?: number;
+}
+
 export function createAgentRunId(prefix = "run") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -73,4 +104,36 @@ export function stopRunningTools(process: AgentProcess, detail?: string): AgentP
         : tool,
     ),
   };
+}
+
+// ---- interleaved message blocks --------------------------------------------
+
+/** Append a block, or replace an existing block with the same id (idempotent). */
+export function upsertBlock(blocks: MessageBlock[] | undefined, block: MessageBlock): MessageBlock[] {
+  const list = blocks ?? [];
+  return list.some((item) => item.id === block.id)
+    ? list.map((item) => (item.id === block.id ? block : item))
+    : [...list, block];
+}
+
+/** Patch the tool carried by a tool block. */
+export function patchBlockTool(
+  blocks: MessageBlock[] | undefined,
+  id: string,
+  patch: Partial<Omit<AgentToolCall, "id">>,
+): MessageBlock[] {
+  return (blocks ?? []).map((block) =>
+    block.type === "tool" && block.id === id
+      ? { ...block, tool: { ...block.tool, ...patch } }
+      : block,
+  );
+}
+
+/** Settle any still-running tool block (used when a turn errors out). */
+export function stopRunningBlocks(blocks: MessageBlock[] | undefined, detail?: string): MessageBlock[] {
+  return (blocks ?? []).map((block) =>
+    block.type === "tool" && (block.tool.state === "running" || block.tool.state === "pending")
+      ? { ...block, tool: { ...block.tool, state: "error" as const, detail: detail ?? block.tool.detail } }
+      : block,
+  );
 }

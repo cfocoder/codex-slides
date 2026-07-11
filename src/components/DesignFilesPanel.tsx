@@ -9,7 +9,7 @@ import {
 import type { ReactNode } from "react";
 import { getCommunityTemplate } from "@/lib/community";
 import type { DesignFile } from "@/lib/designFiles";
-import { CATEGORIES, getTemplate } from "@/lib/templates";
+import { CATEGORIES, categoryLabel, getTemplate } from "@/lib/templates";
 import { useI18n } from "@/i18n/I18nProvider";
 import { COMMUNITY_GROUP_KEYS } from "@/i18n/community";
 
@@ -113,7 +113,7 @@ function InspirationPreview({ file }: { file: Extract<DesignFile, { kind: "inspi
         </div>
         <span>{(() => {
           const category = CATEGORIES.find((item) => item.id === curated.categoryId);
-          return category ? (locale === "zh-CN" ? category.labelZh : category.labelEn) : curated.categoryId;
+          return category ? categoryLabel(category, locale) : curated.categoryId;
         })()}</span>
         <h2>{curated.name}</h2>
         <p>{curated.description}</p>

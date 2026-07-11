@@ -12,6 +12,8 @@ export interface CodexTextOptions {
   system?: string;
   signal?: AbortSignal;
   attachments?: CodexInputAttachment[];
+  /** Receives the growing assistant text as Responses API deltas arrive. */
+  onText?: (text: string) => void;
 }
 
 export interface CodexInputAttachment {
@@ -61,9 +63,15 @@ export async function codexText(
 
   let text = "";
   let completedText = "";
+  let streamedText = "";
   for await (const ev of sseEvents(resp)) {
+    if (ev.type === "response.output_text.delta" && typeof ev.delta === "string") {
+      streamedText += ev.delta;
+      opts.onText?.(streamedText);
+    }
     if (ev.type === "response.output_text.done" && typeof ev.text === "string") {
       text = ev.text;
+      if (!streamedText || streamedText !== text) opts.onText?.(text);
     }
     if (ev.type === "response.completed" && ev.response?.output) {
       for (const item of ev.response.output) {

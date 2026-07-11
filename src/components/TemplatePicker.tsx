@@ -5,6 +5,7 @@ import { CaretDown, Check, MagnifyingGlass, Palette } from "@phosphor-icons/reac
 import {
   CATEGORIES,
   TEMPLATES,
+  categoryLabel as localizedCategoryLabel,
   getTemplate,
   templatesByCategory,
   type DeckCategory,
@@ -14,7 +15,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 
 function matchesSearch(template: DeckTemplate, category: DeckCategory, query: string) {
   if (!query) return true;
-  return [template.name, template.description, template.font, category.labelZh, category.labelEn]
+  return [template.name, template.description, template.font, category.labelZh, category.labelEn, category.labelJa]
     .join(" ")
     .toLocaleLowerCase()
     .includes(query);
@@ -37,7 +38,7 @@ export default function TemplatePicker({
   const selectedCategory = CATEGORIES.find((category) => category.id === selected?.categoryId);
   const query = search.trim().toLocaleLowerCase();
   const categoryLabel = (category?: DeckCategory) => category
-    ? (locale === "zh-CN" ? category.labelZh : category.labelEn)
+    ? localizedCategoryLabel(category, locale)
     : t("template.presetShort");
   const densityLabel = (density: DeckTemplate["density"]) => t(
     density === "low" ? "template.densityLow" : density === "high" ? "template.densityHigh" : "template.densityMedium",
@@ -144,7 +145,7 @@ export default function TemplatePicker({
               <section className="style-group" key={category.id} aria-label={categoryLabel(category)}>
                 <div className="style-group-label">
                   <span>{categoryLabel(category)}</span>
-                  <span>{locale === "zh-CN" ? category.labelEn : category.labelZh}</span>
+                  <span>{locale === "zh-CN" ? category.labelEn : locale === "ja" ? category.labelEn : category.labelZh}</span>
                 </div>
                 {templates.map((template) => {
                   const active = template.id === value;

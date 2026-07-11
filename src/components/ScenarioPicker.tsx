@@ -114,10 +114,13 @@ export default function ScenarioPicker({
       const haystack = [
         scenario.name["zh-CN"],
         scenario.name.en,
+        scenario.name.ja,
         scenario.description["zh-CN"],
         scenario.description.en,
+        scenario.description.ja,
         scenario.output["zh-CN"],
         scenario.output.en,
+        scenario.output.ja,
         ...scenario.keywords,
       ].join(" ").toLocaleLowerCase();
       return haystack.includes(normalized);

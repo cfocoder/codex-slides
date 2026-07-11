@@ -15,6 +15,9 @@ export const maxDuration = 600;
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const config = coerceConfig(body);
+  const projectId = typeof body.projectId === "string" && body.projectId.trim()
+    ? body.projectId.trim()
+    : undefined;
   if (!config.requirement) {
     return new Response(JSON.stringify({ error: "requirement is required" }), {
       status: 400,
@@ -50,7 +53,7 @@ export async function POST(req: Request) {
           if (doc.trim()) config.researchDoc = doc;
         }
         // 2b — write the outline and save the draft project.
-        await planOutline(config, send, { signal: abort.signal });
+        await planOutline(config, send, { signal: abort.signal, projectId });
       } catch (e: any) {
         send({ type: "error", error: String(e?.message ?? e) });
       } finally {

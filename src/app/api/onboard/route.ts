@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
 import { generateOnboardQuestions } from "@/lib/onboard";
 import { isUiLocale } from "@/i18n/messages";
+import type { ProgressEvent } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,12 +12,46 @@ export async function POST(req: Request) {
   const uiLocale = isUiLocale(body?.uiLocale) ? body.uiLocale : "zh-CN";
   const scenarioId = String(body?.scenarioId ?? "");
   if (!requirement) {
-    return NextResponse.json({ error: "requirement is required" }, { status: 400 });
+    return new Response(JSON.stringify({ error: "requirement is required" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
   }
-  try {
-    const questions = await generateOnboardQuestions(requirement, undefined, uiLocale, scenarioId);
-    return NextResponse.json({ questions });
-  } catch (e: any) {
-    return NextResponse.json({ error: String(e?.message ?? e) }, { status: 500 });
-  }
+
+  const encoder = new TextEncoder();
+  const abort = new AbortController();
+  req.signal?.addEventListener("abort", () => abort.abort());
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: ProgressEvent) => {
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        } catch {
+          // The browser left the workflow while generation was still running.
+        }
+      };
+      try {
+        const questions = await generateOnboardQuestions(
+          requirement,
+          abort.signal,
+          uiLocale,
+          scenarioId,
+          (question, index) => send({ type: "question", question, index }),
+        );
+        send({ type: "questions_done", questions });
+      } catch (e: any) {
+        send({ type: "error", error: String(e?.message ?? e) });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
 }

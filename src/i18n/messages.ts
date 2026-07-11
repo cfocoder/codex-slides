@@ -1,4 +1,5 @@
 import { en } from "./locales/en";
+import { ja } from "./locales/ja";
 import { zhCN } from "./locales/zh-CN";
 import { LOCALES, type Dict, type Locale, type MessageKey, type MessageValues, type UiLocale } from "./types";
 
@@ -12,6 +13,7 @@ export const UI_LOCALE_STORAGE_KEY = "ppt-anything-ui-locale";
 export const DICTS: Record<Locale, Dict> = {
   en,
   "zh-CN": zhCN,
+  ja,
 };
 
 export function isUiLocale(value: unknown): value is UiLocale {

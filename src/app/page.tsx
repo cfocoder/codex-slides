@@ -15,6 +15,7 @@ import TopBar from "@/components/TopBar";
 import WorkspaceModeTabs from "@/components/WorkspaceModeTabs";
 import {
   addProjectSlide,
+  createProjectCheckpoint,
   deriveStatus,
   fileUrl,
   generateSingleSlide,
@@ -24,6 +25,7 @@ import {
   reviseOutlineChat,
   saveConversations,
   saveOutline,
+  saveProjectCheckpoint,
   streamOutline,
   streamRender,
   type ChatRequest,
@@ -48,10 +50,12 @@ import {
 } from "@/lib/community";
 import {
   DEFAULT_CONFIG,
+  type ClarifyFormState,
   type ContextOptionItem,
   type OutlinePage,
   type PptConfig,
   type ProgressEvent,
+  type Project,
 } from "@/lib/types";
 import {
   createAgentRunId,
@@ -76,12 +80,21 @@ interface EngineInfo {
 type Phase = "idle" | "work";
 type Stage = "clarify" | "outline" | "inspire" | "deck";
 
+function checkpointMaterials(project: Project): ContextItem[] {
+  return (project.materials ?? []).map((material) => ({
+    id: material.id,
+    name: material.name,
+    url: `/api/projects/${encodeURIComponent(project.id)}/materials/${encodeURIComponent(material.file)}`,
+    kind: material.kind === "file" ? "file" : "image",
+    mimeType: material.mimeType ?? (material.kind === "image" ? "image/png" : "application/octet-stream"),
+    size: material.size ?? 0,
+  }));
+}
+
 export default function Home() {
   const { locale, t } = useI18n();
   const [config, setConfig] = useState<PptConfig>({ ...DEFAULT_CONFIG, requirement: "" });
   const [engines, setEngines] = useState<EngineInfo[]>([]);
-  const [codexReady, setCodexReady] = useState<boolean | null>(null);
-  const [agentLabel, setAgentLabel] = useState<string>("");
 
   const [materials, setMaterials] = useState<ContextItem[]>([]);
   const [researchMode, setResearchMode] = useState(false);
@@ -91,6 +104,7 @@ export default function Home() {
   const [questions, setQuestions] = useState<QuestionSpec[]>([]);
   const [clarifyBusy, setClarifyBusy] = useState(false);
   const [clarifyAnswerSummary, setClarifyAnswerSummary] = useState("");
+  const [clarifyFormState, setClarifyFormState] = useState<ClarifyFormState | undefined>();
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("canvas");
   const [selectedDesignFileId, setSelectedDesignFileId] = useState<string>("questions");
 
@@ -118,18 +132,17 @@ export default function Home() {
   const [inspirationSkipped, setInspirationSkipped] = useState(false);
   const [scenarioOpenRequestKey, setScenarioOpenRequestKey] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const checkpointTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resumeAttempted = useRef(false);
   const markRunRef = useRef<{ id: string; startedAt: number; slideIndex: number } | null>(null);
 
   useEffect(() => {
     fetch("/api/agents")
       .then((r) => r.json())
       .then((d) => {
-        setCodexReady(!!d.codexReady);
         setEngines(d.engines ?? []);
-        const found = (d.agents ?? []).filter((a: any) => a.available).map((a: any) => a.label);
-        setAgentLabel(found.length ? `local agents: ${found.join(", ")}` : "no local agent CLI");
       })
-      .catch(() => setCodexReady(false));
+      .catch(() => setEngines([]));
   }, []);
 
   const patchConfig = (patch: Partial<PptConfig>) => setConfig((c) => ({ ...c, ...patch }));
@@ -308,9 +321,6 @@ export default function Home() {
 
   function handleOutlineEvent(ev: ProgressEvent) {
     switch (ev.type) {
-      case "agent":
-        setAgentLabel(`using ${ev.agent}`);
-        break;
       case "research":
         if (ev.phase === "searching") setResearchNote(t("flow.searching", { detail: ev.detail ?? "" }));
         else if (ev.phase === "synthesizing") setResearchNote(t("flow.synthesizing", { detail: ev.detail ?? "" }));
@@ -461,12 +471,12 @@ export default function Home() {
       content: startContent,
       process: {
         state: "running",
-        title: locale === "zh-CN" ? "正在生成页面" : "Generating slides",
-        notes: [locale === "zh-CN" ? "大纲与视觉参考已锁定，正在逐页绘制。" : "The outline and visual reference are locked while pages render."],
+        title: t("flow.renderingTitle"),
+        notes: [t("flow.renderingNote")],
         tools: [{
           id: "render",
           name: "render_deck",
-          label: locale === "zh-CN" ? "生成演示页面" : "Render presentation pages",
+          label: t("flow.renderTool"),
           detail: `0 / ${outline.length}`,
           state: "running",
         }],
@@ -486,8 +496,8 @@ export default function Home() {
             process: patchAgentTool(current.process!, "render", {
               state: "running",
               detail: ev.type === "page_start"
-                ? `${rendered} / ${outline.length} · ${locale === "zh-CN" ? `正在生成第 ${ev.index} 页` : `Rendering slide ${ev.index}`}`
-                : `${rendered} / ${outline.length}${failed ? ` · ${failed} failed` : ""}`,
+                ? `${rendered} / ${outline.length} · ${t("flow.renderingSlide", { index: ev.index })}`
+                : `${rendered} / ${outline.length}${failed ? ` · ${t("flow.failedCount", { count: failed })}` : ""}`,
             }),
           }));
         }
@@ -496,7 +506,7 @@ export default function Home() {
       updateChatMessage(runId, (current) => ({
         ...current,
         content: `${current.content}\n\n${t("flow.renderDone", { count: rendered })}`,
-        ran: elapsedRunLabel(startedAt),
+        ran: elapsedRunLabel(startedAt, locale),
         suggestions: rendered > 0 ? [
           t("flow.suggestionSummary"),
           t("flow.suggestionBusiness"),
@@ -506,23 +516,21 @@ export default function Home() {
         process: {
           ...patchAgentTool(current.process!, "render", {
             state: failed ? "error" : "complete",
-            detail: `${rendered} / ${outline.length}${failed ? ` · ${failed} failed` : ""}`,
+            detail: `${rendered} / ${outline.length}${failed ? ` · ${t("flow.failedCount", { count: failed })}` : ""}`,
           }),
           state: failed ? "error" : "complete",
-          title: failed
-            ? locale === "zh-CN" ? "页面生成完成，部分失败" : "Generation finished with errors"
-            : locale === "zh-CN" ? "页面生成完成" : "Slides generated",
+          title: failed ? t("flow.renderFinishedWithErrors") : t("flow.renderFinished"),
         },
       }));
     } catch (e: any) {
       updateChatMessage(runId, (current) => ({
         ...current,
         content: `${current.content}\n\n⚠ ${e?.message ?? e}`,
-        ran: elapsedRunLabel(startedAt),
+        ran: elapsedRunLabel(startedAt, locale),
         process: {
           ...patchAgentTool(current.process!, "render", { state: "error", detail: String(e?.message ?? e) }),
           state: "error",
-          title: locale === "zh-CN" ? "页面生成中断" : "Slide generation stopped",
+          title: t("flow.renderStopped"),
         },
       }));
     } finally {
@@ -991,7 +999,7 @@ export default function Home() {
     return (
       <div className="ws project-ws">
         <ChatColumn
-          label={t("chat.deckAgent")}
+          workspaceTitle={title || undefined}
           homeHref="/"
           messages={chat}
           busy={running || busy || clarifyBusy}
@@ -1076,6 +1084,7 @@ export default function Home() {
         ) : stage === "outline" ? (
           <OutlineBoard
             title={title}
+            showTitle={false}
             aspect={config.aspect}
             outline={outline}
             onChange={onOutlineChange}
@@ -1093,6 +1102,7 @@ export default function Home() {
             projectId={projectId}
             aspect={config.aspect}
             title={title}
+            showTitle={false}
             slides={slides}
             onSlides={(u) => setSlides(u)}
             busy={busy}
@@ -1130,7 +1140,7 @@ export default function Home() {
   const selectedScenario = getScenario(config.scenarioId);
   return (
     <>
-      <TopBar codexReady={codexReady} agentLabel={agentLabel} />
+      <TopBar />
       <main className="launch">
         <div className="launch-hero">
           <div className="plan-pill">

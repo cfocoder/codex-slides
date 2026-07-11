@@ -17,6 +17,7 @@ export interface DeckCategory {
   id: string;
   labelZh: string;
   labelEn: string;
+  labelJa: string;
   expertRole: string;
   audience: string;
   visualGrammar: string; // §6.9
@@ -37,22 +38,26 @@ export interface DeckTemplate {
 
 // ---- 15 categories (spec §5.1) -----------------------------------------
 export const CATEGORIES: DeckCategory[] = [
-  { id: "fundraising-pitch", labelZh: "融资/路演", labelEn: "Fundraising Pitch", expertRole: "VC-backed founder", audience: "Investors", visualGrammar: "Bold story rhythm, low text density, strong section breaks, traction visuals", priority: "paid" },
-  { id: "corporate-strategy", labelZh: "企业战略/经营管理", labelEn: "Corporate Strategy", expertRole: "Strategy exec", audience: "Board & C-suite", visualGrammar: "Dense but scan-friendly, tables, decisions, owners, risks", priority: "paid" },
-  { id: "b2b-sales", labelZh: "B2B 销售/续约", labelEn: "B2B Sales", expertRole: "Enterprise AE", audience: "Buying committee", visualGrammar: "Buyer language, ROI proof, comparison, case study, value stack", priority: "paid" },
-  { id: "product-management", labelZh: "产品/技术管理", labelEn: "Product Management", expertRole: "Senior PM", audience: "Eng & product reviewers", visualGrammar: "Decision matrix, roadmap, tradeoff table, architecture diagram", priority: "paid" },
-  { id: "design-craft", labelZh: "设计打磨/视觉系统", labelEn: "Design Craft", expertRole: "Design lead", audience: "Brand & keynote viewers", visualGrammar: "High whitespace, answer titles, visual hierarchy, brand system", priority: "paid" },
-  { id: "academic-research", labelZh: "学术研究/科研申请", labelEn: "Academic Research", expertRole: "Principal investigator", audience: "Reviewers & committees", visualGrammar: "Evidence maps, source citations, methods, contribution framing", priority: "secondary" },
-  { id: "professional-training", labelZh: "培训/教学交付", labelEn: "Professional Training", expertRole: "Instructional designer", audience: "Trainees", visualGrammar: "Steps, exercises, checks, scenarios, behavior prompts", priority: "secondary" },
-  { id: "data-finance", labelZh: "数据/KPI/金融", labelEn: "Data & Finance", expertRole: "Analytics lead", audience: "CRO/PM/investors", visualGrammar: "Answer-above-chart, KPI tiles, clean data ink, decision callouts", priority: "secondary" },
-  { id: "marketing-gtm", labelZh: "市场/增长/GTM", labelEn: "Marketing & GTM", expertRole: "Growth lead", audience: "Marketing & CFO", visualGrammar: "Funnel-to-revenue, campaign timelines, pipeline metrics, brand energy", priority: "secondary" },
-  { id: "consulting", labelZh: "咨询/客户交付", labelEn: "Consulting", expertRole: "Engagement manager", audience: "Client steering committee", visualGrammar: "Governing thought, action titles, MECE frameworks, opportunity ranking", priority: "secondary" },
-  { id: "government-policy", labelZh: "公共政策/监管/非营利", labelEn: "Government & Policy", expertRole: "Policy analyst", audience: "Institutional reviewers", visualGrammar: "Rubric, evidence, accountability, risk framing, sober authority", priority: "secondary" },
-  { id: "ai-literacy", labelZh: "AI 素养/企业 AI", labelEn: "AI Literacy", expertRole: "AI transformation lead", audience: "Enterprise decision makers", visualGrammar: "Model selection, workflow diagrams, rollout stages, ROI horizon", priority: "secondary" },
-  { id: "student-coursework", labelZh: "课业/课程作业", labelEn: "Student Coursework", expertRole: "Top student", audience: "Teachers & judges", visualGrammar: "Structured argument, evidence, contribution naming, clean academic", priority: "acquisition" },
-  { id: "career", labelZh: "职业/个人发展", labelEn: "Career", expertRole: "Career coach", audience: "Managers & interviewers", visualGrammar: "Impact, scope, counterfactuals, portfolio, memorable story", priority: "acquisition" },
-  { id: "life", labelZh: "生活/兴趣/故事", labelEn: "Life & Story", expertRole: "Storyteller", audience: "Friends & audiences", visualGrammar: "Theme, emotion, memory hooks, photographic, editorial warmth", priority: "acquisition" },
+  { id: "fundraising-pitch", labelZh: "融资/路演", labelEn: "Fundraising Pitch", labelJa: "資金調達・ピッチ", expertRole: "VC-backed founder", audience: "Investors", visualGrammar: "Bold story rhythm, low text density, strong section breaks, traction visuals", priority: "paid" },
+  { id: "corporate-strategy", labelZh: "企业战略/经营管理", labelEn: "Corporate Strategy", labelJa: "企業戦略・経営管理", expertRole: "Strategy exec", audience: "Board & C-suite", visualGrammar: "Dense but scan-friendly, tables, decisions, owners, risks", priority: "paid" },
+  { id: "b2b-sales", labelZh: "B2B 销售/续约", labelEn: "B2B Sales", labelJa: "B2B営業・契約更新", expertRole: "Enterprise AE", audience: "Buying committee", visualGrammar: "Buyer language, ROI proof, comparison, case study, value stack", priority: "paid" },
+  { id: "product-management", labelZh: "产品/技术管理", labelEn: "Product Management", labelJa: "プロダクト・技術管理", expertRole: "Senior PM", audience: "Eng & product reviewers", visualGrammar: "Decision matrix, roadmap, tradeoff table, architecture diagram", priority: "paid" },
+  { id: "design-craft", labelZh: "设计打磨/视觉系统", labelEn: "Design Craft", labelJa: "デザイン改善・ビジュアルシステム", expertRole: "Design lead", audience: "Brand & keynote viewers", visualGrammar: "High whitespace, answer titles, visual hierarchy, brand system", priority: "paid" },
+  { id: "academic-research", labelZh: "学术研究/科研申请", labelEn: "Academic Research", labelJa: "学術研究・研究申請", expertRole: "Principal investigator", audience: "Reviewers & committees", visualGrammar: "Evidence maps, source citations, methods, contribution framing", priority: "secondary" },
+  { id: "professional-training", labelZh: "培训/教学交付", labelEn: "Professional Training", labelJa: "研修・教育", expertRole: "Instructional designer", audience: "Trainees", visualGrammar: "Steps, exercises, checks, scenarios, behavior prompts", priority: "secondary" },
+  { id: "data-finance", labelZh: "数据/KPI/金融", labelEn: "Data & Finance", labelJa: "データ・KPI・金融", expertRole: "Analytics lead", audience: "CRO/PM/investors", visualGrammar: "Answer-above-chart, KPI tiles, clean data ink, decision callouts", priority: "secondary" },
+  { id: "marketing-gtm", labelZh: "市场/增长/GTM", labelEn: "Marketing & GTM", labelJa: "マーケティング・成長・GTM", expertRole: "Growth lead", audience: "Marketing & CFO", visualGrammar: "Funnel-to-revenue, campaign timelines, pipeline metrics, brand energy", priority: "secondary" },
+  { id: "consulting", labelZh: "咨询/客户交付", labelEn: "Consulting", labelJa: "コンサルティング・顧客納品", expertRole: "Engagement manager", audience: "Client steering committee", visualGrammar: "Governing thought, action titles, MECE frameworks, opportunity ranking", priority: "secondary" },
+  { id: "government-policy", labelZh: "公共政策/监管/非营利", labelEn: "Government & Policy", labelJa: "公共政策・規制・非営利", expertRole: "Policy analyst", audience: "Institutional reviewers", visualGrammar: "Rubric, evidence, accountability, risk framing, sober authority", priority: "secondary" },
+  { id: "ai-literacy", labelZh: "AI 素养/企业 AI", labelEn: "AI Literacy", labelJa: "AIリテラシー・企業AI", expertRole: "AI transformation lead", audience: "Enterprise decision makers", visualGrammar: "Model selection, workflow diagrams, rollout stages, ROI horizon", priority: "secondary" },
+  { id: "student-coursework", labelZh: "课业/课程作业", labelEn: "Student Coursework", labelJa: "授業・課題", expertRole: "Top student", audience: "Teachers & judges", visualGrammar: "Structured argument, evidence, contribution naming, clean academic", priority: "acquisition" },
+  { id: "career", labelZh: "职业/个人发展", labelEn: "Career", labelJa: "キャリア・自己成長", expertRole: "Career coach", audience: "Managers & interviewers", visualGrammar: "Impact, scope, counterfactuals, portfolio, memorable story", priority: "acquisition" },
+  { id: "life", labelZh: "生活/兴趣/故事", labelEn: "Life & Story", labelJa: "暮らし・趣味・ストーリー", expertRole: "Storyteller", audience: "Friends & audiences", visualGrammar: "Theme, emotion, memory hooks, photographic, editorial warmth", priority: "acquisition" },
 ];
+
+export function categoryLabel(category: DeckCategory, locale: string): string {
+  return locale === "zh-CN" ? category.labelZh : locale === "ja" ? category.labelJa : category.labelEn;
+}
 
 // ---- seeded templates (5 paid categories x 3) --------------------------
 export const TEMPLATES: DeckTemplate[] = [

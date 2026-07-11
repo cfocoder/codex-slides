@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Image as ImageIcon } from "@phosphor-icons/react";
 import type { QuestionSpec } from "@/lib/onboard";
 import { uploadContextItems, type ContextItem } from "@/lib/contextItems";
-import type { PptConfig } from "@/lib/types";
+import type { ClarifyFormState, PptConfig } from "@/lib/types";
 import { useI18n } from "@/i18n/I18nProvider";
 
 /** Renders the agent-generated clarifying questions as a dynamic form (M2 / step 1).
@@ -19,6 +19,9 @@ export default function OnboardForm({
   onRemoveImage,
   submitLabel,
   skipLabel,
+  initialState,
+  availableImages = [],
+  onStateChange,
 }: {
   questions: QuestionSpec[];
   busy: boolean;
@@ -31,6 +34,11 @@ export default function OnboardForm({
   /** Override the primary button copy (staged flow continues to the outline, not straight to generate). */
   submitLabel?: string;
   skipLabel?: string;
+  /** Restored answers for a clarification checkpoint. */
+  initialState?: ClarifyFormState;
+  /** Project-owned images used to restore per-question attachments. */
+  availableImages?: ContextItem[];
+  onStateChange?: (state: ClarifyFormState) => void;
 }) {
   const { t } = useI18n();
   const initial = useMemo(() => {
@@ -39,13 +47,34 @@ export default function OnboardForm({
       if (q.type === "multi") a[q.id] = [];
       else a[q.id] = q.recommended ?? "";
     }
-    return a;
-  }, [questions]);
+    return { ...a, ...(initialState?.answers ?? {}) };
+  }, [initialState?.answers, questions]);
   const [answers, setAnswers] = useState<Record<string, string | string[]>>(initial);
-  const [custom, setCustom] = useState<Record<string, string>>({});
-  const [images, setImages] = useState<Record<string, ContextItem[]>>({});
+  const [custom, setCustom] = useState<Record<string, string>>(initialState?.custom ?? {});
+  const [images, setImages] = useState<Record<string, ContextItem[]>>(() => Object.fromEntries(
+    Object.entries(initialState?.images ?? {}).map(([questionId, ids]) => [
+      questionId,
+      ids.flatMap((id) => availableImages.find((item) => item.id === id) ?? []),
+    ]),
+  ));
   const [uploadingQ, setUploadingQ] = useState<string | null>(null);
   const [attachError, setAttachError] = useState("");
+  const onStateChangeRef = useRef(onStateChange);
+
+  useEffect(() => {
+    onStateChangeRef.current = onStateChange;
+  }, [onStateChange]);
+
+  useEffect(() => {
+    onStateChangeRef.current?.({
+      answers,
+      custom,
+      images: Object.fromEntries(Object.entries(images).map(([questionId, items]) => [
+        questionId,
+        items.map((item) => item.id),
+      ])),
+    });
+  }, [answers, custom, images]);
 
   function setOne(id: string, v: string | string[]) {
     setAnswers((a) => ({ ...a, [id]: v }));

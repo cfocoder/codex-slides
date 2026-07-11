@@ -90,6 +90,8 @@ function normalizeOutline(raw: any): OutlinePage[] {
 
 export interface RunOptions {
   signal?: AbortSignal;
+  /** Reuse the project shell created before clarification instead of creating a second project. */
+  projectId?: string;
 }
 
 /**
@@ -156,24 +158,36 @@ export async function planOutline(
   if (!outline.length) throw new Error("Outline generation returned no slides");
 
   const title = outline[0]?.title || config.requirement.slice(0, 40) || "Untitled deck";
-  const id = newProjectId(title);
+  const checkpoint = opts.projectId ? loadProject(opts.projectId) : null;
+  if (opts.projectId && !checkpoint) throw new Error("project checkpoint not found");
+  const id = checkpoint?.id ?? newProjectId(title);
   const now = new Date().toISOString();
-  const project: Project = {
+  const project: Project = checkpoint ?? {
     id,
     createdAt: now,
     updatedAt: now,
     config,
     agent: engineLabel,
     title,
-    outline,
-    pages: outlineToPages(outline),
-    researchDoc: config.researchDoc,
+    outline: [],
+    pages: [],
     status: "draft",
   };
+  project.config = config;
+  project.agent = engineLabel;
+  project.title = title;
+  project.outline = outline;
+  project.pages = outlineToPages(outline);
+  project.researchDoc = config.researchDoc;
+  project.status = "draft";
+  project.workflow = { ...(project.workflow ?? {}), stage: "outline" };
   // Copy staged context items into the project now so the draft owns them durably
   // (the user may spend minutes editing the outline before rendering).
   if (config.materialIds?.length) {
-    project.materials = attachMaterialsToProject(id, config.materialIds);
+    const existingIds = new Set((project.materials ?? []).map((material) => material.id));
+    const attached = attachMaterialsToProject(id, config.materialIds.filter((materialId) => !existingIds.has(materialId)));
+    project.materials = [...(project.materials ?? []), ...attached];
+    project.config.materialIds = project.materials.map((material) => material.id);
   }
   saveProject(project);
   emit({ type: "project", id });
@@ -204,6 +218,7 @@ export async function renderProject(
   const hasMaterials = materialBuffers.length > 0;
 
   project.status = "rendering";
+  project.workflow = { ...(project.workflow ?? {}), stage: "rendering" };
   saveProject(project);
 
   const total = project.pages.length;
@@ -270,6 +285,7 @@ export async function renderProject(
   }
 
   project.status = "ready";
+  project.workflow = { ...(project.workflow ?? {}), stage: "deck" };
   saveProject(project);
   emit({ type: "done", id });
   return project;
