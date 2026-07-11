@@ -10,6 +10,7 @@ import {
   type DeckCategory,
   type DeckTemplate,
 } from "@/lib/templates";
+import { useI18n } from "@/i18n/I18nProvider";
 
 function matchesSearch(template: DeckTemplate, category: DeckCategory, query: string) {
   if (!query) return true;
@@ -27,6 +28,7 @@ export default function TemplatePicker({
   value?: string;
   onChange: (id: string | undefined) => void;
 }) {
+  const { locale, t } = useI18n();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
@@ -34,6 +36,12 @@ export default function TemplatePicker({
   const selected = getTemplate(value);
   const selectedCategory = CATEGORIES.find((category) => category.id === selected?.categoryId);
   const query = search.trim().toLocaleLowerCase();
+  const categoryLabel = (category?: DeckCategory) => category
+    ? (locale === "zh-CN" ? category.labelZh : category.labelEn)
+    : t("template.presetShort");
+  const densityLabel = (density: DeckTemplate["density"]) => t(
+    density === "low" ? "template.densityLow" : density === "high" ? "template.densityHigh" : "template.densityMedium",
+  );
 
   const groups = useMemo(
     () =>
@@ -72,8 +80,8 @@ export default function TemplatePicker({
   return (
     <div className="style-field" ref={rootRef}>
       <div className="restyle-field-head">
-        <label id="visual-style-label">Visual style</label>
-        <span>{TEMPLATES.length} styles</span>
+        <label id="visual-style-label">{t("template.title")}</label>
+        <span>{t("template.stylesCount", { count: TEMPLATES.length })}</span>
       </div>
       <button
         type="button"
@@ -87,15 +95,15 @@ export default function TemplatePicker({
           <Palette size={18} weight="regular" />
         </span>
         <span className="style-picker-copy">
-          <strong>{selected?.name ?? "Use the current project style"}</strong>
+          <strong>{selected?.name ?? t("template.useCurrent")}</strong>
           <small>
             {selected
-              ? `${selectedCategory?.labelEn ?? "Preset"} · ${selected.density} density`
-              : "No preset will be applied"}
+              ? t("template.density", { category: categoryLabel(selectedCategory), density: densityLabel(selected.density) })
+              : t("template.noPreset")}
           </small>
         </span>
         {selected && (
-          <span className="style-palette" aria-label={`Palette: ${selected.palette.join(", ")}`}>
+          <span className="style-palette" aria-label={t("template.palette", { colors: selected.palette.join(", ") })}>
             {selected.palette.map((color) => (
               <span key={color} style={{ background: color }} />
             ))}
@@ -105,15 +113,15 @@ export default function TemplatePicker({
       </button>
 
       {open && (
-        <div className="style-menu" role="listbox" aria-label="Visual styles">
+        <div className="style-menu" role="listbox" aria-label={t("template.styles")}>
           <div className="style-search">
             <MagnifyingGlass size={16} aria-hidden="true" />
             <input
               ref={searchRef}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search styles or categories"
-              aria-label="Search visual styles"
+              placeholder={t("template.search")}
+              aria-label={t("template.searchLabel")}
             />
           </div>
           <div className="style-menu-list">
@@ -126,17 +134,17 @@ export default function TemplatePicker({
                 onClick={() => choose(undefined)}
               >
                 <span className="style-option-copy">
-                  <strong>Current project style</strong>
-                  <small>Regenerate without applying a preset</small>
+                  <strong>{t("template.current")}</strong>
+                  <small>{t("template.currentHelp")}</small>
                 </span>
                 {!selected && <Check size={17} weight="bold" aria-hidden="true" />}
               </button>
             )}
             {groups.map(({ category, templates }) => (
-              <section className="style-group" key={category.id} aria-label={category.labelEn}>
+              <section className="style-group" key={category.id} aria-label={categoryLabel(category)}>
                 <div className="style-group-label">
-                  <span>{category.labelZh}</span>
-                  <span>{category.labelEn}</span>
+                  <span>{categoryLabel(category)}</span>
+                  <span>{locale === "zh-CN" ? category.labelEn : category.labelZh}</span>
                 </div>
                 {templates.map((template) => {
                   const active = template.id === value;
@@ -164,7 +172,7 @@ export default function TemplatePicker({
                 })}
               </section>
             ))}
-            {!groups.length && <div className="style-menu-empty">No styles match “{search.trim()}”.</div>}
+            {!groups.length && <div className="style-menu-empty">{t("template.noMatch", { query: search.trim() })}</div>}
           </div>
         </div>
       )}

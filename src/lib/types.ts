@@ -33,6 +33,16 @@ export interface MaterialRecord {
   role?: "logo" | "reference" | "content" | "slide";
 }
 
+export interface ProjectFileRecord {
+  path: string;
+  name: string;
+  kind: "document" | "image" | "data" | "code" | "other";
+  source: "generated" | "uploaded";
+  size: number;
+  updatedAt: string;
+  editable: boolean;
+}
+
 export const DEFAULT_CONFIG: PptConfig = {
   requirement: "",
   aspect: "16:9",
@@ -86,7 +96,12 @@ export interface StoredChatMessage {
   role: "user" | "assistant";
   content: string;
   ran?: string;
-  doc?: { title: string; subtitle: string; icon?: string };
+  doc?: {
+    title: string;
+    subtitle: string;
+    icon?: string;
+    pages?: { title: string; points: string[] }[];
+  };
   attachment?: { slideIndex: number; title: string; imageUrl?: string };
   contextItems?: { id: string; name: string; url?: string; kind?: string }[];
   contextOptions?: ContextOptionItem[];
@@ -110,7 +125,26 @@ export interface StoredChatMessage {
     chosen?: string;
     resolved?: boolean;
   };
+  /** Provider-reported usage when available. Older/local turns can omit it; the
+   *  client then labels its visible-output count as an estimate. */
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    costUsd?: number;
+    model?: string;
+    estimated?: boolean;
+  };
   ts?: number;
+}
+
+/** One independently managed conversation inside a presentation project. */
+export interface StoredConversation {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: StoredChatMessage[];
 }
 
 export interface Project {
@@ -127,6 +161,10 @@ export interface Project {
   status?: ProjectStatus;
   /** Full conversation history so reopening a project restores the dialogue. */
   chat?: StoredChatMessage[];
+  /** Multi-session history. `chat` remains as a backwards-compatible mirror of
+   *  the active conversation for older project files and API clients. */
+  conversations?: StoredConversation[];
+  activeConversationId?: string;
 }
 
 export interface DetectedAgent {

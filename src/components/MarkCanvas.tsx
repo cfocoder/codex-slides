@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "@/i18n/I18nProvider";
 import {
   ArrowClockwise,
   ArrowCounterClockwise,
@@ -40,6 +41,7 @@ export default function MarkCanvas({
   busy: boolean;
   error?: string;
 }) {
+  const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const marksRef = useRef<Mark[]>([]);
@@ -343,7 +345,7 @@ export default function MarkCanvas({
     const canvas = canvasRef.current;
     const image = imageRef.current;
     if (!canvas || !image || !ready) {
-      setSubmitError("The slide image is still loading. Please try again.");
+      setSubmitError(t("mark.imageLoading"));
       return;
     }
     setSubmitting(true);
@@ -362,7 +364,7 @@ export default function MarkCanvas({
     const context = output.getContext("2d");
     if (!context) {
       setSubmitting(false);
-      setSubmitError("Unable to prepare the marked image. Please try again.");
+      setSubmitError(t("mark.imagePrepareFailed"));
       return;
     }
     context.fillStyle = "#ffffff";
@@ -373,7 +375,7 @@ export default function MarkCanvas({
       const blob = await new Promise<Blob>((resolve, reject) => {
         output.toBlob((result) => {
           if (result) resolve(result);
-          else reject(new Error("Unable to prepare the marked image."));
+          else reject(new Error(t("mark.imagePrepareFailed")));
         }, "image/png");
       });
       await onSubmit(blob, note.trim());
@@ -390,7 +392,7 @@ export default function MarkCanvas({
   const draftLeft = textDraft && canvas ? `${(textDraft.point.x / canvas.width) * 100}%` : "0";
   const draftTop = textDraft && canvas ? `${(textDraft.point.y / canvas.height) * 100}%` : "0";
   return (
-    <div className="mark-inline" role="region" aria-label={`Mark slide ${slideIndex}`}>
+    <div className="mark-inline" role="region" aria-label={t("mark.region", { index: slideIndex })}>
       <canvas
         ref={canvasRef}
         className={`mark-canvas-overlay tool-${tool}${hoveredText != null ? " over-text" : ""}${draggingText ? " dragging-text" : ""}`}
@@ -411,7 +413,7 @@ export default function MarkCanvas({
           style={{ left: draftLeft, top: draftTop }}
           autoFocus
           value={textDraft.value}
-          placeholder="输入文字，回车确认"
+          placeholder={t("mark.textPlaceholder")}
           onPointerDown={(event) => event.stopPropagation()}
           onChange={(event) => setDraft({ point: textDraft.point, value: event.target.value })}
           onBlur={commitDraft}
@@ -428,18 +430,18 @@ export default function MarkCanvas({
         />
       )}
 
-      <div className="mark-tools" aria-label="Mark tools" onPointerDown={(event) => event.stopPropagation()}>
+      <div className="mark-tools" aria-label={t("mark.tools")} onPointerDown={(event) => event.stopPropagation()}>
         <span className="mark-slide-chip">{slideIndex}</span>
-        <button type="button" className={tool === "pen" ? "active" : ""} onClick={() => setTool("pen")} aria-label="Freehand" aria-pressed={tool === "pen"} title="Freehand"><PencilSimple size={17} /></button>
-        <button type="button" className={tool === "line" ? "active" : ""} onClick={() => setTool("line")} aria-label="Straight line" aria-pressed={tool === "line"} title="Straight line"><LineSegment size={17} /></button>
-        <button type="button" className={tool === "rect" ? "active" : ""} onClick={() => setTool("rect")} aria-label="Rectangle" aria-pressed={tool === "rect"} title="Rectangle"><Rectangle size={17} /></button>
-        <button type="button" className={tool === "text" ? "active" : ""} onClick={() => setTool("text")} aria-label="Text label" aria-pressed={tool === "text"} title="Text label · drag placed text to reposition"><TextT size={17} /></button>
+        <button type="button" className={tool === "pen" ? "active" : ""} onClick={() => setTool("pen")} aria-label={t("mark.freehand")} aria-pressed={tool === "pen"} title={t("mark.freehand")}><PencilSimple size={17} /></button>
+        <button type="button" className={tool === "line" ? "active" : ""} onClick={() => setTool("line")} aria-label={t("mark.line")} aria-pressed={tool === "line"} title={t("mark.line")}><LineSegment size={17} /></button>
+        <button type="button" className={tool === "rect" ? "active" : ""} onClick={() => setTool("rect")} aria-label={t("mark.rectangle")} aria-pressed={tool === "rect"} title={t("mark.rectangle")}><Rectangle size={17} /></button>
+        <button type="button" className={tool === "text" ? "active" : ""} onClick={() => setTool("text")} aria-label={t("mark.text")} aria-pressed={tool === "text"} title={t("mark.textHelp")}><TextT size={17} /></button>
             <span className="mark-tools-sep" />
-        <button type="button" onClick={undo} disabled={busy || !canUndo} aria-label="Undo" title="Undo"><ArrowCounterClockwise size={17} /></button>
-        <button type="button" onClick={redo} disabled={busy || !canRedo} aria-label="Redo" title="Redo"><ArrowClockwise size={17} /></button>
-        <button type="button" onClick={clear} disabled={busy || !canUndo} aria-label="Clear marks" title="Clear marks"><Trash size={17} /></button>
+        <button type="button" onClick={undo} disabled={busy || !canUndo} aria-label={t("mark.undo")} title={t("mark.undo")}><ArrowCounterClockwise size={17} /></button>
+        <button type="button" onClick={redo} disabled={busy || !canRedo} aria-label={t("mark.redo")} title={t("mark.redo")}><ArrowClockwise size={17} /></button>
+        <button type="button" onClick={clear} disabled={busy || !canUndo} aria-label={t("mark.clear")} title={t("mark.clear")}><Trash size={17} /></button>
         <span className="mark-tools-sep" />
-        <button type="button" onClick={onCancel} disabled={busy} aria-label="Close mark tool" title="Close"><X size={17} /></button>
+        <button type="button" onClick={onCancel} disabled={busy} aria-label={t("mark.close")} title={t("mark.close")}><X size={17} /></button>
       </div>
 
       <form
@@ -453,7 +455,7 @@ export default function MarkCanvas({
         <div className="mark-comment-main">
           <textarea
             rows={1}
-            placeholder="Comment for Deck Agent"
+            placeholder={t("mark.comment")}
             value={note}
             onChange={(event) => setNote(event.target.value)}
             onKeyDown={(event) => {
@@ -466,13 +468,13 @@ export default function MarkCanvas({
           />
           {(error || submitError) && (
             <span className="mark-submit-error" role="alert">
-              {error || submitError} Your marks are still here—press Send to retry.
+              {error || submitError} {t("mark.retryHelp")}
             </span>
           )}
         </div>
         <button type="submit" className="mark-send" disabled={busy || submitting || !ready}>
           <PaperPlaneRight size={17} />
-          <span>{busy ? "Editing" : submitting ? "Sending" : error || submitError ? "Retry" : "Send"}</span>
+          <span>{busy ? t("mark.editing") : submitting ? t("mark.sending") : error || submitError ? t("mark.retry") : t("mark.sendShort")}</span>
         </button>
       </form>
     </div>

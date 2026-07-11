@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { ImageSquare, UploadSimple, X } from "@phosphor-icons/react";
+import { useI18n } from "@/i18n/I18nProvider";
 
 interface Item {
   id: string;
@@ -11,6 +12,7 @@ interface Item {
 
 /** Upload brand references (logo / product shot / visual sample) to guide the restyle. */
 export default function MaterialTray({ onChange }: { onChange: (ids: string[]) => void }) {
+  const { t } = useI18n();
   const [items, setItems] = useState<Item[]>([]);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -45,16 +47,16 @@ export default function MaterialTray({ onChange }: { onChange: (ids: string[]) =
   return (
     <section className="material-field" aria-labelledby="brand-reference-label">
       <div className="restyle-field-head">
-        <label id="brand-reference-label">Brand references</label>
-        <span>Optional</span>
+        <label id="brand-reference-label">{t("material.title")}</label>
+        <span>{t("material.optional")}</span>
       </div>
-      <p className="material-help">Add a logo, product image, or visual sample to guide every slide.</p>
+      <p className="material-help">{t("material.help")}</p>
       <div className="material-list">
         {items.map((item) => (
           <div className="material-item" key={item.id} title={item.name}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={item.url} alt={item.name} />
-            <button type="button" onClick={() => remove(item.id)} aria-label={`Remove ${item.name}`}>
+            <button type="button" onClick={() => remove(item.id)} aria-label={t("material.remove", { name: item.name })}>
               <X size={12} weight="bold" aria-hidden="true" />
             </button>
           </div>
@@ -63,13 +65,13 @@ export default function MaterialTray({ onChange }: { onChange: (ids: string[]) =
           type="button"
           className={`material-add${items.length ? " compact" : ""}`}
           disabled={busy}
-          aria-label={items.length ? "Add more brand images" : undefined}
+          aria-label={items.length ? t("material.addMore") : t("material.add")}
           onClick={() => inputRef.current?.click()}
         >
           {items.length ? <UploadSimple size={20} /> : <ImageSquare size={22} />}
           <span>
-            <strong>{busy ? "Uploading…" : items.length ? "Add more" : "Add brand images"}</strong>
-            {!items.length && <small>Images are used as visual guidance</small>}
+            <strong>{busy ? t("material.uploading") : items.length ? t("material.addMoreShort") : t("material.add")}</strong>
+            {!items.length && <small>{t("material.guidance")}</small>}
           </span>
         </button>
         <input

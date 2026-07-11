@@ -11,14 +11,15 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect } from "react";
 import type { SlideTransition } from "@/lib/types";
+import { useI18n } from "@/i18n/I18nProvider";
 
 const OPTIONS = [
-  { id: "none", label: "None", Icon: Minus },
-  { id: "fade", label: "Fade", Icon: CircleHalf },
-  { id: "push", label: "Push", Icon: ArrowRight },
-  { id: "wipe", label: "Wipe", Icon: ArrowLineLeft },
-  { id: "zoom", label: "Zoom", Icon: ArrowsOut },
-  { id: "flip", label: "Flip", Icon: ArrowClockwise },
+  { id: "none", key: "transition.none", Icon: Minus },
+  { id: "fade", key: "transition.fade", Icon: CircleHalf },
+  { id: "push", key: "transition.push", Icon: ArrowRight },
+  { id: "wipe", key: "transition.wipe", Icon: ArrowLineLeft },
+  { id: "zoom", key: "transition.zoom", Icon: ArrowsOut },
+  { id: "flip", key: "transition.flip", Icon: ArrowClockwise },
 ] as const;
 
 export default function TransitionPicker({
@@ -36,6 +37,7 @@ export default function TransitionPicker({
   onSelect: (transition: SlideTransition) => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -49,13 +51,13 @@ export default function TransitionPicker({
       <div className="transition-modal" role="dialog" aria-modal="true" aria-labelledby="transition-title">
         <div className="transition-modal-head">
           <div>
-            <h3 id="transition-title">Slide {slideIndex} transition</h3>
-            <p>Plays when this slide enters presentation mode.</p>
+            <h3 id="transition-title">{t("transition.slideTitle", { index: slideIndex })}</h3>
+            <p>{t("transition.help")}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close transition picker"><X size={18} /></button>
+          <button type="button" onClick={onClose} aria-label={t("transition.close")}><X size={18} /></button>
         </div>
         <div className="transition-grid">
-          {OPTIONS.map(({ id, label, Icon }) => {
+          {OPTIONS.map(({ id, key, Icon }) => {
             const selected = value === id;
             return (
               <button
@@ -70,7 +72,7 @@ export default function TransitionPicker({
                 <span className={`transition-option-demo transition-demo-${id}`} aria-hidden="true">
                   <Icon size={44} weight="regular" />
                 </span>
-                <b>{label}</b>
+                <b>{t(key)}</b>
               </button>
             );
           })}
@@ -78,12 +80,12 @@ export default function TransitionPicker({
         <div className="transition-modal-foot">
           <span className={error ? "transition-error" : ""} role={error ? "alert" : undefined}>
             {error
-              ? `Couldn’t save: ${error}`
+              ? t("transition.saveFailed", { error })
               : saving
-                ? "Saving transition…"
-                : `${OPTIONS.find((option) => option.id === value)?.label ?? "None"} selected`}
+                ? t("transition.saving")
+                : t("transition.selected", { transition: t(OPTIONS.find((option) => option.id === value)?.key ?? "transition.none") })}
           </span>
-          <button type="button" className="primary" onClick={onClose} disabled={saving}>Done</button>
+          <button type="button" className="primary" onClick={onClose} disabled={saving}>{t("transition.done")}</button>
         </div>
       </div>
     </div>

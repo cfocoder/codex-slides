@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from "react";
 import type { OutlinePage } from "@/lib/types";
+import { useI18n } from "@/i18n/I18nProvider";
 
 /**
  * Step 3-4 of the staged flow (编辑大纲 → 确认): an editable outline shown in the
@@ -29,6 +30,7 @@ export default function OutlineBoard({
   streaming?: boolean;
   researchDoc?: string;
 }) {
+  const { t } = useI18n();
   const [showBrief, setShowBrief] = useState(false);
   const editable = !busy && !streaming;
   const count = outline.length;
@@ -62,29 +64,29 @@ export default function OutlineBoard({
   return (
     <section className="stage outline-stage">
       <div className="stage-head">
-        <span className="title">{title || "Draft outline"}</span>
-        <span className="count">{count} 页 · {aspect}</span>
+        <span className="title">{title || t("outline.draft")}</span>
+        <span className="count">{t("outline.pageCount", { count, aspect })}</span>
         <div className="stage-actions">
           <button
             className="iconbtn primary"
             disabled={!editable || count === 0}
             onClick={onConfirm}
-            title="按大纲逐页生成幻灯片"
+            title={t("outline.generateHelp")}
           >
-            ✓ 生成 {count} 页
+            {t("outline.generate", { count })}
           </button>
         </div>
       </div>
 
       <div className="outline-board">
         <p className="outline-hint">
-          先确认大纲：可改标题、增删要点、调整顺序，也可让左侧 agent 直接修改。满意后点「生成」开始逐页出图。
+          {t("outline.hint")}
         </p>
 
         {researchDoc && (
           <div className="outline-brief">
             <button className="outline-brief-toggle" onClick={() => setShowBrief((v) => !v)}>
-              📄 研究简报 <span className="caret">{showBrief ? "▴" : "▾"}</span>
+              📄 {t("outline.brief")} <span className="caret">{showBrief ? "▴" : "▾"}</span>
             </button>
             {showBrief && <pre className="outline-brief-body">{researchDoc}</pre>}
           </div>
@@ -106,21 +108,21 @@ export default function OutlineBoard({
                     <input
                       className="outline-title"
                       value={p.title}
-                      placeholder={`第 ${i + 1} 页标题`}
+                      placeholder={t("outline.pageTitle", { index: i + 1 })}
                       disabled={!editable}
                       onChange={(e) => setTitle(i, e.target.value)}
                     />
                     <div className="outline-card-actions">
-                      <button disabled={!editable || i === 0} onClick={() => move(i, -1)} title="上移" aria-label="上移">↑</button>
-                      <button disabled={!editable || i === count - 1} onClick={() => move(i, 1)} title="下移" aria-label="下移">↓</button>
-                      <button className="danger" disabled={!editable || count <= 1} onClick={() => remove(i)} title="删除" aria-label="删除">✕</button>
+                      <button disabled={!editable || i === 0} onClick={() => move(i, -1)} title={t("outline.moveUp")} aria-label={t("outline.moveUp")}>↑</button>
+                      <button disabled={!editable || i === count - 1} onClick={() => move(i, 1)} title={t("outline.moveDown")} aria-label={t("outline.moveDown")}>↓</button>
+                      <button className="danger" disabled={!editable || count <= 1} onClick={() => remove(i)} title={t("outline.delete")} aria-label={t("outline.delete")}>✕</button>
                     </div>
                   </div>
                   <textarea
                     className="outline-points"
                     rows={Math.max(2, p.points.length)}
                     value={p.points.join("\n")}
-                    placeholder="这一页讲什么？每行写一个要点…"
+                    placeholder={t("outline.pointsPlaceholder")}
                     disabled={!editable}
                     onChange={(e) => setPoints(i, e.target.value)}
                   />
@@ -131,8 +133,8 @@ export default function OutlineBoard({
                       className="outline-insert"
                       disabled={!editable}
                       onClick={() => insertAt(i + 1)}
-                      title="在此插入一页"
-                      aria-label={`在第 ${i + 1} 页后插入一页`}
+                      title={t("outline.insert")}
+                      aria-label={t("outline.insertAfter", { index: i + 1 })}
                     >
                       ＋
                     </button>
@@ -145,18 +147,18 @@ export default function OutlineBoard({
 
         {!streaming && (
           <button className="outline-add" disabled={!editable} onClick={add}>
-            ＋ 添加一页
+            {t("outline.add")}
           </button>
         )}
       </div>
 
       <div className="outline-confirm">
         <div className="outline-confirm-info">
-          <span className="outline-confirm-count">共 <b>{count}</b> 页大纲已就绪</span>
-          <small>确认后逐页生成，每页约 30s</small>
+          <span className="outline-confirm-count">{t("outline.ready", { count })}</span>
+          <small>{t("outline.timeHint")}</small>
         </div>
         <button className="outline-confirm-btn" disabled={!editable || count === 0} onClick={onConfirm}>
-          {busy ? "生成中…" : `✓ 生成 ${count} 页幻灯片`}
+          {busy ? t("outline.generating") : t("outline.generateSlides", { count })}
         </button>
       </div>
     </section>

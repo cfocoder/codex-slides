@@ -19,7 +19,7 @@ import {
   regenerateSlide,
   patchProjectStyle,
   reviseOutlineChat,
-  saveChat,
+  saveConversations,
   saveOutline,
   streamOutline,
   streamRender,
@@ -50,6 +50,10 @@ import {
   patchAgentTool,
   stopRunningTools,
 } from "@/lib/agentActivity";
+import { outlineSnapshotMessage, styleSnapshotMessage } from "@/lib/chatArtifacts";
+import { useChatConversations } from "@/lib/useChatConversations";
+import { buildWorkflowProgress } from "@/lib/workflowProgress";
+import { useI18n } from "@/i18n/I18nProvider";
 
 interface EngineInfo {
   engine: string;
@@ -63,6 +67,7 @@ type Phase = "idle" | "work";
 type Stage = "clarify" | "outline" | "inspire" | "deck";
 
 export default function Home() {
+  const { locale, t } = useI18n();
   const [config, setConfig] = useState<PptConfig>({ ...DEFAULT_CONFIG, requirement: "" });
   const [engines, setEngines] = useState<EngineInfo[]>([]);
   const [codexReady, setCodexReady] = useState<boolean | null>(null);
@@ -84,7 +89,12 @@ export default function Home() {
   const [researchDoc, setResearchDoc] = useState("");
   const [researchNote, setResearchNote] = useState("");
   const [slides, setSlides] = useState<UiSlide[]>([]);
-  const [chat, setChat] = useState<ChatMsg[]>([]);
+  const conversationState = useChatConversations({
+    initialMessages: [],
+    initialTitle: "新会话",
+  });
+  const chat = conversationState.messages;
+  const setChat = conversationState.setMessages;
   const [queue, setQueue] = useState<ChatRequest[]>([]);
   const [chatContext, setChatContext] = useState<SlideChatContext | null>(null);
   const [chatFocusKey, setChatFocusKey] = useState(0);
@@ -92,6 +102,7 @@ export default function Home() {
   const [focusSlideKey, setFocusSlideKey] = useState(0);
   const [inspireOpen, setInspireOpen] = useState(false);
   const [inspireMsgId, setInspireMsgId] = useState<string | null>(null);
+  const [inspirationSkipped, setInspirationSkipped] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const markRunRef = useRef<{ id: string; startedAt: number; slideIndex: number } | null>(null);
 
@@ -141,7 +152,7 @@ export default function Home() {
     if (!config.requirement.trim() && !materials.length) return;
     const cfg = config.requirement.trim()
       ? config
-      : { ...config, requirement: "Create a presentation from the attached context." };
+      : { ...config, requirement: t("flow.attachedRequirement") };
     beginClarify(cfg, contextOptions);
   }
 
@@ -157,26 +168,27 @@ export default function Home() {
     setOutline([]);
     setResearchDoc("");
     setResearchNote("");
+    setInspirationSkipped(false);
     setChatContext(null);
     setQueue([]);
     setQuestions([]);
 
-    setChat([
+    conversationState.resetConversations([
       {
         role: "user",
         content: cfg.requirement,
         contextItems: materials,
         contextOptions,
       },
-      { role: "assistant", content: "先在右侧确认几个问题，我就开始写大纲。" },
-    ]);
+      { role: "assistant", content: t("flow.clarifyIntro") },
+    ], cfg.requirement);
 
     setClarifyBusy(true);
     try {
       const r = await fetch("/api/onboard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requirement: cfg.requirement }),
+        body: JSON.stringify({ requirement: cfg.requirement, uiLocale: locale }),
       });
       const d = await r.json();
       if (r.ok && Array.isArray(d.questions) && d.questions.length) {
@@ -193,12 +205,12 @@ export default function Home() {
 
   function applyClarify(patch: Partial<PptConfig>, suffix: string, summary: string) {
     const cfg: PptConfig = { ...config, ...patch, requirement: config.requirement + suffix };
-    if (summary.trim()) say({ role: "user", content: `已确认：\n${summary}` });
+    if (summary.trim()) say({ role: "user", content: t("flow.confirmed", { summary }) });
     proceedToOutline(cfg);
   }
 
   function skipClarify() {
-    say({ role: "user", content: "跳过确认，直接写大纲。" });
+    say({ role: "user", content: t("flow.skipClarify") });
     proceedToOutline(config);
   }
 
@@ -230,8 +242,8 @@ export default function Home() {
         setAgentLabel(`using ${ev.agent}`);
         break;
       case "research":
-        if (ev.phase === "searching") setResearchNote(`联网检索：${ev.detail ?? ""}`);
-        else if (ev.phase === "synthesizing") setResearchNote(`整理研究简报（${ev.detail ?? ""}）`);
+        if (ev.phase === "searching") setResearchNote(t("flow.searching", { detail: ev.detail ?? "" }));
+        else if (ev.phase === "synthesizing") setResearchNote(t("flow.synthesizing", { detail: ev.detail ?? "" }));
         else if (ev.phase === "brief" && ev.markdown) setResearchDoc(ev.markdown);
         break;
       case "project":
@@ -243,8 +255,12 @@ export default function Home() {
         setResearchNote("");
         say({
           role: "assistant",
-          content: `我整理了一个 ${ev.outline.length} 页的大纲——「${ev.title}」。你可以在右侧改标题、要点和顺序，或直接告诉我怎么改；满意后点「生成」我再逐页出图。`,
-          doc: { title: ev.title, subtitle: `大纲 · ${ev.outline.length} 页`, icon: "▤" },
+          content: t("flow.outlineReady", { count: ev.outline.length, title: ev.title }),
+          doc: {
+            title: ev.title,
+            subtitle: t("flow.outlineDoc", { count: ev.outline.length }),
+            pages: ev.outline.map((page) => ({ title: page.title, points: [...page.points] })),
+          },
         });
         break;
       case "error":
@@ -273,7 +289,7 @@ export default function Home() {
       const { pages, reply } = await reviseOutlineChat(projectId, request.message);
       setOutline(pages);
       setTitle(pages[0]?.title || title);
-      say({ role: "assistant", content: reply || "已更新大纲。" });
+      say({ role: "assistant", content: reply || t("flow.outlineUpdated") });
     } catch (e: any) {
       say({ role: "assistant", content: `⚠ ${e?.message ?? e}` });
     } finally {
@@ -294,6 +310,7 @@ export default function Home() {
       say({ role: "assistant", content: `⚠ ${e?.message ?? e}` });
       return;
     }
+    say(outlineSnapshotMessage(title, outline));
     if (!config.template) {
       // Detour to the inspiration step: show the pending deck + an in-chat card
       // whose Browse button opens the style popup. Render waits for the pick/skip.
@@ -307,7 +324,7 @@ export default function Home() {
       say({
         id: msgId,
         role: "assistant",
-        content: "出图前，先挑一个视觉参考风格吧——我按你的主题和大纲排好了。点「浏览」挑一个，或跳过用默认风格。",
+        content: t("flow.stylePrompt"),
         inspiration: {
           query: inspireQueryFor(config.requirement, title),
           coverIds: matchCommunityTemplates(matchQuery, 4).map((t) => t.id),
@@ -316,6 +333,8 @@ export default function Home() {
       });
       return;
     }
+    setInspirationSkipped(false);
+    say(styleSnapshotMessage(config.template, config.requirement));
     renderNow();
   }
 
@@ -330,16 +349,18 @@ export default function Home() {
     if (!projectId || running || busy) return;
     setInspireOpen(false);
     if (templateId) {
+      setInspirationSkipped(false);
       const tpl = getCommunityTemplate(templateId);
       patchConfig({ template: templateId });
-      say({ role: "user", content: `选定风格：${tpl?.name ?? templateId}` });
+      say({ role: "user", content: t("flow.styleSelected", { name: tpl?.name ?? templateId }) });
       try {
         await patchProjectStyle(projectId, { template: templateId });
       } catch (e: any) {
-        say({ role: "assistant", content: `⚠ 应用风格失败：${e?.message ?? e}` });
+        say({ role: "assistant", content: `⚠ ${t("flow.styleFailed", { error: e?.message ?? String(e) })}` });
       }
     } else {
-      say({ role: "user", content: "跳过风格，用默认风格生成。" });
+      setInspirationSkipped(true);
+      say({ role: "user", content: t("flow.styleSkipped") });
     }
     if (inspireMsgId) {
       updateChatMessage(inspireMsgId, (m) => ({
@@ -363,8 +384,8 @@ export default function Home() {
       say({
         role: "assistant",
         content: config.fast
-          ? `⚡ Fast 模式：${outline.length} 页并行生成（超出并发的会自动排队），风格与需求保持统一…`
-          : `开始逐页生成 ${outline.length} 页幻灯片，每页约 30s…`,
+          ? t("flow.fastRender", { count: outline.length })
+          : t("flow.render", { count: outline.length }),
       });
       let rendered = 0;
       await streamRender(projectId, (ev) => {
@@ -374,8 +395,13 @@ export default function Home() {
       if (rendered > 0) {
         say({
           role: "assistant",
-          content: `完成！已生成 ${rendered} 页。下一步你可以直接告诉我怎么优化，或用右上角导出：`,
-          suggestions: ["加一页总结收尾", "整体换个更商务的风格", "重画封面更醒目", "把要点讲得更具体"],
+          content: t("flow.renderDone", { count: rendered }),
+          suggestions: [
+            t("flow.suggestionSummary"),
+            t("flow.suggestionBusiness"),
+            t("flow.suggestionCover"),
+            t("flow.suggestionSpecific"),
+          ],
         });
       }
     } catch (e: any) {
@@ -425,13 +451,13 @@ export default function Home() {
       content: "",
       process: {
         state: "running",
-        title: "Understanding your edit",
-        notes: ["I’m checking the instruction, slide context, and attached references before changing the deck."],
+        title: t("agent.understanding"),
+        notes: [t("agent.understandingNote")],
         tools: [{
           id: "plan",
           name: "plan_deck_edit",
-          label: "Plan the edit",
-          detail: "Identify the action and affected slides",
+          label: t("agent.plan"),
+          detail: t("agent.planDetail"),
           state: "running",
         }],
       },
@@ -440,16 +466,16 @@ export default function Home() {
     try {
       const plan = await planChatEdit(projectId, message, context, attachments);
       const planDetail = plan.action === "edit"
-        ? `Target slide${plan.targets.length === 1 ? "" : "s"}: ${plan.targets.join(", ")}`
+        ? t(plan.targets.length === 1 ? "agent.targetOne" : "agent.targetMany", { targets: plan.targets.join(", ") })
         : plan.action === "add"
-          ? "Add and render a new slide"
-          : "Reply without changing the deck";
+          ? t("agent.addRender")
+          : t("agent.replyOnly");
       updateChatMessage(runId, (current) => ({
         ...current,
         process: {
           ...patchAgentTool(current.process!, "plan", { state: "complete", detail: planDetail }),
-          title: plan.action === "add" ? "Adding a new slide" : plan.action === "edit" ? "Applying the deck edit" : "Request reviewed",
-          notes: plan.instruction ? [`Planned change: ${plan.instruction}`] : ["The request does not require a slide change."],
+          title: plan.action === "add" ? t("agent.adding") : plan.action === "edit" ? t("agent.applying") : t("agent.reviewed"),
+          notes: plan.instruction ? [t("agent.plannedChange", { instruction: plan.instruction })] : [t("agent.noChange")],
         },
       }));
       if (plan.action === "add") {
@@ -460,8 +486,8 @@ export default function Home() {
             ...current.process!,
             tools: [
               ...current.process!.tools,
-              { id: "add", name: "add_slide", label: "Insert slide", detail: `After slide ${afterIndex}`, state: "running" },
-              { id: "generate", name: "generate_slide", label: "Render slide", detail: "Match the current visual system", state: "pending" },
+              { id: "add", name: "add_slide", label: t("agent.insert"), detail: t("agent.after", { index: afterIndex }), state: "running" },
+              { id: "generate", name: "generate_slide", label: t("agent.renderSlide"), detail: t("agent.matchStyle"), state: "pending" },
             ],
           },
         }));
@@ -471,9 +497,9 @@ export default function Home() {
         updateChatMessage(runId, (current) => ({
           ...current,
           process: patchAgentTool(
-            patchAgentTool(current.process!, "add", { state: "complete", detail: `Inserted slide ${insertedIndex}` }),
+            patchAgentTool(current.process!, "add", { state: "complete", detail: t("agent.inserted", { index: insertedIndex }) }),
             "generate",
-            { state: "running", detail: `Rendering slide ${insertedIndex}` },
+            { state: "running", detail: t("agent.renderingSlide", { index: insertedIndex }) },
           ),
         }));
         try {
@@ -486,17 +512,17 @@ export default function Home() {
           setSlides((items) => items.map((slide) => (slide.index === insertedIndex ? generated : slide)));
           updateChatMessage(runId, (current) => ({
             ...current,
-            content: `${plan.reply} (added slide ${insertedIndex})`,
-            ran: elapsedRunLabel(startedAt),
+            content: t("agent.addedReply", { reply: plan.reply, index: insertedIndex }),
+            ran: elapsedRunLabel(startedAt, locale),
             attachment: {
               slideIndex: insertedIndex,
-              title: generated.title || `Slide ${insertedIndex}`,
+              title: generated.title || t("chat.slide", { index: insertedIndex }),
               imageUrl: fileUrl(projectId, generated.image, generated.bust),
             },
             process: {
-              ...patchAgentTool(current.process!, "generate", { state: "complete", detail: `Slide ${insertedIndex} rendered` }),
+              ...patchAgentTool(current.process!, "generate", { state: "complete", detail: t("agent.renderedSlide", { index: insertedIndex }) }),
               state: "complete",
-              title: `Slide ${insertedIndex} added`,
+              title: t("agent.addedSlide", { index: insertedIndex }),
             },
           }));
         } catch (error: any) {
@@ -515,8 +541,8 @@ export default function Home() {
         updateChatMessage(runId, (current) => ({
           ...current,
           content: plan.reply,
-          ran: elapsedRunLabel(startedAt),
-          process: { ...current.process!, state: "complete", title: "Request reviewed" },
+          ran: elapsedRunLabel(startedAt, locale),
+          process: { ...current.process!, state: "complete", title: t("agent.reviewed") },
         }));
         return;
       }
@@ -529,8 +555,8 @@ export default function Home() {
             ...plan.targets.map((target) => ({
               id: `regenerate-${target}`,
               name: "regenerate_slide",
-              label: `Update slide ${target}`,
-              detail: "Waiting for the previous edit",
+              label: t("agent.updateSlide", { index: target }),
+              detail: t("agent.waitPrevious"),
               state: "pending" as const,
             })),
           ],
@@ -538,26 +564,26 @@ export default function Home() {
       }));
       const failedTargets: number[] = [];
       let lastAttachment: SlideChatContext | undefined;
-      for (const t of plan.targets) {
+      for (const target of plan.targets) {
         updateChatMessage(runId, (current) => ({
           ...current,
-          process: patchAgentTool(current.process!, `regenerate-${t}`, {
+          process: patchAgentTool(current.process!, `regenerate-${target}`, {
             state: "running",
-            detail: "Redrawing with the current deck style",
+            detail: t("agent.redrawing"),
           }),
         }));
-        setSlides((s) => s.map((x) => (x.index === t ? { ...x, status: "working" } : x)));
+        setSlides((s) => s.map((x) => (x.index === target ? { ...x, status: "working" } : x)));
         try {
           const image = await regenerateSlide(
             projectId,
-            t,
+            target,
             plan.instruction,
             plan.targets.length === 1 ? plan.title : undefined,
           );
           const bust = Date.now();
           setSlides((s) =>
             s.map((x) =>
-              x.index === t
+              x.index === target
                 ? {
                     ...x,
                     title: plan.targets.length === 1 && plan.title ? plan.title : x.title,
@@ -569,27 +595,27 @@ export default function Home() {
             ),
           );
           lastAttachment = {
-            slideIndex: t,
+            slideIndex: target,
             title: (plan.targets.length === 1 ? plan.title : undefined)
-              || slides.find((slide) => slide.index === t)?.title
-              || `Slide ${t}`,
+              || slides.find((slide) => slide.index === target)?.title
+              || t("chat.slide", { index: target }),
             imageUrl: fileUrl(projectId, image, bust),
           };
           updateChatMessage(runId, (current) => ({
             ...current,
-            process: patchAgentTool(current.process!, `regenerate-${t}`, {
+            process: patchAgentTool(current.process!, `regenerate-${target}`, {
               state: "complete",
-              detail: `Slide ${t} updated`,
+              detail: t("agent.updatedSlide", { index: target }),
             }),
           }));
         } catch (e: any) {
-          failedTargets.push(t);
+          failedTargets.push(target);
           setSlides((s) =>
-            s.map((x) => (x.index === t ? { ...x, status: "error", error: String(e?.message ?? e) } : x)),
+            s.map((x) => (x.index === target ? { ...x, status: "error", error: String(e?.message ?? e) } : x)),
           );
           updateChatMessage(runId, (current) => ({
             ...current,
-            process: patchAgentTool(current.process!, `regenerate-${t}`, {
+            process: patchAgentTool(current.process!, `regenerate-${target}`, {
               state: "error",
               detail: String(e?.message ?? e),
             }),
@@ -599,25 +625,25 @@ export default function Home() {
       updateChatMessage(runId, (current) => ({
         ...current,
         content: failedTargets.length
-          ? `${plan.reply} Updated the remaining slides, but slide ${failedTargets.join(", ")} failed.`
-          : `${plan.reply} (updated slide ${plan.targets.join(", ")})`,
-        ran: elapsedRunLabel(startedAt),
+          ? t("agent.partialFailure", { reply: plan.reply, targets: failedTargets.join(", ") })
+          : t("agent.updatedReply", { reply: plan.reply, targets: plan.targets.join(", ") }),
+        ran: elapsedRunLabel(startedAt, locale),
         attachment: lastAttachment,
         process: {
           ...current.process!,
           state: failedTargets.length ? "error" : "complete",
-          title: failedTargets.length ? "Edit completed with errors" : "Deck edit complete",
+          title: failedTargets.length ? t("agent.editErrors") : t("agent.editComplete"),
         },
       }));
     } catch (e: any) {
       updateChatMessage(runId, (current) => ({
         ...current,
         content: `⚠ ${e?.message ?? e}`,
-        ran: elapsedRunLabel(startedAt),
+        ran: elapsedRunLabel(startedAt, locale),
         process: {
           ...stopRunningTools(current.process!, String(e?.message ?? e)),
           state: "error",
-          title: "Edit could not be completed",
+          title: t("agent.editFailed"),
         },
       }));
     } finally {
@@ -646,19 +672,22 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, busy, projectId, queue]);
 
-  // Persist the conversation (debounced) once the project exists, so reopening
-  // /project/[id] restores the full dialogue (questions, choices, edits, artifacts).
+  // Persist all conversations once the project exists, including the active selection.
   useEffect(() => {
-    if (!projectId || !chat.length) return;
-    const t = setTimeout(() => saveChat(projectId, chat), 600);
+    if (!projectId || !conversationState.conversations.length) return;
+    const t = setTimeout(() => saveConversations(
+      projectId,
+      conversationState.conversations,
+      conversationState.activeConversationId,
+    ), 600);
     return () => clearTimeout(t);
-  }, [chat, projectId]);
+  }, [conversationState.activeConversationId, conversationState.conversations, projectId]);
 
   function askAboutSlide(slide: UiSlide) {
     if (!projectId) return;
     setChatContext({
       slideIndex: slide.index,
-      title: slide.title || `Slide ${slide.index}`,
+      title: slide.title || t("chat.slide", { index: slide.index }),
       imageUrl: fileUrl(projectId, slide.image, slide.bust),
     });
     setChatFocusKey((key) => key + 1);
@@ -669,10 +698,10 @@ export default function Home() {
     if (event.type === "request") {
       say({
         role: "user",
-        content: event.note || `Please edit the marked area on slide ${event.slide.index}.`,
+        content: event.note || t("agent.markRequest", { index: event.slide.index }),
         attachment: {
           slideIndex: event.slide.index,
-          title: `${event.slide.title} · visual mark`,
+          title: `${event.slide.title} · ${t("agent.visualMark")}`,
           imageUrl: fileUrl(projectId, event.markedImage),
         },
       });
@@ -684,16 +713,16 @@ export default function Home() {
         content: "",
         process: {
           state: "running",
-          title: `Editing slide ${event.slide.index}`,
+          title: t("agent.editingSlide", { index: event.slide.index }),
           notes: [
-            "I’m reading the marked region and your instruction.",
-            "The surrounding layout and the deck’s visual system will stay intact.",
+            t("agent.markNoteOne"),
+            t("agent.markNoteTwo"),
           ],
           tools: [{
             id: "mark-edit",
             name: "mark_edit_page",
-            label: "Apply visual edit",
-            detail: `Process the marked region on slide ${event.slide.index}`,
+            label: t("agent.applyVisual"),
+            detail: t("agent.processMark", { index: event.slide.index }),
             state: "running",
           }],
         },
@@ -703,17 +732,17 @@ export default function Home() {
       if (!run) return;
       updateChatMessage(run.id, (current) => ({
         ...current,
-        content: `Applied the visual annotation to slide ${event.slide.index}.`,
-        ran: elapsedRunLabel(run.startedAt),
+        content: t("agent.markApplied", { index: event.slide.index }),
+        ran: elapsedRunLabel(run.startedAt, locale),
         attachment: {
           slideIndex: event.slide.index,
-          title: `${event.slide.title} · updated`,
+          title: `${event.slide.title} · ${t("agent.updated")}`,
           imageUrl: fileUrl(projectId, event.image, Date.now()),
         },
         process: {
-          ...patchAgentTool(current.process!, "mark-edit", { state: "complete", detail: "Updated slide saved" }),
+          ...patchAgentTool(current.process!, "mark-edit", { state: "complete", detail: t("agent.updatedSaved") }),
           state: "complete",
-          title: `Slide ${event.slide.index} updated`,
+          title: t("agent.updatedSlide", { index: event.slide.index }),
         },
       }));
       markRunRef.current = null;
@@ -723,11 +752,11 @@ export default function Home() {
       updateChatMessage(run.id, (current) => ({
         ...current,
         content: `⚠ ${event.error}`,
-        ran: elapsedRunLabel(run.startedAt),
+        ran: elapsedRunLabel(run.startedAt, locale),
         process: {
           ...patchAgentTool(current.process!, "mark-edit", { state: "error", detail: event.error }),
           state: "error",
-          title: `Slide ${event.slide.index} was not updated`,
+          title: t("agent.notUpdated", { index: event.slide.index }),
         },
       }));
       markRunRef.current = null;
@@ -742,18 +771,40 @@ export default function Home() {
         : stage === "outline" && running
           ? { phase: "outlining", total: 0, done: 0, note: researchNote || undefined }
           : null;
+    const renderedSlides = slides.filter((slide) => slide.status === "rendered").length;
+    const templateLabel = config.template
+      ? getCommunityTemplate(config.template)?.name ?? config.template
+      : undefined;
+    const workflow = buildWorkflowProgress({
+      stage,
+      clarifyBusy,
+      questionCount: questions.length,
+      outlineCount: outline.length,
+      templateLabel,
+      inspirationSkipped,
+      running: stage === "deck" && running,
+      rendered: renderedSlides,
+      total: slides.length || outline.length,
+      renderDetail: status?.phase === "rendering"
+        ? status.note
+          || (status.current
+            ? t("status.renderingNamed", { index: status.current, title: status.currentTitle ? ` · ${status.currentTitle}` : "" })
+            : t("status.renderingCount", { done: status.done, total: status.total }))
+        : undefined,
+      locale,
+    });
     const placeholder =
       stage === "clarify"
-        ? "有其它要求可以先告诉我，确认问题后开始写大纲…"
+        ? t("flow.placeholderClarify")
         : stage === "outline"
-          ? "告诉 agent 怎么改大纲，或直接在右侧编辑…"
+          ? t("flow.placeholderOutline")
           : stage === "inspire"
-            ? "点「浏览」挑个视觉风格，或跳过用默认风格…"
-            : "让 agent 增删、改写、换风格或优化…";
+            ? t("flow.placeholderInspire")
+            : t("flow.placeholderDeck");
     return (
       <div className="ws project-ws">
         <ChatColumn
-          label="Deck Agent"
+          label={t("chat.deckAgent")}
           homeHref="/"
           messages={chat}
           busy={running || busy || clarifyBusy}
@@ -765,13 +816,31 @@ export default function Home() {
           focusKey={chatFocusKey}
           onSelectSlide={locateChatSlide}
           onInspire={onInspire}
+          workflow={workflow}
+          conversations={projectId ? conversationState.summaries : undefined}
+          activeConversationId={projectId ? conversationState.activeConversationId : undefined}
+          onSelectConversation={projectId ? (id) => {
+            if (running || busy || clarifyBusy) return;
+            setQueue([]);
+            setChatContext(null);
+            conversationState.selectConversation(id);
+          } : undefined}
+          onCreateConversation={projectId ? () => {
+            if (running || busy || clarifyBusy) return;
+            setQueue([]);
+            setChatContext(null);
+            conversationState.createConversation();
+          } : undefined}
+          onRenameConversation={projectId ? conversationState.renameConversation : undefined}
+          onDeleteConversation={projectId ? conversationState.deleteConversation : undefined}
+          conversationManagementDisabled={running || busy || clarifyBusy}
           placeholder={placeholder}
         />
         {stage === "clarify" ? (
           <section className="stage clarify-stage">
             <div className="stage-head">
-              <span className="title">先确认几个问题</span>
-              <span className="count">第 1 步 · 明确需求</span>
+              <span className="title">{t("onboard.stageTitle")}</span>
+              <span className="count">{t("onboard.step")}</span>
             </div>
             <div className="clarify-pane">
               <p className="clarify-topic">{config.requirement}</p>
@@ -779,7 +848,7 @@ export default function Home() {
                 <div className="clarify-loading">
                   <div className="clarify-loading-head">
                     <span className="spinner sm" />
-                    <span>正在根据你的主题准备问题…</span>
+                    <span>{t("onboard.preparing")}</span>
                   </div>
                   <div className="clarify-skeleton">
                     {[0, 1, 2, 3].map((k) => (
@@ -802,8 +871,8 @@ export default function Home() {
                   onComplete={applyClarify}
                   onAttachImages={attachClarifyImages}
                   onRemoveImage={onRemoveMaterial}
-                  submitLabel="确认，开始写大纲 →"
-                  skipLabel="跳过"
+                  submitLabel={t("onboard.confirmOutline")}
+                  skipLabel={t("onboard.skip")}
                 />
               )}
             </div>
@@ -858,7 +927,7 @@ export default function Home() {
   const selectedStyle = communityStyle
     ? { id: communityStyle.id, name: communityStyle.name, cover: communityStyle.cover, sub: communityStyle.group }
     : curatedStyle
-      ? { id: curatedStyle.id, name: curatedStyle.name, palette: curatedStyle.palette, sub: "Preset style" }
+      ? { id: curatedStyle.id, name: curatedStyle.name, palette: curatedStyle.palette, sub: t("template.preset") }
       : null;
   return (
     <>
@@ -866,11 +935,11 @@ export default function Home() {
       <main className="launch">
         <div className="launch-hero">
           <div className="plan-pill">
-            <span>✧ Zero-config</span>
+            <span>{t("home.badge")}</span>
             <span className="divider" />
-            <span style={{ color: "var(--muted)" }}>your local Codex writes the copy and draws the slides</span>
+            <span style={{ color: "var(--muted)" }}>{t("home.tagline")}</span>
           </div>
-          <h1>What do you want to present?</h1>
+          <h1>{t("home.title")}</h1>
           <Composer
             config={config}
             setConfig={patchConfig}

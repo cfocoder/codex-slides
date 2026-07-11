@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { ImageSquare, X } from "@phosphor-icons/react";
+import { useI18n } from "@/i18n/I18nProvider";
 
 export default function ImagePreviewDialog({
   src,
@@ -15,6 +16,7 @@ export default function ImagePreviewDialog({
   subtitle?: string;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export default function ImagePreviewDialog({
             <strong id="image-preview-title">{title}</strong>
             {subtitle && <small>{subtitle}</small>}
           </span>
-          <button ref={closeRef} type="button" onClick={onClose} aria-label="Close image preview">
+          <button ref={closeRef} type="button" onClick={onClose} aria-label={t("dialog.closePreview")}>
             <X size={18} weight="bold" />
           </button>
         </header>

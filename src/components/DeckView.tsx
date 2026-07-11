@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowsClockwise, Palette, WarningCircle, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, FolderOpen, Palette, WarningCircle, X } from "@phosphor-icons/react";
+import DesignFiles from "@/components/DesignFiles";
 import ChatColumn, { type ChatMsg } from "@/components/ChatColumn";
 import MaterialTray from "@/components/MaterialTray";
 import OutlineBoard from "@/components/OutlineBoard";
@@ -23,7 +24,7 @@ import {
   planChatEdit,
   regenerateSlide,
   reviseOutlineChat,
-  saveChat,
+  saveConversations,
   saveOutline,
   streamRender,
   type ChatRequest,
@@ -32,6 +33,11 @@ import {
   type UiSlide,
 } from "@/lib/deckEdit";
 import type { OutlinePage, ProgressEvent, Project } from "@/lib/types";
+import { outlineSnapshotMessage, styleSnapshotMessage } from "@/lib/chatArtifacts";
+import { useChatConversations } from "@/lib/useChatConversations";
+import { buildWorkflowProgress } from "@/lib/workflowProgress";
+import { useI18n } from "@/i18n/I18nProvider";
+import { translate, type UiLocale } from "@/i18n/messages";
 import {
   createAgentRunId,
   elapsedRunLabel,
@@ -61,7 +67,7 @@ function projectOutline(project: Project): OutlinePage[] {
   }));
 }
 
-function projectChat(project: Project): ChatMsg[] {
+function projectChat(project: Project, locale: UiLocale): ChatMsg[] {
   if (Array.isArray(project.chat) && project.chat.length) {
     return project.chat as unknown as ChatMsg[];
   }
@@ -70,12 +76,16 @@ function projectChat(project: Project): ChatMsg[] {
     project.status === "draft"
       ? {
           role: "assistant",
-          content: `这个演示还是草稿——「${project.title}」有 ${project.pages.length} 页大纲，还没出图。你可以在右侧编辑大纲或让我修改，满意后点「生成」逐页出图。`,
-          doc: { title: project.title, subtitle: `大纲 · ${project.pages.length} 页`, icon: "▤" },
+          content: translate(locale, "project.draftIntro", { title: project.title, count: project.pages.length }),
+          doc: {
+            title: project.title,
+            subtitle: translate(locale, "flow.outlineDoc", { count: project.pages.length }),
+            pages: projectOutline(project),
+          },
         }
       : {
           role: "assistant",
-          content: `I’m the agent for this presentation. “${project.title}” has ${project.pages.length} slides (${rendered} rendered). I can add pages, rewrite content, redraw a selected slide, or optimize the whole deck.`,
+          content: translate(locale, "project.readyIntro", { title: project.title, count: project.pages.length, rendered }),
           doc: { title: project.title, subtitle: `${project.config.aspect} · ${project.agent}`, icon: "▤" },
         },
   ];
@@ -83,7 +93,9 @@ function projectChat(project: Project): ChatMsg[] {
 
 /** Shows a persisted project immediately from server-provided data. */
 export default function DeckView({ projectId, initialProject }: { projectId: string; initialProject: Project }) {
+  const { locale, t } = useI18n();
   const [project, setProject] = useState<Project>(initialProject);
+  const [workspaceView, setWorkspaceView] = useState<"deck" | "files">("deck");
   const [slides, setSlides] = useState<UiSlide[]>(() => projectSlides(initialProject));
   const [busy, setBusy] = useState(false);
   const [running, setRunning] = useState(false);
@@ -91,7 +103,14 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     initialProject.status === "draft" ? "outline" : "deck",
   );
   const [outline, setOutline] = useState<OutlinePage[]>(() => projectOutline(initialProject));
-  const [chat, setChat] = useState<ChatMsg[]>(() => projectChat(initialProject));
+  const conversationState = useChatConversations({
+    initialConversations: initialProject.conversations,
+    initialActiveConversationId: initialProject.activeConversationId,
+    initialMessages: projectChat(initialProject, locale),
+    initialTitle: initialProject.title,
+  });
+  const chat = conversationState.messages;
+  const setChat = conversationState.setMessages;
   const [queue, setQueue] = useState<ChatRequest[]>([]);
   const [chatContext, setChatContext] = useState<SlideChatContext | null>(null);
   const [chatFocusKey, setChatFocusKey] = useState(0);
@@ -99,6 +118,9 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   const [focusSlideKey, setFocusSlideKey] = useState(0);
   const [inspireOpen, setInspireOpen] = useState(false);
   const [inspireMsgId, setInspireMsgId] = useState<string | null>(null);
+  const [inspirationSkipped, setInspirationSkipped] = useState(
+    initialProject.status !== "draft" && !initialProject.config.template,
+  );
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const markRunRef = useRef<{ id: string; startedAt: number; slideIndex: number } | null>(null);
 
@@ -154,12 +176,16 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, running, queue]);
 
-  // Persist the conversation (debounced) so it survives reloads.
+  // Persist every conversation (debounced) so switching/reloading never loses a turn.
   useEffect(() => {
-    if (!chat.length) return;
-    const t = setTimeout(() => saveChat(projectId, chat), 600);
+    if (!conversationState.conversations.length) return;
+    const t = setTimeout(() => saveConversations(
+      projectId,
+      conversationState.conversations,
+      conversationState.activeConversationId,
+    ), 600);
     return () => clearTimeout(t);
-  }, [chat, projectId]);
+  }, [conversationState.activeConversationId, conversationState.conversations, projectId]);
 
   // --- draft outline stage (编辑大纲 → 确认 → 渲染) ---
 
@@ -177,7 +203,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     try {
       const { pages, reply } = await reviseOutlineChat(projectId, request.message);
       setOutline(pages);
-      say({ role: "assistant", content: reply || "已更新大纲。" });
+      say({ role: "assistant", content: reply || t("flow.outlineUpdated") });
     } catch (e: any) {
       say({ role: "assistant", content: `⚠ ${e?.message ?? e}` });
     } finally {
@@ -214,6 +240,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       say({ role: "assistant", content: `⚠ ${e?.message ?? e}` });
       return;
     }
+    say(outlineSnapshotMessage(project.title, outline));
     if (!project?.config.template) {
       // Detour to the inspiration step: pending skeleton deck + an in-chat card
       // whose Browse button opens the style popup. Render waits for pick/skip.
@@ -227,7 +254,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       say({
         id: msgId,
         role: "assistant",
-        content: "出图前，先挑一个视觉参考风格吧——我按你的主题和大纲排好了。点「浏览」挑一个，或跳过用默认风格。",
+        content: t("flow.stylePrompt"),
         inspiration: {
           query: inspireQueryFor(project?.config.requirement ?? "", outline[0]?.title),
           coverIds: matchCommunityTemplates(matchQuery, 4).map((t) => t.id),
@@ -236,6 +263,8 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       });
       return;
     }
+    setInspirationSkipped(false);
+    say(styleSnapshotMessage(project.config.template, project.config.requirement));
     renderNow();
   }
 
@@ -250,16 +279,18 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     if (running || busy) return;
     setInspireOpen(false);
     if (templateId) {
+      setInspirationSkipped(false);
       const tpl = getCommunityTemplate(templateId);
-      say({ role: "user", content: `选定风格：${tpl?.name ?? templateId}` });
+      say({ role: "user", content: t("flow.styleSelected", { name: tpl?.name ?? templateId }) });
       try {
         await patchProjectStyle(projectId, { template: templateId });
         setProject((p) => ({ ...p, config: { ...p.config, template: templateId } }));
       } catch (e: any) {
-        say({ role: "assistant", content: `⚠ 应用风格失败：${e?.message ?? e}` });
+        say({ role: "assistant", content: `⚠ ${t("flow.styleFailed", { error: e?.message ?? String(e) })}` });
       }
     } else {
-      say({ role: "user", content: "跳过风格，用默认风格生成。" });
+      setInspirationSkipped(true);
+      say({ role: "user", content: t("flow.styleSkipped") });
     }
     if (inspireMsgId) {
       updateChatMessage(inspireMsgId, (m) => ({
@@ -280,8 +311,8 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       say({
         role: "assistant",
         content: project.config.fast
-          ? `⚡ Fast 模式：${outline.length} 页并行生成（超出并发的会自动排队），风格与需求保持统一…`
-          : `开始逐页生成 ${outline.length} 页幻灯片，每页约 30s…`,
+          ? t("flow.fastRender", { count: outline.length })
+          : t("flow.render", { count: outline.length }),
       });
       let rendered = 0;
       await streamRender(projectId, (ev) => {
@@ -291,8 +322,13 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       if (rendered > 0) {
         say({
           role: "assistant",
-          content: `完成！已生成 ${rendered} 页。下一步你可以直接告诉我怎么优化，或用右上角导出：`,
-          suggestions: ["加一页总结收尾", "整体换个更商务的风格", "重画封面更醒目", "把要点讲得更具体"],
+          content: t("flow.renderDone", { count: rendered }),
+          suggestions: [
+            t("flow.suggestionSummary"),
+            t("flow.suggestionBusiness"),
+            t("flow.suggestionCover"),
+            t("flow.suggestionSpecific"),
+          ],
         });
       }
     } catch (e: any) {
@@ -314,16 +350,16 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       content: "",
       process: {
         state: "running",
-        title: "Understanding your edit",
+        title: t("agent.understanding"),
         notes: [
-          "I’m checking the instruction, slide context, and attached references before changing the deck.",
+          t("agent.understandingNote"),
         ],
         tools: [
           {
             id: "plan",
             name: "plan_deck_edit",
-            label: "Plan the edit",
-            detail: "Identify the action and affected slides",
+            label: t("agent.plan"),
+            detail: t("agent.planDetail"),
             state: "running",
           },
         ],
@@ -333,18 +369,18 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     try {
       const plan = await planChatEdit(projectId, message, context, attachments);
       const planDetail = plan.action === "edit"
-        ? `Target slide${plan.targets.length === 1 ? "" : "s"}: ${plan.targets.join(", ")}`
+        ? t(plan.targets.length === 1 ? "agent.targetOne" : "agent.targetMany", { targets: plan.targets.join(", ") })
         : plan.action === "add"
-          ? "Add and render a new slide"
-          : "Reply without changing the deck";
+          ? t("agent.addRender")
+          : t("agent.replyOnly");
       updateChatMessage(runId, (current) => ({
         ...current,
         process: {
           ...patchAgentTool(current.process!, "plan", { state: "complete", detail: planDetail }),
-          title: plan.action === "add" ? "Adding a new slide" : plan.action === "edit" ? "Applying the deck edit" : "Request reviewed",
+          title: plan.action === "add" ? t("agent.adding") : plan.action === "edit" ? t("agent.applying") : t("agent.reviewed"),
           notes: plan.instruction
-            ? [`Planned change: ${plan.instruction}`]
-            : ["The request does not require a slide change."],
+            ? [t("agent.plannedChange", { instruction: plan.instruction })]
+            : [t("agent.noChange")],
         },
       }));
       if (plan.action === "add") {
@@ -355,8 +391,8 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             ...current.process!,
             tools: [
               ...current.process!.tools,
-              { id: "add", name: "add_slide", label: "Insert slide", detail: `After slide ${afterIndex}`, state: "running" },
-              { id: "generate", name: "generate_slide", label: "Render slide", detail: "Match the current visual system", state: "pending" },
+              { id: "add", name: "add_slide", label: t("agent.insert"), detail: t("agent.after", { index: afterIndex }), state: "running" },
+              { id: "generate", name: "generate_slide", label: t("agent.renderSlide"), detail: t("agent.matchStyle"), state: "pending" },
             ],
           },
         }));
@@ -366,9 +402,9 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         updateChatMessage(runId, (current) => ({
           ...current,
           process: patchAgentTool(
-            patchAgentTool(current.process!, "add", { state: "complete", detail: `Inserted slide ${insertedIndex}` }),
+            patchAgentTool(current.process!, "add", { state: "complete", detail: t("agent.inserted", { index: insertedIndex }) }),
             "generate",
-            { state: "running", detail: `Rendering slide ${insertedIndex}` },
+            { state: "running", detail: t("agent.renderingSlide", { index: insertedIndex }) },
           ),
         }));
         try {
@@ -381,17 +417,17 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
           setSlides((items) => items.map((slide) => (slide.index === insertedIndex ? generated : slide)));
           updateChatMessage(runId, (current) => ({
             ...current,
-            content: `${plan.reply} (added slide ${insertedIndex})`,
-            ran: elapsedRunLabel(startedAt),
+            content: t("agent.addedReply", { reply: plan.reply, index: insertedIndex }),
+            ran: elapsedRunLabel(startedAt, locale),
             attachment: {
               slideIndex: insertedIndex,
-              title: generated.title || `Slide ${insertedIndex}`,
+              title: generated.title || t("chat.slide", { index: insertedIndex }),
               imageUrl: fileUrl(projectId, generated.image, generated.bust),
             },
             process: {
-              ...patchAgentTool(current.process!, "generate", { state: "complete", detail: `Slide ${insertedIndex} rendered` }),
+              ...patchAgentTool(current.process!, "generate", { state: "complete", detail: t("agent.renderedSlide", { index: insertedIndex }) }),
               state: "complete",
-              title: `Slide ${insertedIndex} added`,
+              title: t("agent.addedSlide", { index: insertedIndex }),
             },
           }));
         } catch (error: any) {
@@ -410,8 +446,8 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         updateChatMessage(runId, (current) => ({
           ...current,
           content: plan.reply,
-          ran: elapsedRunLabel(startedAt),
-          process: { ...current.process!, state: "complete", title: "Request reviewed" },
+          ran: elapsedRunLabel(startedAt, locale),
+          process: { ...current.process!, state: "complete", title: t("agent.reviewed") },
         }));
         return;
       }
@@ -424,8 +460,8 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             ...plan.targets.map((target) => ({
               id: `regenerate-${target}`,
               name: "regenerate_slide",
-              label: `Update slide ${target}`,
-              detail: "Waiting for the previous edit",
+              label: t("agent.updateSlide", { index: target }),
+              detail: t("agent.waitPrevious"),
               state: "pending" as const,
             })),
           ],
@@ -433,26 +469,26 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       }));
       const failedTargets: number[] = [];
       let lastAttachment: SlideChatContext | undefined;
-      for (const t of plan.targets) {
+      for (const target of plan.targets) {
         updateChatMessage(runId, (current) => ({
           ...current,
-          process: patchAgentTool(current.process!, `regenerate-${t}`, {
+          process: patchAgentTool(current.process!, `regenerate-${target}`, {
             state: "running",
-            detail: "Redrawing with the current deck style",
+            detail: t("agent.redrawing"),
           }),
         }));
-        setSlides((s) => s.map((x) => (x.index === t ? { ...x, status: "working" } : x)));
+        setSlides((s) => s.map((x) => (x.index === target ? { ...x, status: "working" } : x)));
         try {
           const image = await regenerateSlide(
             projectId,
-            t,
+            target,
             plan.instruction,
             plan.targets.length === 1 ? plan.title : undefined,
           );
           const bust = Date.now();
           setSlides((s) =>
             s.map((x) =>
-              x.index === t
+              x.index === target
                 ? {
                     ...x,
                     title: plan.targets.length === 1 && plan.title ? plan.title : x.title,
@@ -464,27 +500,27 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             ),
           );
           lastAttachment = {
-            slideIndex: t,
+            slideIndex: target,
             title: (plan.targets.length === 1 ? plan.title : undefined)
-              || slides.find((slide) => slide.index === t)?.title
-              || `Slide ${t}`,
+              || slides.find((slide) => slide.index === target)?.title
+              || t("chat.slide", { index: target }),
             imageUrl: fileUrl(projectId, image, bust),
           };
           updateChatMessage(runId, (current) => ({
             ...current,
-            process: patchAgentTool(current.process!, `regenerate-${t}`, {
+            process: patchAgentTool(current.process!, `regenerate-${target}`, {
               state: "complete",
-              detail: `Slide ${t} updated`,
+              detail: t("agent.updatedSlide", { index: target }),
             }),
           }));
         } catch (e: any) {
-          failedTargets.push(t);
+          failedTargets.push(target);
           setSlides((s) =>
-            s.map((x) => (x.index === t ? { ...x, status: "error", error: String(e?.message ?? e) } : x)),
+            s.map((x) => (x.index === target ? { ...x, status: "error", error: String(e?.message ?? e) } : x)),
           );
           updateChatMessage(runId, (current) => ({
             ...current,
-            process: patchAgentTool(current.process!, `regenerate-${t}`, {
+            process: patchAgentTool(current.process!, `regenerate-${target}`, {
               state: "error",
               detail: String(e?.message ?? e),
             }),
@@ -494,25 +530,25 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       updateChatMessage(runId, (current) => ({
         ...current,
         content: failedTargets.length
-          ? `${plan.reply} Updated the remaining slides, but slide ${failedTargets.join(", ")} failed.`
-          : `${plan.reply} (updated slide ${plan.targets.join(", ")})`,
-        ran: elapsedRunLabel(startedAt),
+          ? t("agent.partialFailure", { reply: plan.reply, targets: failedTargets.join(", ") })
+          : t("agent.updatedReply", { reply: plan.reply, targets: plan.targets.join(", ") }),
+        ran: elapsedRunLabel(startedAt, locale),
         attachment: lastAttachment,
         process: {
           ...current.process!,
           state: failedTargets.length ? "error" : "complete",
-          title: failedTargets.length ? "Edit completed with errors" : "Deck edit complete",
+          title: failedTargets.length ? t("agent.editErrors") : t("agent.editComplete"),
         },
       }));
     } catch (e: any) {
       updateChatMessage(runId, (current) => ({
         ...current,
         content: `⚠ ${e?.message ?? e}`,
-        ran: elapsedRunLabel(startedAt),
+        ran: elapsedRunLabel(startedAt, locale),
         process: {
           ...stopRunningTools(current.process!, String(e?.message ?? e)),
           state: "error",
-          title: "Edit could not be completed",
+          title: t("agent.editFailed"),
         },
       }));
     } finally {
@@ -523,7 +559,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   function askAboutSlide(slide: UiSlide) {
     setChatContext({
       slideIndex: slide.index,
-      title: slide.title || `Slide ${slide.index}`,
+      title: slide.title || t("chat.slide", { index: slide.index }),
       imageUrl: fileUrl(projectId, slide.image, slide.bust),
     });
     setChatFocusKey((key) => key + 1);
@@ -533,10 +569,10 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     if (event.type === "request") {
       say({
         role: "user",
-        content: event.note || `Please edit the marked area on slide ${event.slide.index}.`,
+        content: event.note || t("agent.markRequest", { index: event.slide.index }),
         attachment: {
           slideIndex: event.slide.index,
-          title: `${event.slide.title} · visual mark`,
+          title: `${event.slide.title} · ${t("agent.visualMark")}`,
           imageUrl: fileUrl(projectId, event.markedImage),
         },
       });
@@ -548,17 +584,17 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         content: "",
         process: {
           state: "running",
-          title: `Editing slide ${event.slide.index}`,
+          title: t("agent.editingSlide", { index: event.slide.index }),
           notes: [
-            "I’m reading the marked region and your instruction.",
-            "The surrounding layout and the deck’s visual system will stay intact.",
+            t("agent.markNoteOne"),
+            t("agent.markNoteTwo"),
           ],
           tools: [
             {
               id: "mark-edit",
               name: "mark_edit_page",
-              label: "Apply visual edit",
-              detail: `Process the marked region on slide ${event.slide.index}`,
+              label: t("agent.applyVisual"),
+              detail: t("agent.processMark", { index: event.slide.index }),
               state: "running",
             },
           ],
@@ -569,17 +605,17 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       if (!run) return;
       updateChatMessage(run.id, (current) => ({
         ...current,
-        content: `Applied the visual annotation to slide ${event.slide.index}.`,
-        ran: elapsedRunLabel(run.startedAt),
+        content: t("agent.markApplied", { index: event.slide.index }),
+        ran: elapsedRunLabel(run.startedAt, locale),
         attachment: {
           slideIndex: event.slide.index,
-          title: `${event.slide.title} · updated`,
+          title: `${event.slide.title} · ${t("agent.updated")}`,
           imageUrl: fileUrl(projectId, event.image, Date.now()),
         },
         process: {
-          ...patchAgentTool(current.process!, "mark-edit", { state: "complete", detail: "Updated slide saved" }),
+          ...patchAgentTool(current.process!, "mark-edit", { state: "complete", detail: t("agent.updatedSaved") }),
           state: "complete",
-          title: `Slide ${event.slide.index} updated`,
+          title: t("agent.updatedSlide", { index: event.slide.index }),
         },
       }));
       markRunRef.current = null;
@@ -589,11 +625,11 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       updateChatMessage(run.id, (current) => ({
         ...current,
         content: `⚠ ${event.error}`,
-        ran: elapsedRunLabel(run.startedAt),
+        ran: elapsedRunLabel(run.startedAt, locale),
         process: {
           ...patchAgentTool(current.process!, "mark-edit", { state: "error", detail: event.error }),
           state: "error",
-          title: `Slide ${event.slide.index} was not updated`,
+          title: t("agent.notUpdated", { index: event.slide.index }),
         },
       }));
       markRunRef.current = null;
@@ -612,14 +648,14 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     setRetuning(true);
     setRetuneProgress(1);
     setBusy(true);
-    say({ role: "assistant", content: `Restyling all ${slides.length} slides…` });
+    say({ role: "assistant", content: t("restyle.started", { count: slides.length }) });
     try {
       const response = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ template: retuneTemplate ?? "", materialIds: retuneMaterialIds }),
       });
-      if (!response.ok) throw new Error("Could not save the new deck style");
+      if (!response.ok) throw new Error(t("restyle.saveFailed"));
       for (const [position, slide] of slides.entries()) {
         setRetuneProgress(position + 1);
         setSlides((items) => items.map((item) => (item.index === slide.index ? { ...item, status: "working" } : item)));
@@ -636,7 +672,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       }
       setShowTune(false);
       requestAnimationFrame(() => retuneTriggerRef.current?.focus());
-      say({ role: "assistant", content: `Done — all ${slides.length} slides now use the new visual style.` });
+      say({ role: "assistant", content: t("restyle.done", { count: slides.length }) });
     } catch (error: any) {
       say({ role: "assistant", content: `⚠ ${error?.message ?? error}` });
     } finally {
@@ -654,13 +690,33 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       : deriveStatus(slides, {
           streaming: running,
           editing: busy,
-          note: retuning ? `Restyling slide ${retuneProgress} of ${slides.length}` : undefined,
+          note: retuning ? t("restyle.progress", { current: retuneProgress, total: slides.length }) : undefined,
         });
+  const renderedSlides = slides.filter((slide) => slide.status === "rendered").length;
+  const templateLabel = project.config.template
+    ? getCommunityTemplate(project.config.template)?.name ?? project.config.template
+    : undefined;
+  const workflow = buildWorkflowProgress({
+    stage,
+    outlineCount: outline.length,
+    templateLabel,
+    inspirationSkipped,
+    running: stage === "deck" && running,
+    rendered: renderedSlides,
+    total: slides.length || outline.length,
+      renderDetail: status?.phase === "rendering"
+      ? status.note
+        || (status.current
+            ? t("status.renderingNamed", { index: status.current, title: status.currentTitle ? ` · ${status.currentTitle}` : "" })
+            : t("status.renderingCount", { done: status.done, total: status.total }))
+        : undefined,
+      locale,
+    });
 
   return (
     <div className="ws project-ws">
       <ChatColumn
-        label="Deck Agent"
+        label={t("chat.deckAgent")}
         homeHref="/"
         messages={chat}
         busy={busy || running}
@@ -672,15 +728,35 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         focusKey={chatFocusKey}
         onSelectSlide={locateChatSlide}
         onInspire={onInspire}
+        workflow={workflow}
+        conversations={conversationState.summaries}
+        activeConversationId={conversationState.activeConversationId}
+        onSelectConversation={(id) => {
+          if (busy || running) return;
+          setQueue([]);
+          setChatContext(null);
+          conversationState.selectConversation(id);
+        }}
+        onCreateConversation={() => {
+          if (busy || running) return;
+          setQueue([]);
+          setChatContext(null);
+          conversationState.createConversation();
+        }}
+        onRenameConversation={conversationState.renameConversation}
+        onDeleteConversation={conversationState.deleteConversation}
+        conversationManagementDisabled={busy || running}
         placeholder={
           stage === "outline"
-            ? "告诉 agent 怎么改大纲，或直接在右侧编辑…"
+            ? t("flow.placeholderOutline")
             : stage === "inspire"
-              ? "点「浏览」挑个视觉风格，或跳过用默认风格…"
-              : "Ask the deck agent to add, rewrite, restyle, or optimize…"
+              ? t("flow.placeholderInspire")
+              : t("flow.placeholderDeck")
         }
       />
-      {stage === "outline" ? (
+      {workspaceView === "files" ? (
+        <div className="deckpane"><DesignFiles projectId={projectId} title={project.title} onClose={() => setWorkspaceView("deck")} /></div>
+      ) : stage === "outline" ? (
         <OutlineBoard
           title={project.title}
           aspect={project.config.aspect}
@@ -710,6 +786,11 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             focusSlideKey={focusSlideKey}
             headerExtra={
               stage !== "inspire" ? (
+              <div className="deck-header-extras">
+              <button className="iconbtn design-files-trigger" onClick={() => setWorkspaceView("files")} title="Open project files">
+                <FolderOpen size={16} weight="regular" aria-hidden="true" />
+                Design Files
+              </button>
               <button
                 ref={retuneTriggerRef}
                 className={`iconbtn restyle-trigger${showTune ? " active" : ""}`}
@@ -717,17 +798,18 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
                 aria-expanded={showTune}
                 aria-controls="restyle-deck-panel"
                 disabled={retuning}
-                title="Apply a new visual style to every slide"
+                title={t("restyle.open")}
               >
                 <Palette size={16} weight="regular" aria-hidden="true" />
-                Restyle deck
+                {t("restyle.button")}
               </button>
+              </div>
               ) : undefined
             }
           />
           {showTune && (
             <>
-              <button className="retune-scrim" aria-label="Close restyle panel" onClick={closeRestylePanel} />
+              <button className="retune-scrim" aria-label={t("restyle.close")} onClick={closeRestylePanel} />
               <aside
                 id="restyle-deck-panel"
                 className="retune-panel"
@@ -742,11 +824,11 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
                       <Palette size={19} weight="regular" />
                     </span>
                     <div>
-                      <h2 id="restyle-deck-title">Restyle the entire deck</h2>
-                      <p>Choose a visual system and optional brand references.</p>
+                      <h2 id="restyle-deck-title">{t("restyle.title")}</h2>
+                      <p>{t("restyle.subtitle")}</p>
                     </div>
                   </div>
-                  <button type="button" className="retune-close" onClick={closeRestylePanel} aria-label="Close restyle panel">
+                  <button type="button" className="retune-close" onClick={closeRestylePanel} aria-label={t("restyle.close")}>
                     <X size={17} weight="bold" aria-hidden="true" />
                   </button>
                 </div>
@@ -758,15 +840,15 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
                   <div className="retune-impact">
                     <WarningCircle size={18} weight="regular" aria-hidden="true" />
                     <span>
-                      <strong>All slide visuals will be replaced.</strong>
-                      <small>Your outline, copy, and slide order stay the same.</small>
+                      <strong>{t("restyle.warning")}</strong>
+                      <small>{t("restyle.warningHelp")}</small>
                     </span>
                   </div>
                   <button className="retune-apply" onClick={applyRetune} disabled={retuning || busy}>
                     <ArrowsClockwise size={17} weight="bold" aria-hidden="true" />
                     {retuning
-                      ? `Restyling slide ${retuneProgress} of ${slides.length}…`
-                      : `Restyle all ${slides.length} slide${slides.length === 1 ? "" : "s"}`}
+                      ? t("restyle.progress", { current: retuneProgress, total: slides.length })
+                      : t(slides.length === 1 ? "restyle.allOne" : "restyle.allMany", { count: slides.length })}
                   </button>
                 </div>
               </aside>

@@ -3,6 +3,8 @@
 import { useMemo, useRef, useState } from "react";
 import { COMMUNITY_GROUPS, COMMUNITY_TEMPLATES } from "@/lib/community";
 import { CATEGORIES, getTemplate } from "@/lib/templates";
+import { useI18n } from "@/i18n/I18nProvider";
+import { COMMUNITY_GROUP_KEYS } from "@/i18n/community";
 
 function lum(hex: string): number {
   const h = hex.replace("#", "");
@@ -24,8 +26,6 @@ const FORYOU_PREVIEWS: Record<string, { project: string; image: string }> = {
   "data-answer-first": { project: "20260709213727-state-of-ev-charging-infrastructure-in-2-jp1b", image: "01.png" },
   "pitch-midnight-traction": { project: "20260709180111-our-company-hvlz", image: "01.png" },
 };
-const catLabel = (id: string) => CATEGORIES.find((c) => c.id === id)?.labelEn ?? id;
-
 interface GalleryItem {
   id: string;
   name: string;
@@ -34,6 +34,7 @@ interface GalleryItem {
   img: string;
   palette: string[];
   desc?: string;
+  categoryId?: string;
 }
 
 const FORYOU_ITEMS: GalleryItem[] = Object.entries(FORYOU_PREVIEWS)
@@ -44,7 +45,8 @@ const FORYOU_ITEMS: GalleryItem[] = Object.entries(FORYOU_PREVIEWS)
       id,
       name: t.name,
       group: FORYOU_GROUP,
-      sub: catLabel(t.categoryId),
+      sub: t.categoryId,
+      categoryId: t.categoryId,
       img: `/api/files/${p.project}/${p.image}`,
       palette: t.palette,
       desc: t.description,
@@ -75,6 +77,7 @@ export default function Community({
   selected?: string;
   onPick: (id: string) => void;
 }) {
+  const { locale, t } = useI18n();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [group, setGroup] = useState<string>("all");
 
@@ -87,30 +90,41 @@ export default function Community({
     scrollRef.current?.scrollBy({ left: dir * 440, behavior: "smooth" });
   }
 
+  const groupLabel = (value: string) => value === FORYOU_GROUP
+    ? t("community.forYou")
+    : value in COMMUNITY_GROUP_KEYS
+      ? t(COMMUNITY_GROUP_KEYS[value as keyof typeof COMMUNITY_GROUP_KEYS])
+      : value;
+  const itemSub = (item: GalleryItem) => {
+    if (!item.categoryId) return groupLabel(item.sub);
+    const category = CATEGORIES.find((candidate) => candidate.id === item.categoryId);
+    return category ? (locale === "zh-CN" ? category.labelZh : category.labelEn) : item.sub;
+  };
+
   return (
     <section className="foryou community" aria-labelledby="community-heading">
       <div className="section-head foryou-head">
         <div>
-          <h2 id="community-heading">✦ Community</h2>
-          <p>Start from a finished direction or a community style</p>
+          <h2 id="community-heading">{t("community.title")}</h2>
+          <p>{t("community.subtitle")}</p>
         </div>
         <div className="foryou-nav">
-          <button className="round-btn" onClick={() => nudge(-1)} aria-label="Scroll left">
+          <button className="round-btn" onClick={() => nudge(-1)} aria-label={t("community.scrollLeft")}>
             ‹
           </button>
-          <button className="round-btn" onClick={() => nudge(1)} aria-label="Scroll right">
+          <button className="round-btn" onClick={() => nudge(1)} aria-label={t("community.scrollRight")}>
             ›
           </button>
         </div>
       </div>
-      <div className="community-groups" role="tablist" aria-label="Filter by style group">
+      <div className="community-groups" role="tablist" aria-label={t("community.filter")}>
         <button
           className={`group-chip ${group === "all" ? "on" : ""}`}
           role="tab"
           aria-selected={group === "all"}
           onClick={() => setGroup("all")}
         >
-          All <span className="group-count">{ALL_ITEMS.length}</span>
+          {t("community.all")} <span className="group-count">{ALL_ITEMS.length}</span>
         </button>
         {GROUPS.map((g) => {
           const n = ALL_ITEMS.filter((i) => i.group === g).length;
@@ -123,7 +137,7 @@ export default function Community({
               aria-selected={group === g}
               onClick={() => setGroup(g)}
             >
-              {g} <span className="group-count">{n}</span>
+              {groupLabel(g)} <span className="group-count">{n}</span>
             </button>
           );
         })}
@@ -147,7 +161,7 @@ export default function Community({
             <div className="tpl-info">
               <div>
                 <div className="tpl-meta">{i.name}</div>
-                <div className="tpl-cat">{i.sub}</div>
+                <div className="tpl-cat">{itemSub(i)}</div>
               </div>
               <span className="inspire-palette" aria-hidden="true">
                 {i.palette.slice(0, 4).map((c) => (

@@ -174,6 +174,24 @@ export async function saveChat(projectId: string, messages: unknown[]): Promise<
   }
 }
 
+/** Persist all conversations plus the active selection. The server keeps
+ *  `project.chat` mirrored to the active messages for backwards compatibility. */
+export async function saveConversations(
+  projectId: string,
+  conversations: unknown[],
+  activeConversationId: string,
+): Promise<void> {
+  try {
+    await fetch(`/api/projects/${projectId}/chat`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversations, activeConversationId }),
+    });
+  } catch {
+    /* best-effort; the live conversation state remains authoritative in-session */
+  }
+}
+
 /** Natural-language outline revision during the draft/edit stage. */
 export async function reviseOutlineChat(
   projectId: string,

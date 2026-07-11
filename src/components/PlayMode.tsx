@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SlideTransition } from "@/lib/types";
+import { useI18n } from "@/i18n/I18nProvider";
 
 function Chevron({ direction }: { direction: "left" | "right" }) {
   return (
@@ -31,6 +32,7 @@ export default function PlayMode({
   slides: { index: number; url: string; title: string; transition?: SlideTransition }[];
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [i, setI] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -106,7 +108,7 @@ export default function PlayMode({
       className={`playmode${controlsVisible ? " controls-visible" : " controls-hidden"}`}
       role="dialog"
       aria-modal="true"
-      aria-label="Presentation mode"
+      aria-label={t("play.mode")}
       onMouseMove={revealControls}
       onMouseDown={revealControls}
       onTouchStart={revealControls}
@@ -126,10 +128,10 @@ export default function PlayMode({
         <div className="playmode-keyhint" aria-hidden="true">
           <kbd>←</kbd>
           <kbd>→</kbd>
-          <span>Navigate</span>
+          <span>{t("play.navigate")}</span>
         </div>
-        <button className="playmode-exit" onClick={close} aria-label="Exit presentation">
-          <span>Exit</span>
+        <button className="playmode-exit" onClick={close} aria-label={t("play.exitPresentation")}>
+          <span>{t("play.exit")}</span>
           <kbd>Esc</kbd>
         </button>
       </div>
@@ -138,7 +140,7 @@ export default function PlayMode({
         className="playmode-nav playmode-nav-prev playmode-chrome"
         onClick={() => move(-1)}
         disabled={currentIndex === 0}
-        aria-label="Previous slide"
+        aria-label={t("slide.previous")}
       >
         <Chevron direction="left" />
       </button>
@@ -146,13 +148,13 @@ export default function PlayMode({
         className="playmode-nav playmode-nav-next playmode-chrome"
         onClick={() => move(1)}
         disabled={currentIndex === slides.length - 1}
-        aria-label="Next slide"
+        aria-label={t("slide.next")}
       >
         <Chevron direction="right" />
       </button>
 
       <div className="playmode-dock playmode-chrome">
-        <button onClick={() => move(-1)} disabled={currentIndex === 0} aria-label="Previous slide">
+        <button onClick={() => move(-1)} disabled={currentIndex === 0} aria-label={t("slide.previous")}>
           <Chevron direction="left" />
         </button>
         <div className="playmode-meta" aria-live="polite">
@@ -167,12 +169,12 @@ export default function PlayMode({
         <button
           onClick={() => move(1)}
           disabled={currentIndex === slides.length - 1}
-          aria-label="Next slide"
+          aria-label={t("slide.next")}
         >
           <Chevron direction="right" />
         </button>
         <span className="playmode-dock-sep" aria-hidden="true" />
-        <button onClick={toggleFullscreen} aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+        <button onClick={toggleFullscreen} aria-label={fullscreen ? t("play.exitFullscreen") : t("play.enterFullscreen")}>
           <FullscreenIcon active={fullscreen} />
         </button>
       </div>

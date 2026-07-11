@@ -25,6 +25,7 @@ import {
   type UiSlide,
 } from "@/lib/deckEdit";
 import type { SlideTransition } from "@/lib/types";
+import { useI18n } from "@/i18n/I18nProvider";
 
 export type MarkAgentEvent =
   | { type: "request"; slide: UiSlide; note: string; markedImage: string }
@@ -59,8 +60,12 @@ function SlideSkeleton({ caption }: { caption?: string }) {
   );
 }
 
-async function normalizeSlideImage(file: File, aspect: string): Promise<Blob> {
-  if (file.size > 20 * 1024 * 1024) throw new Error("Please choose an image under 20 MB");
+async function normalizeSlideImage(
+  file: File,
+  aspect: string,
+  errors: { tooLarge: string; prepare: string; convert: string },
+): Promise<Blob> {
+  if (file.size > 20 * 1024 * 1024) throw new Error(errors.tooLarge);
   const bitmap = await createImageBitmap(file);
   const [rawW, rawH] = aspect.split(":").map(Number);
   const ratio = rawW > 0 && rawH > 0 ? rawW / rawH : 16 / 9;
@@ -70,7 +75,7 @@ async function normalizeSlideImage(file: File, aspect: string): Promise<Blob> {
   canvas.width = width;
   canvas.height = height;
   const context = canvas.getContext("2d");
-  if (!context) throw new Error("Unable to prepare this image");
+  if (!context) throw new Error(errors.prepare);
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, width, height);
   const scale = Math.min(width / bitmap.width, height / bitmap.height);
@@ -79,7 +84,7 @@ async function normalizeSlideImage(file: File, aspect: string): Promise<Blob> {
   context.drawImage(bitmap, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
   bitmap.close();
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Unable to convert this image"))), "image/png");
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error(errors.convert))), "image/png");
   });
 }
 
@@ -117,6 +122,7 @@ export default function SlideStage({
   /** Increment to repeat navigation to the same externally requested slide. */
   focusSlideKey?: number;
 }) {
+  const { t } = useI18n();
   const [selected, setSelected] = useState<number | null>(null);
   const [markTarget, setMarkTarget] = useState<number | null>(null);
   const [transitionTarget, setTransitionTarget] = useState<number | null>(null);
@@ -323,7 +329,7 @@ export default function SlideStage({
     if (!slide) return;
     pick(index);
     if (onAskSlide) onAskSlide(slide);
-    else setActionError("The deck agent is not available for this slide.");
+    else setActionError(t("slide.agentUnavailable"));
   }
 
   function chooseUpload(index: number) {
@@ -339,8 +345,12 @@ export default function SlideStage({
     setActionError("");
     update(index, { status: "working" });
     try {
-      const png = await normalizeSlideImage(file, aspect);
-      const title = file.name.replace(/\.[^.]+$/, "") || before?.title || `Slide ${index}`;
+      const png = await normalizeSlideImage(file, aspect, {
+        tooLarge: t("slide.imageTooLarge"),
+        prepare: t("slide.imagePrepareFailed"),
+        convert: t("slide.imageConvertFailed"),
+      });
+      const title = file.name.replace(/\.[^.]+$/, "") || before?.title || t("chat.slide", { index });
       const uploaded = await uploadProjectSlide(projectId, index, png, title);
       onSlides((items) => items.map((slide) => (slide.index === index ? uploaded : slide)));
       setSelected(index);
@@ -431,34 +441,44 @@ export default function SlideStage({
       title: slide.title,
       transition: slide.transition ?? "none",
     }));
+  const transitionLabel = (transition: SlideTransition | undefined) => {
+    switch (transition ?? "none") {
+      case "fade": return t("transition.fade");
+      case "push": return t("transition.push");
+      case "wipe": return t("transition.wipe");
+      case "zoom": return t("transition.zoom");
+      case "flip": return t("transition.flip");
+      default: return t("transition.none");
+    }
+  };
 
   return (
     <section className="stage" ref={stageRef}>
       <div className="stage-head">
-        <span className="title">{title || "Untitled deck"}</span>
+        <span className="title">{title || t("slide.untitled")}</span>
         <span className="count">
           {currentPosition >= 0 ? currentPosition + 1 : 0}/{slides.length || "…"} · {aspect}
         </span>
 
         <div className="stage-actions">
-          <button className="iconbtn primary" disabled={!rendered} onClick={() => setPlaying(true)} title="Present fullscreen">
-            ▶ Play
+          <button className="iconbtn primary" disabled={!rendered} onClick={() => setPlaying(true)} title={t("slide.presentHelp")}>
+            ▶ {t("slide.present")}
           </button>
 
           <div ref={exportRef} className="export-wrap">
-            <button className="iconbtn" disabled={!canExport} onClick={() => setExportOpen((open) => !open)} title="Export the deck">
-              ⬇ Export <span className="caret">▾</span>
+            <button className="iconbtn" disabled={!canExport} onClick={() => setExportOpen((open) => !open)} title={t("slide.exportHelp")}>
+              ⬇ {t("slide.export")} <span className="caret">▾</span>
             </button>
             {exportOpen && canExport && (
               <div className="pop down export-pop">
-                <div className="pop-title">Download deck</div>
+                <div className="pop-title">{t("slide.download")}</div>
                 <a className="pop-item" href={`/api/projects/${projectId}/export?format=pdf`} target="_blank" rel="noreferrer" onClick={() => setExportOpen(false)}>
                   <span className="ic">📄</span>
-                  <span className="grow"><b>PDF</b><em>Print-ready, one image per page</em></span>
+                  <span className="grow"><b>PDF</b><em>{t("slide.pdfHelp")}</em></span>
                 </a>
                 <a className="pop-item" href={`/api/projects/${projectId}/export?format=pptx`} target="_blank" rel="noreferrer" onClick={() => setExportOpen(false)}>
                   <span className="ic">📊</span>
-                  <span className="grow"><b>PowerPoint</b><em>Editable .pptx, slide per image</em></span>
+                  <span className="grow"><b>PowerPoint</b><em>{t("slide.pptxHelp")}</em></span>
                 </a>
               </div>
             )}
@@ -472,44 +492,44 @@ export default function SlideStage({
       <div className="stage-main">
         {current && (
           <>
-            <button className="stage-page-nav prev" onClick={() => movePage(-1)} disabled={currentPosition <= 0} aria-label="Previous slide">‹</button>
-            <button className="stage-page-nav next" onClick={() => movePage(1)} disabled={currentPosition < 0 || currentPosition >= slides.length - 1} aria-label="Next slide">›</button>
+            <button className="stage-page-nav prev" onClick={() => movePage(-1)} disabled={currentPosition <= 0} aria-label={t("slide.previous")}>‹</button>
+            <button className="stage-page-nav next" onClick={() => movePage(1)} disabled={currentPosition < 0 || currentPosition >= slides.length - 1} aria-label={t("slide.next")}>›</button>
           </>
         )}
 
         {current && (
-          <div className="slide-toolbar" role="toolbar" aria-label={`Slide ${current.index} editing tools`}>
-            <span className="slide-toolbar-page">Slide {current.index}</span>
+          <div className="slide-toolbar" role="toolbar" aria-label={t("slide.tools", { index: current.index })}>
+            <span className="slide-toolbar-page">{t("chat.slide", { index: current.index })}</span>
             <span className="slide-toolbar-sep" aria-hidden="true" />
-            <button type="button" onClick={() => askAgent(current.index)} disabled={!canEdit} title="Ask AI about this slide">
+            <button type="button" onClick={() => askAgent(current.index)} disabled={!canEdit} title={t("slide.askAiHelp")}>
               <Sparkle size={16} />
-              <span>Ask AI</span>
+              <span>{t("slide.askAi")}</span>
             </button>
-            <button type="button" onClick={() => startMark(current.index)} disabled={!canEdit || !current.image} title="Mark an area and leave a comment">
+            <button type="button" onClick={() => startMark(current.index)} disabled={!canEdit || !current.image} title={t("slide.markHelp")}>
               <PencilSimple size={16} />
-              <span>Mark &amp; comment</span>
+              <span>{t("slide.mark")}</span>
             </button>
-            <button type="button" onClick={() => openTransition(current.index)} disabled={!canEdit} title="Set slide transition">
+            <button type="button" onClick={() => openTransition(current.index)} disabled={!canEdit} title={t("slide.transitionHelp")}>
               <FilmStrip size={16} />
-              <span>Transition</span>
+              <span>{t("slide.transition")}</span>
             </button>
             <button
               type="button"
               onClick={() => chooseUpload(current.index)}
               disabled={!canEdit}
-              title={current.image ? "Replace with an uploaded image" : "Upload a slide image"}
+              title={current.image ? t("slide.replaceHelp") : t("slide.uploadHelp")}
             >
               <Image size={16} />
-              <span>{current.image ? "Replace image" : "Upload image"}</span>
+              <span>{current.image ? t("slide.replace") : t("slide.upload")}</span>
             </button>
-            <button type="button" onClick={() => duplicatePage(current.index)} disabled={!canEdit} title="Duplicate this slide">
+            <button type="button" onClick={() => duplicatePage(current.index)} disabled={!canEdit} title={t("slide.duplicateHelp")}>
               <Copy size={16} />
-              <span>Duplicate</span>
+              <span>{t("slide.duplicate")}</span>
             </button>
             <span className="slide-toolbar-sep" aria-hidden="true" />
-            <button type="button" className="danger" onClick={() => deletePage(current.index)} disabled={!canEdit} title="Delete this slide">
+            <button type="button" className="danger" onClick={() => deletePage(current.index)} disabled={!canEdit} title={t("slide.deleteHelp")}>
               <Trash size={16} />
-              <span>Delete</span>
+              <span>{t("slide.delete")}</span>
             </button>
           </div>
         )}
@@ -522,32 +542,32 @@ export default function SlideStage({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={fileUrl(projectId!, current.image, current.bust)} alt={current.title} />
           ) : current?.status === "working" ? (
-            <SlideSkeleton caption={`Drawing slide ${current.index}${current.title ? ` — ${current.title}` : ""}…`} />
+            <SlideSkeleton caption={t("slide.drawing", { index: current.index, title: current.title ? ` — ${current.title}` : "" })} />
           ) : current?.status === "error" ? (
-            <div className="ph err"><span style={{ fontSize: 22 }}>⚠</span>{current.error || "render failed"}</div>
+            <div className="ph err"><span style={{ fontSize: 22 }}>⚠</span>{current.error || t("slide.renderFailed")}</div>
           ) : current && !streaming ? (
             <div className="slide-empty-state">
               <span className="slide-empty-icon">＋</span>
-              <h3>Slide {current.index} is ready</h3>
-              <p>Create one visual with AI or upload a finished slide image.</p>
+              <h3>{t("slide.ready", { index: current.index })}</h3>
+              <p>{t("slide.emptyBody")}</p>
               <div className="slide-empty-actions">
                 <button onClick={() => askAgent(current.index)} disabled={!canEdit}>
-                  <span>✦</span><b>Ask Deck Agent</b><small>Continue in the agent chat</small>
+                  <span>✦</span><b>{t("slide.askAgent")}</b><small>{t("slide.continueChat")}</small>
                 </button>
                 <button onClick={() => chooseUpload(current.index)} disabled={!canEdit}>
-                  <span>↥</span><b>Upload image</b><small>PNG, JPG or WebP</small>
+                  <span>↥</span><b>{t("slide.upload")}</b><small>{t("slide.formats")}</small>
                 </button>
               </div>
               {actionError && <div className="slide-action-error">{actionError}</div>}
             </div>
           ) : slides.length ? (
-            <SlideSkeleton caption={streaming ? "Queued — waiting to draw…" : undefined} />
+            <SlideSkeleton caption={streaming ? t("slide.queued") : undefined} />
           ) : (
             <div className="slide-empty-state">
               <span className="slide-empty-icon">＋</span>
-              <h3>Add your first slide</h3>
-              <p>Start with a blank page, then generate or upload its visual.</p>
-              <button className="add-first-slide" onClick={() => addBlankSlide()} disabled={!canEdit}>Add slide</button>
+              <h3>{t("slide.addFirst")}</h3>
+              <p>{t("slide.addFirstBody")}</p>
+              <button className="add-first-slide" onClick={() => addBlankSlide()} disabled={!canEdit}>{t("slide.add")}</button>
               {actionError && <div className="slide-action-error">{actionError}</div>}
             </div>
           )}
@@ -555,7 +575,7 @@ export default function SlideStage({
           {addingAfter != null && (
             <div className="slide-structure-progress" role="status" aria-live="polite">
               <span className="spinner sm" />
-              <span>Adding slide {addingAfter + 1}…</span>
+              <span>{t("slide.adding", { index: addingAfter + 1 })}</span>
             </div>
           )}
 
@@ -582,7 +602,7 @@ export default function SlideStage({
               <button
                 className={`frame ${slide.index === selected ? "on" : ""} ${slide.status}`}
                 onClick={() => pick(slide.index)}
-                title={`${slide.title || `Slide ${slide.index}`} — select slide`}
+                title={t("slide.select", { title: slide.title || t("chat.slide", { index: slide.index }) })}
               >
                 <div className="thumb" style={{ ["--ar" as any]: arCss }}>
                   {slide.image ? (
@@ -600,8 +620,8 @@ export default function SlideStage({
               </button>
               <button
                 className={`frame-transition${slide.transition && slide.transition !== "none" ? " active" : ""}`}
-                aria-label={`Slide ${slide.index} transition: ${slide.transition ?? "none"}`}
-                title={`Transition: ${slide.transition ?? "none"}`}
+                aria-label={t("slide.transitionState", { index: slide.index, transition: transitionLabel(slide.transition) })}
+                title={t("slide.transitionTitle", { transition: transitionLabel(slide.transition) })}
                 onClick={() => openTransition(slide.index)}
                 disabled={!canEdit}
               >
@@ -609,7 +629,7 @@ export default function SlideStage({
               </button>
             </div>
             {position < slides.length - 1 && (
-              <button className="frame-insert" onClick={() => addBlankSlide(slide.index)} disabled={!canEdit} aria-label={`Add slide after ${slide.index}`}><Plus size={15} /></button>
+              <button className="frame-insert" onClick={() => addBlankSlide(slide.index)} disabled={!canEdit} aria-label={t("slide.addAfter", { index: slide.index })}><Plus size={15} /></button>
             )}
             {addingAfter === slide.index && (
               <div className="frame-shell frame-shell-adding" aria-hidden="true">
@@ -631,8 +651,8 @@ export default function SlideStage({
             </div>
           </div>
         )}
-        <button className="frame-add" onClick={() => addBlankSlide()} disabled={!canEdit} aria-label="Add slide">
-          <Plus size={22} /><small>Add slide</small>
+        <button className="frame-add" onClick={() => addBlankSlide()} disabled={!canEdit} aria-label={t("slide.add")}>
+          <Plus size={22} /><small>{t("slide.add")}</small>
         </button>
       </div>
 

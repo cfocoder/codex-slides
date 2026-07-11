@@ -12,6 +12,7 @@ import {
 } from "@/lib/contextItems";
 import { shouldSubmitTextarea } from "@/lib/keyboard";
 import type { ContextOptionItem, PptConfig } from "@/lib/types";
+import { useI18n } from "@/i18n/I18nProvider";
 
 interface EngineInfo {
   engine: string;
@@ -20,12 +21,19 @@ interface EngineInfo {
 }
 export type Material = ContextItem;
 
-const QUALITY: { label: string; res: PptConfig["resolution"] }[] = [
-  { label: "Auto", res: "2K" },
-  { label: "High", res: "4K" },
-  { label: "Medium", res: "2K" },
-  { label: "Low", res: "1K" },
-];
+const QUALITY = [
+  { id: "auto", res: "2K" },
+  { id: "high", res: "4K" },
+  { id: "medium", res: "2K" },
+  { id: "low", res: "1K" },
+] as const satisfies readonly { id: string; res: PptConfig["resolution"] }[];
+type QualityId = (typeof QUALITY)[number]["id"];
+const QUALITY_KEYS = {
+  auto: "composer.auto",
+  high: "composer.high",
+  medium: "composer.medium",
+  low: "composer.low",
+} as const;
 const ASPECTS: { label: string; value: PptConfig["aspect"]; w: number; h: number }[] = [
   { label: "16:9", value: "16:9", w: 22, h: 13 },
   { label: "9:16", value: "9:16", w: 12, h: 20 },
@@ -74,10 +82,11 @@ export default function Composer({
   onClearStyle?: () => void;
   onSubmit: (contextOptions: ContextOptionItem[]) => void;
 }) {
+  const { t } = useI18n();
   const [focus, setFocus] = useState(false);
   const [menu, setMenu] = useState<null | "add" | "model" | "settings">(null);
-  const [quality, setQuality] = useState("Auto");
-  const [aspectSel, setAspectSel] = useState<string>("Auto");
+  const [quality, setQuality] = useState<QualityId>("auto");
+  const [aspectSel, setAspectSel] = useState<PptConfig["aspect"] | "auto">("auto");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -91,6 +100,8 @@ export default function Composer({
 
   const engine = engines.find((e) => e.engine === config.engine);
   const modelLabel = engine ? engine.label.replace(/\s*\(.*\)$/, "") : "Codex";
+  const qualityLabel = t(QUALITY_KEYS[quality]);
+  const aspectLabel = aspectSel === "auto" ? t("composer.auto") : aspectSel;
 
   async function addFiles(files: Iterable<File>) {
     const selected = Array.from(files);
@@ -105,19 +116,19 @@ export default function Composer({
 
   const contextOptions: ContextOptionItem[] = [
     ...(researchMode
-      ? [{ id: "research", kind: "research" as const, label: "Deep research" }]
+      ? [{ id: "research", kind: "research" as const, label: t("composer.research") }]
       : []),
     ...(config.fast
-      ? [{ id: "fast", kind: "speed" as const, label: "Fast", value: "并行生成" }]
+      ? [{ id: "fast", kind: "speed" as const, label: t("composer.fast"), value: t("composer.fastValue") }]
       : []),
     ...(styleTemplate
-      ? [{ id: "style", kind: "style" as const, label: "Design", value: styleTemplate.name }]
+      ? [{ id: "style", kind: "style" as const, label: t("composer.design"), value: styleTemplate.name }]
       : []),
-    ...(quality !== "Auto"
-      ? [{ id: "quality", kind: "setting" as const, label: "Quality", value: quality }]
+    ...(quality !== "auto"
+      ? [{ id: "quality", kind: "setting" as const, label: t("composer.quality"), value: qualityLabel }]
       : []),
-    ...(aspectSel !== "Auto"
-      ? [{ id: "aspect", kind: "setting" as const, label: "Aspect", value: aspectSel }]
+    ...(aspectSel !== "auto"
+      ? [{ id: "aspect", kind: "setting" as const, label: t("composer.aspect"), value: aspectSel }]
       : []),
   ];
 
@@ -126,10 +137,10 @@ export default function Composer({
     else if (id === "fast") setConfig({ fast: false });
     else if (id === "style") onClearStyle?.();
     else if (id === "quality") {
-      setQuality("Auto");
+      setQuality("auto");
       setConfig({ resolution: "2K" });
     } else if (id === "aspect") {
-      setAspectSel("Auto");
+      setAspectSel("auto");
       setConfig({ aspect: "16:9" });
     }
   }
@@ -144,7 +155,7 @@ export default function Composer({
 
       <textarea
         rows={1}
-        placeholder="Describe a presentation"
+        placeholder={t("composer.placeholder")}
         value={config.requirement}
         onFocus={() => setFocus(true)}
         onBlur={() => setFocus(false)}
@@ -178,8 +189,8 @@ export default function Composer({
         <div ref={addRef} style={{ position: "relative" }}>
           <button
             className="cbtn icononly"
-            title="Add material / options"
-            aria-label="Add images or files"
+            title={t("composer.addOptions")}
+            aria-label={t("composer.addFiles")}
             onClick={() => setMenu(menu === "add" ? null : "add")}
           >
             <Plus size={18} />
@@ -193,26 +204,26 @@ export default function Composer({
                   setMenu(null);
                 }}
               >
-                <span className="ic"><Paperclip size={17} /></span> Add images or files
+                <span className="ic"><Paperclip size={17} /></span> {t("composer.addFiles")}
               </button>
               <div className="pop-sep" />
               <button className="pop-item" onClick={() => setResearchMode(!researchMode)}>
                 <span className="ic">🔍</span>
-                <span className="grow">Deep research</span>
+                <span className="grow">{t("composer.research")}</span>
                 <span className={`toggle ${researchMode ? "on" : ""}`} />
               </button>
               <button
                 className="pop-item"
                 onClick={() => setConfig({ fast: !config.fast })}
-                title="Draw every page at once instead of one by one"
+                title={t("composer.fastHelp")}
               >
                 <span className="ic">⚡</span>
                 <span className="grow">
-                  Fast mode
+                  {t("composer.fast")}
                   <span className="pop-sub">
                     {config.fast
-                      ? "所有页面并行生成，超出的自动排队"
-                      : "所有页面并行生成，更快出稿"}
+                      ? t("composer.fastOn")
+                      : t("composer.fastOff")}
                   </span>
                 </span>
                 <span className={`toggle ${config.fast ? "on" : ""}`} />
@@ -233,8 +244,8 @@ export default function Composer({
         </div>
 
         {/* mode (Slides) */}
-        <button className="cbtn active" title="Output type">
-          ▦ Slides
+        <button className="cbtn active" title={t("composer.outputType")}>
+          ▦ {t("composer.slides")}
         </button>
 
         {/* model */}
@@ -244,7 +255,7 @@ export default function Composer({
           </button>
           {menu === "model" && (
             <div className="pop up">
-              <div className="pop-title">Orchestrating engine</div>
+              <div className="pop-title">{t("composer.engine")}</div>
               {engines.map((e) => (
                 <button
                   key={e.engine}
@@ -258,7 +269,7 @@ export default function Composer({
                 >
                   <span className="ic">{config.engine === e.engine ? "●" : "○"}</span>
                   <span className="grow">{e.label.replace(/\s*\(.*\)$/, "")}</span>
-                  {!e.available && <span style={{ fontSize: 11, color: "var(--muted)" }}>n/a</span>}
+                  {!e.available && <span style={{ fontSize: 11, color: "var(--muted)" }}>{t("composer.unavailable")}</span>}
                 </button>
               ))}
             </div>
@@ -268,47 +279,47 @@ export default function Composer({
         {/* settings: quality · aspect */}
         <div ref={setRef} style={{ position: "relative" }}>
           <button className="cbtn" onClick={() => setMenu(menu === "settings" ? null : "settings")}>
-            {quality} · {aspectSel} <span className="caret">▾</span>
+            {qualityLabel} · {aspectLabel} <span className="caret">▾</span>
           </button>
           {menu === "settings" && (
             <div className="pop up" style={{ minWidth: 288, padding: 14 }}>
               <div className="pop-section" style={{ padding: "0 0 8px" }}>
-                Quality
+                {t("composer.quality")}
               </div>
               <div className="seg">
                 {QUALITY.map((q) => (
                   <button
-                    key={q.label}
-                    className={quality === q.label ? "on" : ""}
+                    key={q.id}
+                    className={quality === q.id ? "on" : ""}
                     onClick={() => {
-                      setQuality(q.label);
+                      setQuality(q.id);
                       setConfig({ resolution: q.res });
                     }}
                   >
-                    {q.label}
+                    {t(QUALITY_KEYS[q.id])}
                   </button>
                 ))}
               </div>
               <div className="pop-section" style={{ padding: "14px 0 0" }}>
-                Aspect ratio
+                {t("composer.aspect")}
               </div>
               <div className="aspect-grid">
                 <button
-                  className={`aspect-cell ${aspectSel === "Auto" ? "on" : ""}`}
+                  className={`aspect-cell ${aspectSel === "auto" ? "on" : ""}`}
                   onClick={() => {
-                    setAspectSel("Auto");
+                    setAspectSel("auto");
                     setConfig({ aspect: "16:9" });
                   }}
                 >
                   <span className="aspect-icon" style={{ width: 20, height: 14 }} />
-                  Auto
+                  {t("composer.auto")}
                 </button>
                 {ASPECTS.map((a) => (
                   <button
                     key={a.value}
-                    className={`aspect-cell ${aspectSel === a.label ? "on" : ""}`}
+                    className={`aspect-cell ${aspectSel === a.value ? "on" : ""}`}
                     onClick={() => {
-                      setAspectSel(a.label);
+                      setAspectSel(a.value);
                       setConfig({ aspect: a.value });
                     }}
                   >
@@ -323,12 +334,12 @@ export default function Composer({
 
         <span className="spacer" />
 
-        <button className="cbtn icononly" title="Voice input (coming soon)" disabled>
+        <button className="cbtn icononly" title={t("composer.voiceSoon")} disabled>
           🎙
         </button>
         <button
           className="send-btn"
-          title="Generate (Enter · Shift+Enter for a new line)"
+          title={t("composer.generateHint")}
           disabled={running || uploading || (!config.requirement.trim() && !materials.length)}
           onClick={() => onSubmit(contextOptions)}
         >

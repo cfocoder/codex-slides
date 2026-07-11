@@ -38,6 +38,32 @@ export function saveProject(project: Project): void {
     JSON.stringify(project, null, 2),
     "utf8",
   );
+  syncProjectFiles(project);
+}
+
+function writeGeneratedFile(dir: string, name: string, content: string) {
+  ensureDir(dir);
+  fs.writeFileSync(path.join(dir, name), content, "utf8");
+}
+
+/** Keep agent-created inputs and intermediate decisions visible as ordinary files. */
+function syncProjectFiles(project: Project): void {
+  const dir = path.join(projectDir(project.id), "files", "generated");
+  const outline = (project.outline ?? []).map((page, i) =>
+    `## ${i + 1}. ${page.title}\n\n${page.points.map((point) => `- ${point}`).join("\n")}`,
+  ).join("\n\n");
+  writeGeneratedFile(dir, "brief.md", `# ${project.title}\n\n${project.config.requirement || ""}\n`);
+  writeGeneratedFile(dir, "outline.md", `# Outline\n\n${outline}\n`);
+  writeGeneratedFile(dir, "deck-config.json", `${JSON.stringify(project.config, null, 2)}\n`);
+  if (project.researchDoc) writeGeneratedFile(dir, "research.md", project.researchDoc);
+  const messages = project.chat ?? [];
+  if (messages.length) {
+    writeGeneratedFile(dir, "conversation.md", messages.map((message) =>
+      `## ${message.role === "user" ? "User" : "Agent"}\n\n${message.content || ""}`,
+    ).join("\n\n"));
+    const inspirations = messages.flatMap((message) => message.inspiration ? [message.inspiration] : []);
+    if (inspirations.length) writeGeneratedFile(dir, "inspiration.json", `${JSON.stringify(inspirations, null, 2)}\n`);
+  }
 }
 
 export function loadProject(id: string): Project | null {

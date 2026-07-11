@@ -4,6 +4,7 @@
 
 import { codexJson } from "./codex-text";
 import { CATEGORIES } from "./templates";
+import type { UiLocale } from "@/i18n/messages";
 
 export type QuestionType = "single" | "multi" | "text" | "number";
 export type ConfigField = "pages" | "aspect" | "language" | "style" | "category" | null;
@@ -22,8 +23,9 @@ export interface QuestionSpec {
   field?: ConfigField; // maps to a config field, or null = content preference
 }
 
-export function buildOnboardPrompt(requirement: string): string {
+export function buildOnboardPrompt(requirement: string, uiLocale: UiLocale = "zh-CN"): string {
   const cats = CATEGORIES.map((c) => `${c.id} (${c.labelEn})`).join(", ");
+  const responseLanguage = uiLocale === "zh-CN" ? "Simplified Chinese" : "English";
   return [
     "You are an onboarding assistant for an AI slide-deck generator.",
     "Given the user's topic, produce 4-6 SHORT clarifying questions that will make the deck much better.",
@@ -32,6 +34,7 @@ export function buildOnboardPrompt(requirement: string): string {
     `{"id": "kebab-id", "question": "...", "type": "single|multi|text|number", "options": [{"value":"...","label":"..."}], "recommended": "optionValue", "field": "pages|aspect|language|style|category|null"}`,
     "",
     "Rules:",
+    `- Write every visible question, option label, and placeholder in ${responseLanguage}. Keep option values language-neutral.`,
     "- ALWAYS include: a page-count question (field:\"pages\", type:\"number\", recommended a sensible number);",
     "  an aspect question (field:\"aspect\", type:\"single\", options 16:9,4:3,1:1,9:16, recommended \"16:9\");",
     "  a language question (field:\"language\", type:\"single\", options auto,zh,en,ja, recommended \"auto\");",
@@ -88,7 +91,8 @@ export function normalizeQuestions(raw: any): QuestionSpec[] {
 export async function generateOnboardQuestions(
   requirement: string,
   signal?: AbortSignal,
+  uiLocale: UiLocale = "zh-CN",
 ): Promise<QuestionSpec[]> {
-  const raw = await codexJson<any>(buildOnboardPrompt(requirement), { signal });
+  const raw = await codexJson<any>(buildOnboardPrompt(requirement, uiLocale), { signal });
   return normalizeQuestions(raw);
 }

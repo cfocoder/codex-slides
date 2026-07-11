@@ -4,6 +4,7 @@ import { useState } from "react";
 import { File, ImageSquare, X } from "@phosphor-icons/react";
 import ImagePreviewDialog from "@/components/ImagePreviewDialog";
 import type { ContextItem } from "@/lib/contextItems";
+import { useI18n } from "@/i18n/I18nProvider";
 
 export default function ContextItems({
   items,
@@ -16,6 +17,7 @@ export default function ContextItems({
   compact?: boolean;
   scrollable?: boolean;
 }) {
+  const { t } = useI18n();
   const [preview, setPreview] = useState<ContextItem | null>(null);
   if (!items.length) return null;
   return (
@@ -28,7 +30,7 @@ export default function ContextItems({
                 type="button"
                 className="context-item-open"
                 onClick={() => setPreview(item)}
-                aria-label={`Preview ${item.name}`}
+                aria-label={t("context.preview", { name: item.name })}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={item.url} alt="" />
@@ -42,7 +44,7 @@ export default function ContextItems({
               </a>
             )}
             {onRemove && (
-              <button className="context-item-remove" type="button" onClick={() => onRemove(item.id)} aria-label={`Remove ${item.name}`}>
+              <button className="context-item-remove" type="button" onClick={() => onRemove(item.id)} aria-label={t("context.remove", { name: item.name })}>
                 <X size={13} />
               </button>
             )}
@@ -53,7 +55,7 @@ export default function ContextItems({
         <ImagePreviewDialog
           src={preview.url}
           title={preview.name}
-          subtitle="Attached image"
+          subtitle={t("context.attachedImage")}
           onClose={() => setPreview(null)}
         />
       )}

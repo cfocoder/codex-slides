@@ -146,7 +146,9 @@ export function attachMaterialsToProject(
   stagedIds: string[],
 ): MaterialRecord[] {
   const dir = path.join(projectDir(projectId), "materials");
+  const visibleDir = path.join(projectDir(projectId), "files", "uploaded");
   ensureDir(dir);
+  ensureDir(visibleDir);
   const records: MaterialRecord[] = [];
   for (const sid of stagedIds) {
     const src = stagedPath(sid);
@@ -154,6 +156,13 @@ export function attachMaterialsToProject(
     const info = readStagedMaterialInfo(sid);
     const file = `mat-${sid}`;
     fs.copyFileSync(src, path.join(dir, file));
+    let visibleName = info?.name ?? sid;
+    const ext = path.extname(visibleName);
+    const stem = path.basename(visibleName, ext);
+    let visiblePath = path.join(visibleDir, visibleName);
+    let duplicate = 2;
+    while (fs.existsSync(visiblePath)) visiblePath = path.join(visibleDir, `${stem}-${duplicate++}${ext}`);
+    fs.copyFileSync(src, visiblePath);
     records.push({
       id: sid,
       name: info?.name ?? sid,

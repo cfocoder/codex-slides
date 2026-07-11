@@ -12,6 +12,8 @@ import {
   type CommunityTemplate,
 } from "@/lib/community";
 import { rankInspire } from "@/lib/deckEdit";
+import { useI18n } from "@/i18n/I18nProvider";
+import { COMMUNITY_GROUP_KEYS, COMMUNITY_QUERY_KEYS } from "@/i18n/community";
 
 function lum(hex: string): number {
   const h = hex.replace("#", "");
@@ -45,6 +47,7 @@ export default function InspireDialog({
   onSkip: () => void;
   onSubmit: (templateId: string) => void;
 }) {
+  const { t: tr } = useI18n();
   const matchQuery = useMemo(
     () => [requirement, ...outlineTitles].filter(Boolean).join(" "),
     [requirement, outlineTitles],
@@ -129,10 +132,10 @@ export default function InspireDialog({
             <MagnifyingGlass size={16} aria-hidden="true" />
             <input
               className="inspire-dialog-search"
-              placeholder="搜索视觉风格，如 数据可视化 / 杂志排版 / 手绘…"
+              placeholder={tr("inspire.search")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search styles"
+              aria-label={tr("inspire.searchLabel")}
               autoFocus
             />
             {search && (
@@ -140,7 +143,7 @@ export default function InspireDialog({
                 type="button"
                 className="inspire-search-clear"
                 onClick={() => setSearch("")}
-                aria-label="Clear search"
+                aria-label={tr("inspire.clear")}
               >
                 ×
               </button>
@@ -151,7 +154,7 @@ export default function InspireDialog({
             type="button"
             className="inspire-dialog-close"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={tr("inspire.close")}
           >
             <X size={18} weight="bold" />
           </button>
@@ -159,7 +162,7 @@ export default function InspireDialog({
 
         <div className="inspire-dialog-filters">
           <div className="inspire-try">
-            <span className="inspire-try-label">Try:</span>
+            <span className="inspire-try-label">{tr("inspire.try")}</span>
             {chips.map((c) => (
               <button
                 key={c}
@@ -167,20 +170,20 @@ export default function InspireDialog({
                 className="inspire-try-chip"
                 onClick={() => setSearch(c)}
               >
-                {c}
+                {COMMUNITY_QUERY_KEYS[c] ? tr(COMMUNITY_QUERY_KEYS[c]) : c}
               </button>
             ))}
             <span id="inspire-dialog-title" className="inspire-rank-note">
               {ranking ? (
                 <>
-                  智能匹配中<span className="spinner sm" />
+                  {tr("inspire.ranking")}<span className="spinner sm" />
                 </>
               ) : (
-                "已按你的主题排序"
+                tr("inspire.ranked")
               )}
             </span>
           </div>
-          <div className="community-groups" role="tablist" aria-label="Filter by style group">
+          <div className="community-groups" role="tablist" aria-label={tr("community.filter")}>
             <button
               type="button"
               className={`group-chip ${group === "all" ? "on" : ""}`}
@@ -188,7 +191,7 @@ export default function InspireDialog({
               aria-selected={group === "all"}
               onClick={() => setGroup("all")}
             >
-              全部
+              {tr("community.all")}
             </button>
             {COMMUNITY_GROUPS.map((g) => (
               <button
@@ -199,7 +202,7 @@ export default function InspireDialog({
                 aria-selected={group === g}
                 onClick={() => setGroup(g)}
               >
-                {g}
+                {tr(COMMUNITY_GROUP_KEYS[g])}
               </button>
             ))}
           </div>
@@ -222,7 +225,7 @@ export default function InspireDialog({
                 <div className="tpl-cover" style={{ background: ground }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={t.cover} alt="" loading="lazy" />
-                  {recommended && <span className="inspire-badge">✦ 推荐</span>}
+                  {recommended && <span className="inspire-badge">{tr("inspire.recommended")}</span>}
                   <span className="tpl-selected" aria-hidden="true">
                     ✓
                   </span>
@@ -230,7 +233,7 @@ export default function InspireDialog({
                 <div className="tpl-info">
                   <div>
                     <div className="tpl-meta">{t.name}</div>
-                    <div className="tpl-cat">{t.group}</div>
+                    <div className="tpl-cat">{tr(COMMUNITY_GROUP_KEYS[t.group])}</div>
                   </div>
                   <span className="inspire-palette" aria-hidden="true">
                     {t.palette.slice(0, 4).map((c) => (
@@ -243,15 +246,15 @@ export default function InspireDialog({
             );
           })}
           {!visible.length && (
-            <div className="inspire-empty">没有匹配的风格，换个筛选或搜索词。</div>
+            <div className="inspire-empty">{tr("inspire.empty")}</div>
           )}
         </div>
 
         <footer className="inspire-dialog-foot">
-          <span className="inspire-foot-hint">点选一个风格（最多 1 个）</span>
+          <span className="inspire-foot-hint">{tr("inspire.pickOne")}</span>
           <div className="inspire-foot-actions">
             <button type="button" className="iconbtn ghost" onClick={onSkip}>
-              跳过，用默认风格
+              {tr("inspire.skip")}
             </button>
             <button
               type="button"
@@ -259,7 +262,7 @@ export default function InspireDialog({
               disabled={!picked}
               onClick={() => picked && onSubmit(picked)}
             >
-              {pickedTpl ? `用「${pickedTpl.name}」生成 →` : "选一个风格"}
+              {pickedTpl ? tr("inspire.generateNamed", { name: pickedTpl.name }) : tr("inspire.choose")}
             </button>
           </div>
         </footer>

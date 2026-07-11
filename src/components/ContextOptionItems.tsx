@@ -2,6 +2,7 @@
 
 import { Lightning, MagnifyingGlass, Palette, SlidersHorizontal, X } from "@phosphor-icons/react";
 import type { ContextOptionItem } from "@/lib/types";
+import { useI18n } from "@/i18n/I18nProvider";
 
 function OptionIcon({ kind }: { kind: ContextOptionItem["kind"] }) {
   if (kind === "research") return <MagnifyingGlass size={13} />;
@@ -20,6 +21,7 @@ export default function ContextOptionItems({
   onRemove?: (id: string) => void;
   compact?: boolean;
 }) {
+  const { t } = useI18n();
   if (!items.length) return null;
   return (
     <div className={`context-option-items${compact ? " compact" : ""}`}>
@@ -38,7 +40,7 @@ export default function ContextOptionItems({
             <button
               type="button"
               onClick={() => onRemove(item.id)}
-              aria-label={`Remove ${item.label}${item.value ? ` ${item.value}` : ""}`}
+              aria-label={t("context.remove", { name: `${item.label}${item.value ? ` ${item.value}` : ""}` })}
             >
               <X size={12} />
             </button>

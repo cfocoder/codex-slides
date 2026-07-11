@@ -4,7 +4,8 @@ interface ProjectLoadingShellProps {
 
 /** Shared instant shell for both click feedback and the route loading boundary. */
 export default function ProjectLoadingShell({ title }: ProjectLoadingShellProps) {
-  const message = title ? `Opening “${title}”` : "Opening your project";
+  const { t } = useI18n();
+  const message = title ? t("loading.project", { title: `“${title}”` }) : t("loading.default");
 
   return (
     <div className="ws project-ws project-route-loading" role="status" aria-live="polite" aria-label={message}>
@@ -49,3 +50,6 @@ export default function ProjectLoadingShell({ title }: ProjectLoadingShellProps)
     </div>
   );
 }
+"use client";
+
+import { useI18n } from "@/i18n/I18nProvider";

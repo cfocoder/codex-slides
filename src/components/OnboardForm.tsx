@@ -5,6 +5,7 @@ import { Image as ImageIcon } from "@phosphor-icons/react";
 import type { QuestionSpec } from "@/lib/onboard";
 import { uploadContextItems, type ContextItem } from "@/lib/contextItems";
 import type { PptConfig } from "@/lib/types";
+import { useI18n } from "@/i18n/I18nProvider";
 
 /** Renders the agent-generated clarifying questions as a dynamic form (M2 / step 1).
  *  Every question accepts a free-text custom answer AND reference images, which are
@@ -17,7 +18,7 @@ export default function OnboardForm({
   onAttachImages,
   onRemoveImage,
   submitLabel,
-  skipLabel = "Skip",
+  skipLabel,
 }: {
   questions: QuestionSpec[];
   busy: boolean;
@@ -31,6 +32,7 @@ export default function OnboardForm({
   submitLabel?: string;
   skipLabel?: string;
 }) {
+  const { t } = useI18n();
   const initial = useMemo(() => {
     const a: Record<string, string | string[]> = {};
     for (const q of questions) {
@@ -62,6 +64,12 @@ export default function OnboardForm({
   function setCustomText(id: string, text: string, type: QuestionSpec["type"]) {
     setCustom((c) => ({ ...c, [id]: text }));
     if (type === "single") setOne(id, text); // single answer follows the custom box live
+  }
+
+  function customPlaceholder(q: QuestionSpec) {
+    const supplied = q.placeholder?.trim();
+    if (!supplied || /随意输入|anything|free.?form/i.test(supplied)) return t("onboard.customInput");
+    return supplied;
   }
 
   async function addImages(qid: string, fileList: FileList | null) {
@@ -108,7 +116,7 @@ export default function OnboardForm({
         .filter(Boolean)
         .map((v) => (q.options ?? []).find((o) => o.value === v)?.label ?? String(v));
       const summaryBits = [...chosen];
-      if (imgs.length) summaryBits.push(`📎 ${imgs.length} 张参考图`);
+      if (imgs.length) summaryBits.push(t("onboard.imageCount", { count: imgs.length }));
       if (summaryBits.length) summaryParts.push(`${label}：${summaryBits.join("、")}`);
       if (imgs.length) prefs.push(`${label}: user attached ${imgs.length} reference image(s) — honor them.`);
       if (!asStr) continue;
@@ -145,9 +153,9 @@ export default function OnboardForm({
     const imgs = images[q.id] ?? [];
     return (
       <>
-        <label className={`onb-attach-btn${inline ? " inline" : ""}`} title="附参考图（作为生成参考）">
+        <label className={`onb-attach-btn${inline ? " inline" : ""}`} title={t("onboard.referenceImageHelp")}>
           <ImageIcon size={15} weight="regular" />
-          {inline ? "" : <span>参考图</span>}
+          {inline ? "" : <span>{t("onboard.referenceImage")}</span>}
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp,image/gif"
@@ -159,14 +167,14 @@ export default function OnboardForm({
             }}
           />
         </label>
-        {uploadingQ === q.id && <span className="onb-attach-hint">上传中…</span>}
+        {uploadingQ === q.id && <span className="onb-attach-hint">{t("onboard.uploading")}</span>}
         {imgs.length > 0 && (
           <div className="onb-thumbs">
             {imgs.map((it) => (
               <span className="onb-thumb" key={it.id} title={it.name}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={it.url} alt={it.name} />
-                <button type="button" aria-label={`移除 ${it.name}`} onClick={() => removeImage(q.id, it.id)}>
+                <button type="button" aria-label={t("onboard.removeImage", { name: it.name })} onClick={() => removeImage(q.id, it.id)}>
                   ×
                 </button>
               </span>
@@ -179,7 +187,7 @@ export default function OnboardForm({
 
   return (
     <div className="panel onb-panel">
-      <h2>✦ A few quick questions</h2>
+      <h2>{t("onboard.title")}</h2>
       {questions.map((q) => (
         <div className="field onb-field" key={q.id}>
           <span className="onb-q">{q.question}</span>
@@ -199,7 +207,7 @@ export default function OnboardForm({
             <div className="onb-options">
               <input
                 className="onb-custom"
-                placeholder={q.placeholder ?? "随意输入…"}
+                placeholder={customPlaceholder(q)}
                 value={String(answers[q.id] ?? "")}
                 onChange={(e) => setOne(q.id, e.target.value)}
               />
@@ -224,7 +232,7 @@ export default function OnboardForm({
               })}
               <input
                 className="onb-custom"
-                placeholder="随意输入…"
+                placeholder={t("onboard.customInput")}
                 value={custom[q.id] ?? ""}
                 onChange={(e) => setCustomText(q.id, e.target.value, "single")}
               />
@@ -248,7 +256,7 @@ export default function OnboardForm({
               })}
               <input
                 className="onb-custom"
-                placeholder="随意输入…"
+                placeholder={t("onboard.customInput")}
                 value={custom[q.id] ?? ""}
                 onChange={(e) => setCustomText(q.id, e.target.value, "multi")}
               />
@@ -260,10 +268,10 @@ export default function OnboardForm({
       {attachError && <div className="onb-attach-error" role="alert">{attachError}</div>}
       <div className="onb-actions">
         <button className="ghost" onClick={onCancel} disabled={busy}>
-          {skipLabel}
+          {skipLabel ?? t("onboard.skip")}
         </button>
         <button className="primary" style={{ width: "auto", flex: 1 }} onClick={submit} disabled={busy || !!uploadingQ}>
-          {busy ? "…" : submitLabel ?? "Apply & generate deck"}
+          {busy ? "…" : submitLabel ?? t("onboard.apply")}
         </button>
       </div>
     </div>

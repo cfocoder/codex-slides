@@ -1,3 +1,5 @@
+import { translate, type UiLocale } from "@/i18n/messages";
+
 export type AgentToolState = "pending" | "running" | "complete" | "error";
 
 export interface AgentToolCall {
@@ -19,11 +21,11 @@ export function createAgentRunId(prefix = "run") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function elapsedRunLabel(startedAt: number) {
+export function elapsedRunLabel(startedAt: number, locale: UiLocale = "en") {
   const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
-  if (seconds < 60) return `Ran for ${seconds}s`;
+  if (seconds < 60) return translate(locale, "agent.ranSeconds", { seconds });
   const minutes = Math.floor(seconds / 60);
-  return `Ran for ${minutes}m ${seconds % 60}s`;
+  return translate(locale, "agent.ranMinutes", { minutes, seconds: seconds % 60 });
 }
 
 export function patchAgentTool(
