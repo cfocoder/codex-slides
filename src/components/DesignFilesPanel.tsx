@@ -22,9 +22,9 @@ function FileIcon({ kind }: { kind: DesignFile["kind"] }) {
 function QuestionsPreview({ file }: { file: Extract<DesignFile, { kind: "questions" }> }) {
   const { t } = useI18n();
   return (
-    <div className="design-file-document questions-document">
+    <div className="workflow-file-document questions-document">
       {file.answerSummary ? (
-        <section className="design-file-summary">
+        <section className="workflow-file-summary">
           <CheckCircle size={17} weight="fill" />
           <div>
             <strong>{t("designFiles.confirmedAnswers")}</strong>
@@ -32,14 +32,14 @@ function QuestionsPreview({ file }: { file: Extract<DesignFile, { kind: "questio
           </div>
         </section>
       ) : null}
-      <div className="question-preview-list">
+      <div className="workflow-question-list">
         {file.questions.map((question, index) => (
           <article key={question.id}>
             <span>{String(index + 1).padStart(2, "0")}</span>
             <div>
               <strong>{question.question}</strong>
               {question.options?.length ? (
-                <div className="question-preview-options">
+                <div className="workflow-question-options">
                   {question.options.map((option) => (
                     <small className={option.value === question.recommended ? "recommended" : ""} key={option.value}>
                       {option.label}{option.value === question.recommended ? ` · ${t("common.recommended")}` : ""}
@@ -58,7 +58,7 @@ function QuestionsPreview({ file }: { file: Extract<DesignFile, { kind: "questio
 function OutlinePreview({ file }: { file: Extract<DesignFile, { kind: "outline" }> }) {
   const { t } = useI18n();
   return (
-    <div className="design-file-document outline-document">
+    <div className="workflow-file-document outline-document">
       {file.pages.map((page, index) => (
         <article key={`${index}-${page.title}`}>
           <span>{String(index + 1).padStart(2, "0")}</span>
@@ -82,7 +82,7 @@ function InspirationPreview({ file }: { file: Extract<DesignFile, { kind: "inspi
 
   if (file.skipped) {
     return (
-      <div className="design-file-empty-preview">
+      <div className="workflow-file-empty-preview">
         <Images size={30} />
         <strong>{t("designFiles.defaultStyle")}</strong>
         <span>{t("designFiles.defaultStyleHelp")}</span>
@@ -92,10 +92,10 @@ function InspirationPreview({ file }: { file: Extract<DesignFile, { kind: "inspi
 
   if (community) {
     return (
-      <div className="inspiration-file-preview">
+      <div className="workflow-inspiration-preview">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={community.cover} alt={community.name} />
-        <div className="inspiration-file-copy">
+        <div className="workflow-inspiration-copy">
           <span>{t(COMMUNITY_GROUP_KEYS[community.group])}</span>
           <h2>{community.name}</h2>
           <p>{community.description}</p>
@@ -107,8 +107,8 @@ function InspirationPreview({ file }: { file: Extract<DesignFile, { kind: "inspi
 
   if (curated) {
     return (
-      <div className="curated-file-preview">
-        <div className="curated-file-palette" aria-label={t("designFiles.templatePalette")}>
+      <div className="workflow-curated-preview">
+        <div className="workflow-curated-palette" aria-label={t("designFiles.templatePalette")}>
           {curated.palette.map((color) => <i key={color} style={{ background: color }} title={color} />)}
         </div>
         <span>{(() => {
@@ -123,7 +123,7 @@ function InspirationPreview({ file }: { file: Extract<DesignFile, { kind: "inspi
   }
 
   return (
-    <div className="inspiration-candidate-grid">
+    <div className="workflow-inspiration-grid">
       {candidates.map((candidate) => (
         <article key={candidate.id}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -151,15 +151,15 @@ export default function DesignFilesPanel({
   const selected = files.find((file) => file.id === selectedId) ?? files[0];
 
   return (
-    <section className="stage design-files-stage">
+    <section className="stage workflow-files-stage">
       <div className="stage-head">
         {headerPrefix}
         <span className="title">{t("designFiles.title")}</span>
         <span className="count">{t(files.length === 1 ? "designFiles.itemCountOne" : "designFiles.itemCountMany", { count: files.length })}</span>
       </div>
-      <div className="design-files-workspace">
-        <aside className="design-files-list" aria-label={t("designFiles.list")}>
-          <div className="design-files-list-head">
+      <div className="workflow-files-workspace">
+        <aside className="workflow-files-list" aria-label={t("designFiles.list")}>
+          <div className="workflow-files-list-head">
             <strong>{t("designFiles.referenceFiles")}</strong>
             <span>{files.length}</span>
           </div>
@@ -170,8 +170,8 @@ export default function DesignFilesPanel({
               onClick={() => onSelect(file.id)}
               key={file.id}
             >
-              <span className="design-file-icon"><FileIcon kind={file.kind} /></span>
-              <span className="design-file-list-copy">
+              <span className="workflow-file-icon"><FileIcon kind={file.kind} /></span>
+              <span className="workflow-file-list-copy">
                 <strong>{file.title}</strong>
                 <small>{file.subtitle}</small>
               </span>
@@ -179,24 +179,24 @@ export default function DesignFilesPanel({
           ))}
           {!files.length ? <p>{t("designFiles.workflowEmpty")}</p> : null}
         </aside>
-        <main className="design-file-preview">
+        <main className="workflow-file-preview">
           {selected ? (
             <>
-              <header className="design-file-preview-head">
-                <span className="design-file-icon"><FileIcon kind={selected.kind} /></span>
+              <header className="workflow-file-preview-head">
+                <span className="workflow-file-icon"><FileIcon kind={selected.kind} /></span>
                 <span>
                   <strong>{selected.title}</strong>
                   <small>{selected.subtitle}</small>
                 </span>
               </header>
-              <div className="design-file-preview-body">
+              <div className="workflow-file-preview-body">
                 {selected.kind === "questions" ? <QuestionsPreview file={selected} /> : null}
                 {selected.kind === "outline" ? <OutlinePreview file={selected} /> : null}
                 {selected.kind === "inspiration" ? <InspirationPreview file={selected} /> : null}
               </div>
             </>
           ) : (
-            <div className="design-file-empty-preview">
+            <div className="workflow-file-empty-preview">
               <FileText size={30} />
               <strong>{t("designFiles.noPreview")}</strong>
               <span>{t("designFiles.noPreviewHelp")}</span>

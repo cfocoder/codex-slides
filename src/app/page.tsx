@@ -409,35 +409,83 @@ export default function Home() {
 
   async function renderNow() {
     if (!projectId) return;
+    const runId = createAgentRunId("render-deck");
+    const startedAt = Date.now();
+    const startContent = config.fast
+      ? t("flow.fastRender", { count: outline.length })
+      : t("flow.render", { count: outline.length });
     setRunning(true);
+    setWorkspaceMode("canvas");
+    say({
+      id: runId,
+      role: "assistant",
+      content: startContent,
+      process: {
+        state: "running",
+        title: locale === "zh-CN" ? "正在生成页面" : "Generating slides",
+        notes: [locale === "zh-CN" ? "大纲与视觉参考已锁定，正在逐页绘制。" : "The outline and visual reference are locked while pages render."],
+        tools: [{
+          id: "render",
+          name: "render_deck",
+          label: locale === "zh-CN" ? "生成演示页面" : "Render presentation pages",
+          detail: `0 / ${outline.length}`,
+          state: "running",
+        }],
+      },
+    });
     try {
       setSlides(outline.map((o, i) => ({ index: i + 1, title: o.title, status: "pending" })));
       setStage("deck");
-      say({
-        role: "assistant",
-        content: config.fast
-          ? t("flow.fastRender", { count: outline.length })
-          : t("flow.render", { count: outline.length }),
-      });
       let rendered = 0;
+      let failed = 0;
       await streamRender(projectId, (ev) => {
         if (ev.type === "page_rendered") rendered++;
+        if (ev.type === "page_error") failed++;
+        if (ev.type === "page_rendered" || ev.type === "page_error" || ev.type === "page_start") {
+          updateChatMessage(runId, (current) => ({
+            ...current,
+            process: patchAgentTool(current.process!, "render", {
+              state: "running",
+              detail: ev.type === "page_start"
+                ? `${rendered} / ${outline.length} · ${locale === "zh-CN" ? `正在生成第 ${ev.index} 页` : `Rendering slide ${ev.index}`}`
+                : `${rendered} / ${outline.length}${failed ? ` · ${failed} failed` : ""}`,
+            }),
+          }));
+        }
         handleEvent(ev);
       });
-      if (rendered > 0) {
-        say({
-          role: "assistant",
-          content: t("flow.renderDone", { count: rendered }),
-          suggestions: [
-            t("flow.suggestionSummary"),
-            t("flow.suggestionBusiness"),
-            t("flow.suggestionCover"),
-            t("flow.suggestionSpecific"),
-          ],
-        });
-      }
+      updateChatMessage(runId, (current) => ({
+        ...current,
+        content: `${current.content}\n\n${t("flow.renderDone", { count: rendered })}`,
+        ran: elapsedRunLabel(startedAt),
+        suggestions: rendered > 0 ? [
+          t("flow.suggestionSummary"),
+          t("flow.suggestionBusiness"),
+          t("flow.suggestionCover"),
+          t("flow.suggestionSpecific"),
+        ] : undefined,
+        process: {
+          ...patchAgentTool(current.process!, "render", {
+            state: failed ? "error" : "complete",
+            detail: `${rendered} / ${outline.length}${failed ? ` · ${failed} failed` : ""}`,
+          }),
+          state: failed ? "error" : "complete",
+          title: failed
+            ? locale === "zh-CN" ? "页面生成完成，部分失败" : "Generation finished with errors"
+            : locale === "zh-CN" ? "页面生成完成" : "Slides generated",
+        },
+      }));
     } catch (e: any) {
-      say({ role: "assistant", content: `⚠ ${e?.message ?? e}` });
+      updateChatMessage(runId, (current) => ({
+        ...current,
+        content: `${current.content}\n\n⚠ ${e?.message ?? e}`,
+        ran: elapsedRunLabel(startedAt),
+        process: {
+          ...patchAgentTool(current.process!, "render", { state: "error", detail: String(e?.message ?? e) }),
+          state: "error",
+          title: locale === "zh-CN" ? "页面生成中断" : "Slide generation stopped",
+        },
+      }));
     } finally {
       setRunning(false);
     }

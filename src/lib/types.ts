@@ -4,6 +4,58 @@ export type Aspect = "16:9" | "4:3" | "1:1" | "9:16" | "3:4";
 export type Language = "zh" | "en" | "ja" | "auto";
 export type Resolution = "1K" | "2K" | "4K";
 export type SlideTransition = "none" | "fade" | "push" | "wipe" | "zoom" | "flip";
+export type DesignDensity = "compact" | "balanced" | "spacious";
+
+/** Project-wide brand and design rules that every agent turn should inherit. */
+export interface DeckDesignSystem {
+  version: 1;
+  brand: {
+    name: string;
+    tagline: string;
+    voice: string;
+    logoUsage: string;
+    /** Persistent project material ids used as logo / product / visual references. */
+    assetMaterialIds: string[];
+  };
+  style: {
+    direction: string;
+    keywords: string;
+    imageTreatment: string;
+  };
+  colors: {
+    primary: string;
+    primaryTint: string;
+    accent: string;
+    accentTint: string;
+    ink: string;
+    surface: string;
+    background: string;
+    backgroundWarm: string;
+  };
+  typography: {
+    headingFont: string;
+    bodyFont: string;
+    monoFont: string;
+    headingWeight: number;
+    bodyWeight: number;
+    scale: string;
+  };
+  effects: {
+    shadow: string;
+    border: string;
+    texture: string;
+  };
+  spacing: {
+    density: DesignDensity;
+    baseUnit: number;
+    sectionGap: number;
+  };
+  radius: {
+    card: number;
+    control: number;
+    pill: number;
+  };
+}
 
 /** Which engine drives the TEXT stages (outline + per-page copy). */
 export type Engine = "codex" | "codex-cli" | "claude-cli" | "gemini-cli";
@@ -21,6 +73,8 @@ export interface PptConfig {
   mode?: "direct" | "research"; // deep-research mode seeds the outline from a research doc
   researchDoc?: string; // markdown research brief used as outline context (research mode)
   fast?: boolean; // fast mode: render every page in parallel (rate-limit-queued) instead of one-by-one
+  /** Always-on project context for generation, chat planning, and later edits. */
+  designSystem?: DeckDesignSystem;
 }
 
 export interface MaterialRecord {

@@ -6,11 +6,11 @@ import { useI18n } from "@/i18n/I18nProvider";
 
 export default function WorkspaceModeTabs({
   mode,
-  fileCount,
+  fileCount = 0,
   onChange,
 }: {
   mode: WorkspaceMode;
-  fileCount: number;
+  fileCount?: number;
   onChange: (mode: WorkspaceMode) => void;
 }) {
   const { t } = useI18n();

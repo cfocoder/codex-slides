@@ -55,6 +55,13 @@ export function syncProjectFiles(project: Project): void {
   writeGeneratedFile(dir, "brief.md", `# ${project.title}\n\n${project.config.requirement || ""}\n`);
   writeGeneratedFile(dir, "outline.md", `# Outline\n\n${outline}\n`);
   writeGeneratedFile(dir, "deck-config.json", `${JSON.stringify(project.config, null, 2)}\n`);
+  if (project.config.designSystem) {
+    writeGeneratedFile(
+      dir,
+      "brand-design-system.json",
+      `${JSON.stringify(project.config.designSystem, null, 2)}\n`,
+    );
+  }
   if (project.researchDoc) writeGeneratedFile(dir, "research.md", project.researchDoc);
   const messages = project.chat ?? [];
   if (messages.length) {

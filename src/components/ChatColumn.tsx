@@ -594,7 +594,7 @@ function StatusCard({ status }: { status: GenStatus }) {
  * them when work finishes (multi-round dialogue).
  */
 export default function ChatColumn({
-  label = "Slides",
+  label,
   messages,
   busy,
   onSend,
@@ -771,7 +771,7 @@ export default function ChatColumn({
               <span className="workspace-head-sep" aria-hidden="true" />
             </>
           )}
-          <span className="chatcol-title">▦ {label}</span>
+          <span className="chatcol-title">▦ {label ?? t("composer.slides")}</span>
         </div>
         <div className="chatcol-head-actions">
           {busy && <span className="chatcol-live">{t("chat.working")}</span>}

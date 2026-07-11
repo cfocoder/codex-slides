@@ -3,6 +3,7 @@
 // per-slide regenerate route, so chat itself only classifies — it stays fast.
 
 import { codexJson, type CodexInputAttachment } from "./codex-text";
+import { buildDeckDesignSystemContext } from "./designSystem";
 import type { Project } from "./types";
 
 export interface ChatPlan {
@@ -37,6 +38,7 @@ export function buildChatPrompt(
     slides,
     "",
     `The deck's overall topic: ${project.title}.`,
+    buildDeckDesignSystemContext(project.config.designSystem),
     selected
       ? `The user attached slide ${selected.index} as the active context: "${selected.title}"${selected.points?.length ? `. Its content includes: ${selected.points.join("; ")}` : ""}. References such as "this slide", "after this", "before it", "这页", "它后面" refer to this slide.`
       : "No slide is attached to this turn.",
@@ -60,6 +62,7 @@ export function buildChatPrompt(
     "- If the request is unrelated to this presentation, action=reply and briefly steer them back to creating or editing this deck.",
     "- If a presentation request is ambiguous, action=reply and ask one brief clarifying question.",
     "- instruction must be concrete and standalone (include the style/tone/content change explicitly). Keep on-slide text meaning unless the user asks to change it.",
+    "- Treat <brand_design_system> as always-on project context. Preserve it for every action unless the user's latest message explicitly overrides a rule for the requested slide(s).",
     "- reply is short and in the user's language.",
   ].join("\n");
 }

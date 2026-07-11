@@ -5,6 +5,7 @@
 // forbid markdown symbols — that is what turns an image model into a slide.
 
 import type { Language, OutlinePage, PptConfig, Project, SlidePage } from "./types";
+import { buildDeckDesignSystemContext } from "./designSystem";
 import { getTemplate, styleBlockFor } from "./templates";
 import { getCommunityTemplate, communityStyleBlock } from "./community";
 
@@ -25,6 +26,7 @@ function langInstruction(language: Language): string {
 
 export function buildOutlinePrompt(config: PptConfig): string {
   const { requirement, pages, style, language, researchDoc } = config;
+  const designSystemContext = buildDeckDesignSystemContext(config.designSystem);
   return [
     "You are a helpful assistant that generates an outline for a slide deck (PPT).",
     "",
@@ -34,6 +36,7 @@ export function buildOutlinePrompt(config: PptConfig): string {
     `Produce about ${pages} slides (the first is a cover/title slide).`,
     "Each slide has a short title and 2-4 concise key points.",
     style ? `Overall style / tone to keep in mind: ${style}.` : "",
+    designSystemContext,
     researchDoc
       ? `Base the outline on this research brief; ground the slides in its facts and structure:\n<research_document>\n${researchDoc.slice(0, 8000)}\n</research_document>`
       : "",
@@ -60,6 +63,7 @@ export function buildOutlineRevisePrompt(project: Project, instruction: string):
   return [
     "You are editing the OUTLINE of a slide deck before any slides are drawn.",
     `Deck topic: ${project.title}.`,
+    buildDeckDesignSystemContext(project.config.designSystem),
     "",
     "Current outline:",
     current,
@@ -110,6 +114,7 @@ export function buildPageDescriptionPrompt(
     "",
     `This is slide ${index} of ${total}. Title: "${page.title}".`,
     page.points?.length ? `Key points: ${page.points.join("; ")}.` : "",
+    buildDeckDesignSystemContext(config.designSystem),
     config.materialIds?.length
       ? "Use the attached context items as source material. Preserve relevant facts, wording, brand assets, and visual evidence faithfully."
       : "",
@@ -165,6 +170,7 @@ export function buildImagePrompt(
     : style ||
       "Clean, modern, professional presentation design. Generous whitespace, a clear visual hierarchy, one accent color, a single consistent typeface family.";
   const styleBlock = `<page_style>\n${styleText}\n</page_style>`;
+  const designSystemContext = buildDeckDesignSystemContext(config.designSystem);
 
   return [
     "You are an expert UI/UX presentation designer. Design and render ONE finished slide as a single image.",
@@ -174,6 +180,7 @@ export function buildImagePrompt(
     "</page_description>",
     "",
     styleBlock,
+    designSystemContext,
     "",
     "<design_guidelines>",
     `- Canvas is a single slide at a strict ${aspect} aspect ratio, 4K resolution.`,
@@ -207,6 +214,8 @@ export function buildEditImagePrompt(
     "Requested change:",
     instruction,
     "",
+    buildDeckDesignSystemContext(config.designSystem),
+    "",
     "<design_guidelines>",
     `- Keep the strict ${config.aspect} aspect ratio and 4K crispness.`,
     "- All text must stay sharp and correctly spelled; render no markdown symbols.",
@@ -226,6 +235,8 @@ export function buildMarkEditPrompt(config: PptConfig, note: string): string {
       : "If the mark only identifies a region, improve or simplify that region while preserving its role in the slide.",
     "Return the clean edited slide without any annotation marks, selection boxes, or instruction text.",
     "Keep everything outside the marked region as visually identical to the input as possible.",
+    "",
+    buildDeckDesignSystemContext(config.designSystem),
     "",
     "<design_guidelines>",
     `- Keep the strict ${config.aspect} aspect ratio and 4K crispness.`,

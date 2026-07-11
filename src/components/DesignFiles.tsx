@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowClockwise, File, FileCode, FileImage, FileText, FloppyDisk, UploadSimple, X } from "@phosphor-icons/react";
 import type { ProjectFileRecord } from "@/lib/types";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -20,7 +20,19 @@ function KindIcon({ kind }: { kind: ProjectFileRecord["kind"] }) {
   return <File size={20} />;
 }
 
-export default function DesignFiles({ projectId, title, onClose }: { projectId: string; title: string; onClose: () => void }) {
+export default function DesignFiles({
+  projectId,
+  title,
+  onClose,
+  headerPrefix,
+  initialPath,
+}: {
+  projectId: string;
+  title: string;
+  onClose: () => void;
+  headerPrefix?: ReactNode;
+  initialPath?: string;
+}) {
   const { t } = useI18n();
   const [files, setFiles] = useState<ProjectFileRecord[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
@@ -39,7 +51,7 @@ export default function DesignFiles({ projectId, title, onClose }: { projectId: 
     setSelectedPath((current) => preferred ?? (next.some((file) => file.path === current) ? current : next[0]?.path ?? ""));
     setLoading(false);
   }
-  useEffect(() => { void refresh(); }, [projectId]);
+  useEffect(() => { void refresh(initialPath); }, [initialPath, projectId]);
   useEffect(() => {
     if (!selected?.editable) { setContent(""); setSavedContent(""); return; }
     fetch(apiPath(projectId, selected.path), { cache: "no-store" }).then((response) => response.text()).then((text) => { setContent(text); setSavedContent(text); });
@@ -64,7 +76,7 @@ export default function DesignFiles({ projectId, title, onClose }: { projectId: 
   }
   return (
     <section className="design-files" aria-label={t("designFiles.title")}>
-      <header className="design-files-head"><div><strong>{t("designFiles.title")}</strong><span>{title}</span></div><div className="design-files-actions">
+      <header className="design-files-head"><div>{headerPrefix}<span className="design-files-heading"><strong>{t("designFiles.title")}</strong><span>{title}</span></span></div><div className="design-files-actions">
         <button onClick={() => void refresh()} title={t("designFiles.refresh")}><ArrowClockwise size={17} /></button>
         <button className="design-files-upload" onClick={() => inputRef.current?.click()}><UploadSimple size={17} /> {t("common.upload")}</button>
         <input ref={inputRef} type="file" multiple hidden onChange={upload} />

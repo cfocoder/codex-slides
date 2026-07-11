@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowsClockwise, FolderOpen, Palette, WarningCircle, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, Palette, WarningCircle, X } from "@phosphor-icons/react";
 import DesignFiles from "@/components/DesignFiles";
 import ChatColumn, { type ChatMsg } from "@/components/ChatColumn";
 import MaterialTray from "@/components/MaterialTray";
@@ -9,6 +9,7 @@ import OutlineBoard from "@/components/OutlineBoard";
 import InspireDialog from "@/components/InspireDialog";
 import SlideStage, { type MarkAgentEvent } from "@/components/SlideStage";
 import TemplatePicker from "@/components/TemplatePicker";
+import WorkspaceModeTabs from "@/components/WorkspaceModeTabs";
 import {
   COMMUNITY_TEMPLATES,
   getCommunityTemplate,
@@ -81,6 +82,7 @@ function projectChat(project: Project, locale: UiLocale): ChatMsg[] {
             title: project.title,
             subtitle: translate(locale, "flow.outlineDoc", { count: project.pages.length }),
             pages: projectOutline(project),
+            artifactId: "outline",
           },
         }
       : {
@@ -96,6 +98,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   const { locale, t } = useI18n();
   const [project, setProject] = useState<Project>(initialProject);
   const [workspaceView, setWorkspaceView] = useState<"deck" | "files">("deck");
+  const [designFilePath, setDesignFilePath] = useState<string | undefined>();
   const [slides, setSlides] = useState<UiSlide[]>(() => projectSlides(initialProject));
   const [busy, setBusy] = useState(false);
   const [running, setRunning] = useState(false);
@@ -151,8 +154,19 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   }
 
   function locateChatSlide(index: number) {
+    setWorkspaceView("deck");
     setFocusSlideIndex(index);
     setFocusSlideKey((key) => key + 1);
+  }
+
+  function openDesignFile(id: string) {
+    const pathByArtifact: Record<string, string> = {
+      questions: "generated/brief.md",
+      outline: "generated/outline.md",
+      inspiration: "generated/inspiration.json",
+    };
+    setDesignFilePath(pathByArtifact[id] ?? id);
+    setWorkspaceView("files");
   }
 
   /** Route a chat turn to the right handler for the current stage. */
@@ -304,35 +318,83 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   }
 
   async function renderNow() {
+    const runId = createAgentRunId("render-deck");
+    const startedAt = Date.now();
+    const startContent = project.config.fast
+      ? t("flow.fastRender", { count: outline.length })
+      : t("flow.render", { count: outline.length });
     setRunning(true);
+    setWorkspaceView("deck");
+    say({
+      id: runId,
+      role: "assistant",
+      content: startContent,
+      process: {
+        state: "running",
+        title: locale === "zh-CN" ? "正在生成页面" : "Generating slides",
+        notes: [locale === "zh-CN" ? "大纲与视觉参考已锁定，正在逐页绘制。" : "The outline and visual reference are locked while pages render."],
+        tools: [{
+          id: "render",
+          name: "render_deck",
+          label: locale === "zh-CN" ? "生成演示页面" : "Render presentation pages",
+          detail: `0 / ${outline.length}`,
+          state: "running",
+        }],
+      },
+    });
     try {
       setSlides(outline.map((o, i) => ({ index: i + 1, title: o.title, status: "pending" })));
       setStage("deck");
-      say({
-        role: "assistant",
-        content: project.config.fast
-          ? t("flow.fastRender", { count: outline.length })
-          : t("flow.render", { count: outline.length }),
-      });
       let rendered = 0;
+      let failed = 0;
       await streamRender(projectId, (ev) => {
         if (ev.type === "page_rendered") rendered++;
+        if (ev.type === "page_error") failed++;
+        if (ev.type === "page_rendered" || ev.type === "page_error" || ev.type === "page_start") {
+          updateChatMessage(runId, (current) => ({
+            ...current,
+            process: patchAgentTool(current.process!, "render", {
+              state: "running",
+              detail: ev.type === "page_start"
+                ? `${rendered} / ${outline.length} · ${locale === "zh-CN" ? `正在生成第 ${ev.index} 页` : `Rendering slide ${ev.index}`}`
+                : `${rendered} / ${outline.length}${failed ? ` · ${failed} failed` : ""}`,
+            }),
+          }));
+        }
         handleRenderEvent(ev);
       });
-      if (rendered > 0) {
-        say({
-          role: "assistant",
-          content: t("flow.renderDone", { count: rendered }),
-          suggestions: [
-            t("flow.suggestionSummary"),
-            t("flow.suggestionBusiness"),
-            t("flow.suggestionCover"),
-            t("flow.suggestionSpecific"),
-          ],
-        });
-      }
+      updateChatMessage(runId, (current) => ({
+        ...current,
+        content: `${current.content}\n\n${t("flow.renderDone", { count: rendered })}`,
+        ran: elapsedRunLabel(startedAt),
+        suggestions: rendered > 0 ? [
+          t("flow.suggestionSummary"),
+          t("flow.suggestionBusiness"),
+          t("flow.suggestionCover"),
+          t("flow.suggestionSpecific"),
+        ] : undefined,
+        process: {
+          ...patchAgentTool(current.process!, "render", {
+            state: failed ? "error" : "complete",
+            detail: `${rendered} / ${outline.length}${failed ? ` · ${failed} failed` : ""}`,
+          }),
+          state: failed ? "error" : "complete",
+          title: failed
+            ? locale === "zh-CN" ? "页面生成完成，部分失败" : "Generation finished with errors"
+            : locale === "zh-CN" ? "页面生成完成" : "Slides generated",
+        },
+      }));
     } catch (e: any) {
-      say({ role: "assistant", content: `⚠ ${e?.message ?? e}` });
+      updateChatMessage(runId, (current) => ({
+        ...current,
+        content: `${current.content}\n\n⚠ ${e?.message ?? e}`,
+        ran: elapsedRunLabel(startedAt),
+        process: {
+          ...patchAgentTool(current.process!, "render", { state: "error", detail: String(e?.message ?? e) }),
+          state: "error",
+          title: locale === "zh-CN" ? "页面生成中断" : "Slide generation stopped",
+        },
+      }));
     } finally {
       setRunning(false);
     }
@@ -712,6 +774,12 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         : undefined,
       locale,
     });
+  const workspaceTabs = (
+    <WorkspaceModeTabs
+      mode={workspaceView === "files" ? "files" : "canvas"}
+      onChange={(mode) => setWorkspaceView(mode === "files" ? "files" : "deck")}
+    />
+  );
 
   return (
     <div className="ws project-ws">
@@ -728,6 +796,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         focusKey={chatFocusKey}
         onSelectSlide={locateChatSlide}
         onInspire={onInspire}
+        onOpenDesignFile={openDesignFile}
         workflow={workflow}
         conversations={conversationState.summaries}
         activeConversationId={conversationState.activeConversationId}
@@ -755,7 +824,15 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         }
       />
       {workspaceView === "files" ? (
-        <div className="deckpane"><DesignFiles projectId={projectId} title={project.title} onClose={() => setWorkspaceView("deck")} /></div>
+        <div className="deckpane">
+          <DesignFiles
+            projectId={projectId}
+            title={project.title}
+            initialPath={designFilePath}
+            headerPrefix={workspaceTabs}
+            onClose={() => setWorkspaceView("deck")}
+          />
+        </div>
       ) : stage === "outline" ? (
         <OutlineBoard
           title={project.title}
@@ -766,6 +843,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
           busy={running && outline.length > 0}
           streaming={false}
           researchDoc={project.researchDoc}
+          headerPrefix={workspaceTabs}
         />
       ) : (
         // Both "inspire" (pending skeleton deck while picking a style) and
@@ -780,6 +858,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             busy={busy}
             setBusy={setBusy}
             streaming={stage === "inspire" || running}
+            headerPrefix={workspaceTabs}
             onAskSlide={askAboutSlide}
             onMarkAgentEvent={mirrorMarkToChat}
             focusSlideIndex={focusSlideIndex}
@@ -787,10 +866,6 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             headerExtra={
               stage !== "inspire" ? (
               <div className="deck-header-extras">
-              <button className="iconbtn design-files-trigger" onClick={() => setWorkspaceView("files")} title={t("chat.openDesignFiles")}>
-                <FolderOpen size={16} weight="regular" aria-hidden="true" />
-                Design Files
-              </button>
               <button
                 ref={retuneTriggerRef}
                 className={`iconbtn restyle-trigger${showTune ? " active" : ""}`}
