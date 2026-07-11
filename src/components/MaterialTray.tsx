@@ -4,16 +4,24 @@ import { useRef, useState } from "react";
 import { ImageSquare, UploadSimple, X } from "@phosphor-icons/react";
 import { useI18n } from "@/i18n/I18nProvider";
 
-interface Item {
+export interface MaterialTrayItem {
   id: string;
   name: string;
   url: string;
 }
 
 /** Upload brand references (logo / product shot / visual sample) to guide the restyle. */
-export default function MaterialTray({ onChange }: { onChange: (ids: string[]) => void }) {
+export default function MaterialTray({
+  initialItems = [],
+  disabled = false,
+  onChange,
+}: {
+  initialItems?: MaterialTrayItem[];
+  disabled?: boolean;
+  onChange: (ids: string[]) => void;
+}) {
   const { t } = useI18n();
-  const [items, setItems] = useState<Item[]>([]);
+  const [items, setItems] = useState<MaterialTrayItem[]>(initialItems);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -39,6 +47,7 @@ export default function MaterialTray({ onChange }: { onChange: (ids: string[]) =
   }
 
   function remove(id: string) {
+    if (disabled) return;
     const next = items.filter((item) => item.id !== id);
     setItems(next);
     onChange(next.map((item) => item.id));
@@ -56,7 +65,7 @@ export default function MaterialTray({ onChange }: { onChange: (ids: string[]) =
           <div className="material-item" key={item.id} title={item.name}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={item.url} alt={item.name} />
-            <button type="button" onClick={() => remove(item.id)} aria-label={t("material.remove", { name: item.name })}>
+            <button type="button" disabled={disabled} onClick={() => remove(item.id)} aria-label={t("material.remove", { name: item.name })}>
               <X size={12} weight="bold" aria-hidden="true" />
             </button>
           </div>
@@ -64,7 +73,7 @@ export default function MaterialTray({ onChange }: { onChange: (ids: string[]) =
         <button
           type="button"
           className={`material-add${items.length ? " compact" : ""}`}
-          disabled={busy}
+          disabled={busy || disabled}
           aria-label={items.length ? t("material.addMore") : t("material.add")}
           onClick={() => inputRef.current?.click()}
         >
@@ -80,7 +89,9 @@ export default function MaterialTray({ onChange }: { onChange: (ids: string[]) =
           accept="image/*"
           multiple
           hidden
-          onChange={(event) => upload(event.target.files)}
+          onChange={(event) => {
+            if (!disabled) void upload(event.target.files);
+          }}
         />
       </div>
     </section>
