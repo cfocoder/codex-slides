@@ -116,6 +116,19 @@ export async function streamOutline(
   await readSSE(resp, onEvent);
 }
 
+/** Stream clarification questions as soon as each JSON object is complete. */
+export async function streamOnboard(
+  input: { requirement: string; scenarioId?: string; uiLocale: string },
+  onEvent: (ev: ProgressEvent) => void,
+): Promise<void> {
+  const resp = await fetch("/api/onboard", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  await readSSE(resp, onEvent);
+}
+
 /** Create the project before clarification so every later step has a durable id. */
 export async function createProjectCheckpoint(config: PptConfig): Promise<Project> {
   const response = await fetch("/api/projects", {
@@ -130,12 +143,35 @@ export async function createProjectCheckpoint(config: PptConfig): Promise<Projec
 
 const CHECKPOINT_CACHE_PREFIX = "ppt-anything:project-checkpoint:v1:";
 
-export function readProjectCheckpointCache(projectId: string): {
+export interface ProjectCheckpointPatch {
   config?: PptConfig;
   title?: string;
   researchDoc?: string;
   workflow?: Partial<ProjectWorkflowState>;
-} | null {
+}
+
+export function cacheProjectCheckpoint(
+  projectId: string,
+  patch: ProjectCheckpointPatch,
+): ProjectCheckpointPatch {
+  const cachedPatch: ProjectCheckpointPatch = {
+    ...patch,
+    workflow: patch.workflow ? { ...patch.workflow, updatedAt: Date.now() } : undefined,
+  };
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.setItem(
+        `${CHECKPOINT_CACHE_PREFIX}${projectId}`,
+        JSON.stringify(cachedPatch),
+      );
+    } catch {
+      // The project JSON remains canonical when local storage is unavailable.
+    }
+  }
+  return cachedPatch;
+}
+
+export function readProjectCheckpointCache(projectId: string): ProjectCheckpointPatch | null {
   if (typeof window === "undefined") return null;
   try {
     return JSON.parse(window.localStorage.getItem(`${CHECKPOINT_CACHE_PREFIX}${projectId}`) ?? "null");
@@ -148,27 +184,9 @@ export function readProjectCheckpointCache(projectId: string): {
  * server-owned; this stores the client-only position and clarification form. */
 export async function saveProjectCheckpoint(
   projectId: string,
-  patch: {
-    config?: PptConfig;
-    title?: string;
-    researchDoc?: string;
-    workflow?: Partial<ProjectWorkflowState>;
-  },
+  patch: ProjectCheckpointPatch,
 ): Promise<void> {
-  const workflow = patch.workflow
-    ? { ...patch.workflow, updatedAt: Date.now() }
-    : undefined;
-  const cachedPatch = { ...patch, workflow };
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.setItem(
-        `${CHECKPOINT_CACHE_PREFIX}${projectId}`,
-        JSON.stringify(cachedPatch),
-      );
-    } catch {
-      // The project JSON remains canonical when local storage is unavailable.
-    }
-  }
+  const cachedPatch = cacheProjectCheckpoint(projectId, patch);
   const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },

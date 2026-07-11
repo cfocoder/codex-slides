@@ -152,6 +152,12 @@ export default function OutlineBoard({
                 )}
               </Fragment>
             ))}
+            {streaming && (
+              <li className="outline-streaming-tail" aria-live="polite">
+                <span className="spinner sm" />
+                <span>{t("outline.streaming")}</span>
+              </li>
+            )}
           </ol>
         )}
 
@@ -164,8 +170,10 @@ export default function OutlineBoard({
 
       <div className="outline-confirm">
         <div className="outline-confirm-info">
-          <span className="outline-confirm-count">{t("outline.ready", { count })}</span>
-          <small>{t("outline.timeHint")}</small>
+          <span className="outline-confirm-count">
+            {streaming ? t("outline.streamingCount", { count }) : t("outline.ready", { count })}
+          </span>
+          <small>{streaming ? t("outline.streamingHint") : t("outline.timeHint")}</small>
         </div>
         <button className="outline-confirm-btn" disabled={!editable || count === 0} onClick={onConfirm}>
           {busy ? t("outline.generating") : t("outline.generateSlides", { count })}

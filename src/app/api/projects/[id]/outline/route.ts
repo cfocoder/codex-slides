@@ -34,6 +34,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const project = loadProject(params.id);
   if (!project) return NextResponse.json({ error: "project not found" }, { status: 404 });
   project.status = "draft";
+  project.workflow = { ...(project.workflow ?? {}), stage: "outline" };
   replaceProjectPages(project, pages);
   return NextResponse.json({ pages: project.pages });
 }

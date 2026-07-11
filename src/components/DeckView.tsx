@@ -22,6 +22,7 @@ import {
 import { getTemplate } from "@/lib/templates";
 import {
   addProjectSlide,
+  cacheProjectCheckpoint,
   deriveStatus,
   fileUrl,
   generateSingleSlide,
@@ -31,9 +32,11 @@ import {
   reviseOutlineChat,
   saveConversations,
   saveOutline,
+  saveProjectCheckpoint,
   streamRender,
   type ChatRequest,
   type GenStatus,
+  type ProjectCheckpointPatch,
   type SlideChatContext,
   type UiSlide,
 } from "@/lib/deckEdit";
@@ -218,15 +221,19 @@ function projectChat(project: Project, locale: UiLocale): ChatMsg[] {
 export default function DeckView({ projectId, initialProject }: { projectId: string; initialProject: Project }) {
   const { locale, t } = useI18n();
   const [project, setProject] = useState<Project>(initialProject);
-  const [workspaceView, setWorkspaceView] = useState<"deck" | "files">("deck");
+  const [workspaceView, setWorkspaceView] = useState<"deck" | "files">(
+    initialProject.workflow?.workspaceMode === "files" ? "files" : "deck",
+  );
   const [designFilePath, setDesignFilePath] = useState<string | undefined>();
   const [designFileOpenKey, setDesignFileOpenKey] = useState(0);
   const [slides, setSlides] = useState<UiSlide[]>(() => projectSlides(initialProject));
   const [busy, setBusy] = useState(false);
   const [running, setRunning] = useState(false);
-  const [stage, setStage] = useState<"outline" | "inspire" | "deck">(
-    initialProject.status === "draft" ? "outline" : "deck",
-  );
+  const [stage, setStage] = useState<"outline" | "inspire" | "deck">(() => {
+    if (initialProject.workflow?.stage === "inspire") return "inspire";
+    if (initialProject.workflow?.stage === "outline" || initialProject.status === "draft") return "outline";
+    return "deck";
+  });
   const [outline, setOutline] = useState<OutlinePage[]>(() => projectOutline(initialProject));
   const initialConversations = initialProject.conversations?.map((conversation) => ({
     ...conversation,
@@ -253,6 +260,9 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       && !initialProject.config.designSystem,
   );
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const checkpointTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestCheckpointRef = useRef<ProjectCheckpointPatch | null>(null);
+  const resumeRenderRef = useRef(false);
   const markRunRef = useRef<{ id: string; startedAt: number; slideIndex: number } | null>(null);
 
   const [showDesignSystem, setShowDesignSystem] = useState(false);
@@ -340,6 +350,53 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     ), 600);
     return () => clearTimeout(t);
   }, [conversationState.activeConversationId, conversationState.conversations, projectId]);
+
+  useEffect(() => {
+    const patch = {
+      config: project.config,
+      title: project.title,
+      researchDoc: project.researchDoc ?? "",
+      workflow: {
+        stage: running ? "rendering" as const : stage,
+        workspaceMode: workspaceView === "files" ? "files" as const : "canvas" as const,
+        inspirationSkipped,
+      },
+    };
+    latestCheckpointRef.current = patch;
+    cacheProjectCheckpoint(projectId, patch);
+    if (checkpointTimer.current) clearTimeout(checkpointTimer.current);
+    checkpointTimer.current = setTimeout(() => {
+      checkpointTimer.current = null;
+      void saveProjectCheckpoint(projectId, patch).catch(() => {});
+    }, 450);
+    return () => {
+      if (checkpointTimer.current) clearTimeout(checkpointTimer.current);
+    };
+  }, [inspirationSkipped, project.config, project.researchDoc, project.title, projectId, running, stage, workspaceView]);
+
+  useEffect(() => {
+    const flush = () => {
+      const patch = latestCheckpointRef.current;
+      if (patch) void saveProjectCheckpoint(projectId, patch).catch(() => {});
+    };
+    const onVisibility = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibility);
+      flush();
+    };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (initialProject.workflow?.stage !== "rendering" || resumeRenderRef.current) return;
+    resumeRenderRef.current = true;
+    void renderNow();
+    // A rendering checkpoint means the previous browser request ended. The
+    // pipeline skips completed pages and resumes only pending/error pages.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // --- draft outline stage (编辑大纲 → 确认 → 渲染) ---
 
@@ -438,6 +495,14 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       case "page_error":
         setSlides((s) => s.map((x) => (x.index === ev.index ? { ...x, status: "error", error: ev.error } : x)));
         break;
+      case "done":
+        setRunning(false);
+        setProject((current) => ({
+          ...current,
+          status: "ready",
+          workflow: { ...(current.workflow ?? {}), stage: "deck" },
+        }));
+        break;
       case "error":
         say({ role: "assistant", content: `⚠ ${ev.error}` });
         break;
@@ -460,6 +525,17 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       // whose Browse button opens the style popup. Render waits for pick/skip.
       setSlides(outline.map((o, i) => ({ index: i + 1, title: o.title, status: "pending" })));
       setStage("inspire");
+      void saveProjectCheckpoint(projectId, {
+        config: project.config,
+        title: project.title,
+        researchDoc: project.researchDoc ?? "",
+        workflow: {
+          stage: "inspire",
+          workspaceMode: "canvas",
+          selectedDesignFileId: "inspiration",
+          inspirationSkipped: false,
+        },
+      }).catch(() => {});
       const matchQuery = [project?.config.requirement ?? "", ...outline.map((o) => o.title)]
         .filter(Boolean)
         .join(" ");

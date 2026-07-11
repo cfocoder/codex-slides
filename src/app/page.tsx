@@ -15,21 +15,25 @@ import TopBar from "@/components/TopBar";
 import WorkspaceModeTabs from "@/components/WorkspaceModeTabs";
 import {
   addProjectSlide,
+  cacheProjectCheckpoint,
   createProjectCheckpoint,
   deriveStatus,
   fileUrl,
   generateSingleSlide,
   planChatEdit,
+  readProjectCheckpointCache,
   regenerateSlide,
   patchProjectStyle,
   reviseOutlineChat,
   saveConversations,
   saveOutline,
   saveProjectCheckpoint,
+  streamOnboard,
   streamOutline,
   streamRender,
   type ChatRequest,
   type GenStatus,
+  type ProjectCheckpointPatch,
   type SlideChatContext,
   type UiSlide,
 } from "@/lib/deckEdit";
@@ -133,6 +137,7 @@ export default function Home() {
   const [scenarioOpenRequestKey, setScenarioOpenRequestKey] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const checkpointTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestCheckpointRef = useRef<ProjectCheckpointPatch | null>(null);
   const resumeAttempted = useRef(false);
   const markRunRef = useRef<{ id: string; startedAt: number; slideIndex: number } | null>(null);
 
@@ -147,6 +152,85 @@ export default function Home() {
 
   const patchConfig = (patch: Partial<PptConfig>) => setConfig((c) => ({ ...c, ...patch }));
   const say = (m: ChatMsg) => setChat((c) => [...c, m]);
+
+  function currentWorkflowStage() {
+    if (stage === "outline" && running) return "outlining" as const;
+    if (stage === "deck" && running) return "rendering" as const;
+    return stage;
+  }
+
+  function persistCheckpoint(id = projectId) {
+    if (!id) return Promise.resolve();
+    return saveProjectCheckpoint(id, checkpointPatch());
+  }
+
+  function checkpointPatch() {
+    return {
+      config,
+      title: title || undefined,
+      researchDoc,
+      workflow: {
+        stage: currentWorkflowStage(),
+        questions,
+        clarifyForm: clarifyFormState,
+        clarifyAnswerSummary,
+        workspaceMode,
+        selectedDesignFileId,
+        inspirationSkipped,
+      },
+    };
+  }
+
+  function leaveWorkspace() {
+    void persistCheckpoint().catch(() => {});
+    setPhase("idle");
+    window.history.replaceState({}, "", "/");
+  }
+
+  useEffect(() => {
+    if (!projectId) return;
+    const patch = checkpointPatch();
+    latestCheckpointRef.current = patch;
+    cacheProjectCheckpoint(projectId, patch);
+    if (checkpointTimer.current) clearTimeout(checkpointTimer.current);
+    checkpointTimer.current = setTimeout(() => {
+      checkpointTimer.current = null;
+      void persistCheckpoint(projectId).catch(() => {});
+    }, 450);
+    return () => {
+      if (checkpointTimer.current) clearTimeout(checkpointTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    clarifyAnswerSummary,
+    clarifyFormState,
+    config,
+    inspirationSkipped,
+    projectId,
+    questions,
+    researchDoc,
+    running,
+    selectedDesignFileId,
+    stage,
+    title,
+    workspaceMode,
+  ]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    const flush = () => {
+      const patch = latestCheckpointRef.current;
+      if (patch) void saveProjectCheckpoint(projectId, patch).catch(() => {});
+    };
+    const onVisibility = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibility);
+      flush();
+    };
+  }, [projectId]);
 
   function updateChatMessage(id: string, update: (message: ChatMsg) => ChatMsg) {
     setChat((messages) => messages.map((message) => (message.id === id ? update(message) : message)));
@@ -201,6 +285,82 @@ export default function Home() {
     // Browser deep links are consumed once on mount; subsequent UI state stays local.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (resumeAttempted.current) return;
+    resumeAttempted.current = true;
+    const resumeId = new URLSearchParams(window.location.search).get("resume")?.trim();
+    if (!resumeId) return;
+    let cancelled = false;
+    void fetch(`/api/projects/${encodeURIComponent(resumeId)}`, { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json() as Promise<Project>;
+      })
+      .then((project) => {
+        if (cancelled) return;
+        const cached = readProjectCheckpointCache(project.id);
+        const cachedAt = Number(cached?.workflow?.updatedAt) || 0;
+        const serverAt = Number(project.workflow?.updatedAt) || 0;
+        const useCached = Boolean(cached && cachedAt > serverAt);
+        const restoredConfig = useCached && cached?.config ? cached.config : project.config;
+        const restoredWorkflow = {
+          ...(project.workflow ?? { stage: project.status === "rendering" ? "rendering" as const : "outline" as const }),
+          ...(useCached ? cached?.workflow : {}),
+        };
+
+        if (restoredWorkflow.stage !== "clarify" && restoredWorkflow.stage !== "outlining") {
+          window.location.replace(`/project/${encodeURIComponent(project.id)}`);
+          return;
+        }
+
+        const restoredQuestions = (restoredWorkflow.questions ?? []) as QuestionSpec[];
+        setProjectId(project.id);
+        setConfig(restoredConfig);
+        setResearchMode(restoredConfig.mode === "research");
+        setMaterials(checkpointMaterials(project));
+        setTitle((useCached ? cached?.title : undefined) || project.title);
+        setOutline(project.outline.map((page) => ({ title: page.title, points: [...page.points] })));
+        setSlides(project.pages.map((page) => ({
+          index: page.index,
+          title: page.title,
+          status: page.status,
+          image: page.image,
+          error: page.error,
+          transition: page.transition,
+        })));
+        setQuestions(restoredQuestions);
+        setClarifyFormState(restoredWorkflow.clarifyForm);
+        setClarifyAnswerSummary(restoredWorkflow.clarifyAnswerSummary ?? "");
+        setWorkspaceMode(restoredWorkflow.workspaceMode ?? "canvas");
+        setSelectedDesignFileId(restoredWorkflow.selectedDesignFileId ?? "questions");
+        setInspirationSkipped(Boolean(restoredWorkflow.inspirationSkipped));
+        setResearchDoc((useCached ? cached?.researchDoc : undefined) ?? project.researchDoc ?? "");
+        setStage(restoredWorkflow.stage === "clarify" ? "clarify" : "outline");
+        setRunning(false);
+        setBusy(false);
+        setClarifyBusy(false);
+        setPhase("work");
+        conversationState.restoreConversations(
+          project.conversations,
+          project.activeConversationId,
+          (project.chat ?? []) as unknown as ChatMsg[],
+          project.title,
+        );
+
+        if (restoredWorkflow.stage === "outlining") {
+          queueMicrotask(() => { void proceedToOutline(restoredConfig, project.id); });
+        } else if (!restoredQuestions.length) {
+          queueMicrotask(() => { void requestClarifyQuestions(restoredConfig, project.id); });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) window.history.replaceState({}, "", "/");
+      });
+    return () => { cancelled = true; };
+    // Restore once from the explicit deep link. Later navigation stays in-page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   /** Reference images attached to a clarify question join the shared materials. */
   function attachClarifyImages(items: ContextItem[]) {
     onAddItems(mergeContextItems(materials, items));
@@ -234,6 +394,7 @@ export default function Home() {
     setResearchNote("");
     setInspirationSkipped(false);
     setClarifyAnswerSummary("");
+    setClarifyFormState(undefined);
     setWorkspaceMode("canvas");
     setSelectedDesignFileId("questions");
     setChatContext(null);
@@ -250,32 +411,64 @@ export default function Home() {
       { role: "assistant", content: t("flow.clarifyIntro") },
     ], cfg.requirement);
 
+    try {
+      setClarifyBusy(true);
+      const checkpoint = await createProjectCheckpoint(cfg);
+      setProjectId(checkpoint.id);
+      setTitle(checkpoint.title);
+      await requestClarifyQuestions(cfg, checkpoint.id);
+    } catch (error: any) {
+      say({ role: "assistant", content: `⚠ ${error?.message ?? error}` });
+      setClarifyBusy(false);
+    }
+  }
+
+  async function requestClarifyQuestions(cfg: PptConfig, checkpointId: string) {
     setClarifyBusy(true);
     try {
-      const r = await fetch("/api/onboard", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requirement: cfg.requirement, scenarioId: cfg.scenarioId, uiLocale: locale }),
-      });
-      const d = await r.json();
-      if (r.ok && Array.isArray(d.questions) && d.questions.length) {
-        const nextQuestions = d.questions as QuestionSpec[];
-        setQuestions(nextQuestions);
-        say({
-          role: "assistant",
-          content: t("designFiles.questionsPrepared", { count: nextQuestions.length }),
-          artifact: {
-            id: "questions",
-            kind: "questions",
-            title: t("designFiles.questionsTitle"),
-            subtitle: t("designFiles.questionsPending", { count: nextQuestions.length }),
+      let received: QuestionSpec[] = [];
+      await streamOnboard(
+        { requirement: cfg.requirement, scenarioId: cfg.scenarioId, uiLocale: locale },
+        (event) => {
+          if (event.type === "question") {
+            received = [...received];
+            received[event.index] = event.question;
+            setQuestions(received.filter(Boolean));
+          } else if (event.type === "questions_done") {
+            received = event.questions as QuestionSpec[];
+            setQuestions(received);
+            if (received.length) {
+              say({
+                role: "assistant",
+                content: t("designFiles.questionsPrepared", { count: received.length }),
+                artifact: {
+                  id: "questions",
+                  kind: "questions",
+                  title: t("designFiles.questionsTitle"),
+                  subtitle: t("designFiles.questionsPending", { count: received.length }),
+                },
+              });
+            }
+          } else if (event.type === "error") {
+            say({ role: "assistant", content: `⚠ ${event.error}` });
+          }
+        },
+      );
+      if (received.length) {
+        await saveProjectCheckpoint(checkpointId, {
+          config: cfg,
+          workflow: {
+            stage: "clarify",
+            questions: received,
+            workspaceMode: "canvas",
+            selectedDesignFileId: "questions",
           },
         });
       } else {
-        proceedToOutline(cfg);
+        await proceedToOutline(cfg, checkpointId);
       }
     } catch {
-      proceedToOutline(cfg);
+      await proceedToOutline(cfg, checkpointId);
     } finally {
       setClarifyBusy(false);
     }
@@ -286,32 +479,48 @@ export default function Home() {
     setClarifyAnswerSummary(summary.trim());
     setWorkspaceMode("canvas");
     if (summary.trim()) say({ role: "user", content: t("flow.confirmed", { summary }) });
-    proceedToOutline(cfg);
+    void proceedToOutline(cfg, projectId);
   }
 
   function skipClarify() {
     setClarifyAnswerSummary(t("designFiles.questionsSkipped"));
     setWorkspaceMode("canvas");
     say({ role: "user", content: t("flow.skipClarify") });
-    proceedToOutline(config);
+    void proceedToOutline(config, projectId);
   }
 
   // ---------------- step 2: search + outline ----------------
 
-  async function proceedToOutline(base: PptConfig) {
-    const cfg: PptConfig = { ...base, mode: researchMode ? "research" : "direct" };
+  async function proceedToOutline(base: PptConfig, checkpointId: string | null = projectId) {
+    const cfg: PptConfig = { ...base, mode: base.mode ?? (researchMode ? "research" : "direct") };
+    let durableProjectId = checkpointId;
+    if (!durableProjectId) {
+      const checkpoint = await createProjectCheckpoint(cfg);
+      durableProjectId = checkpoint.id;
+      setProjectId(checkpoint.id);
+      setTitle(checkpoint.title);
+    }
     setConfig(cfg);
     setStage("outline");
     setWorkspaceMode("canvas");
     setRunning(true);
-    setProjectId(null);
-    setTitle("");
     setSlides([]);
     setOutline([]);
-    setResearchDoc("");
     setResearchNote("");
     try {
-      await streamOutline(cfg, handleOutlineEvent);
+      await saveProjectCheckpoint(durableProjectId, {
+        config: cfg,
+        researchDoc,
+        workflow: {
+          stage: "outlining",
+          questions,
+          clarifyForm: clarifyFormState,
+          clarifyAnswerSummary,
+          workspaceMode: "canvas",
+          selectedDesignFileId: "outline",
+        },
+      });
+      await streamOutline(cfg, handleOutlineEvent, durableProjectId);
     } catch (e: any) {
       say({ role: "assistant", content: `⚠ ${e?.message ?? e}` });
     } finally {
@@ -329,7 +538,16 @@ export default function Home() {
       case "project":
         setProjectId(ev.id);
         break;
+      case "outline_page":
+        if (ev.index === 0) setTitle(ev.page.title);
+        setOutline((current) => {
+          const next = [...current];
+          next[ev.index] = { title: ev.page.title, points: [...ev.page.points] };
+          return next.filter(Boolean);
+        });
+        break;
       case "outline":
+        setRunning(false);
         setTitle(ev.title);
         setOutline(ev.outline.map((o) => ({ title: o.title, points: [...o.points] })));
         setResearchNote("");
@@ -397,6 +615,20 @@ export default function Home() {
       // whose Browse button opens the style popup. Render waits for the pick/skip.
       setSlides(outline.map((o, i) => ({ index: i + 1, title: o.title, status: "pending" })));
       setStage("inspire");
+      void saveProjectCheckpoint(projectId, {
+        config,
+        title,
+        researchDoc,
+        workflow: {
+          stage: "inspire",
+          questions,
+          clarifyForm: clarifyFormState,
+          clarifyAnswerSummary,
+          workspaceMode: "canvas",
+          selectedDesignFileId: "inspiration",
+          inspirationSkipped: false,
+        },
+      }).catch(() => {});
       const matchQuery = [config.requirement, ...outline.map((o) => o.title)]
         .filter(Boolean)
         .join(" ");
@@ -557,6 +789,9 @@ export default function Home() {
         setSlides((s) =>
           s.map((x) => (x.index === ev.index ? { ...x, status: "error", error: ev.error } : x)),
         );
+        break;
+      case "done":
+        setRunning(false);
         break;
       case "error":
         say({ role: "assistant", content: `⚠ ${ev.error}` });
@@ -999,8 +1234,9 @@ export default function Home() {
     return (
       <div className="ws project-ws">
         <ChatColumn
+          projectId={projectId}
           workspaceTitle={title || undefined}
-          homeHref="/"
+          onHome={leaveWorkspace}
           messages={chat}
           busy={running || busy || clarifyBusy}
           onSend={enqueueOrRun}
@@ -1048,7 +1284,7 @@ export default function Home() {
             </div>
             <div className="clarify-pane">
               <p className="clarify-topic">{config.requirement}</p>
-              {clarifyBusy || !questions.length ? (
+              {!questions.length ? (
                 <div className="clarify-loading">
                   <div className="clarify-loading-head">
                     <span className="spinner sm" />
@@ -1070,7 +1306,10 @@ export default function Home() {
               ) : (
                 <OnboardForm
                   questions={questions}
-                  busy={false}
+                  busy={clarifyBusy}
+                  initialState={clarifyFormState}
+                  availableImages={materials.filter((item) => item.kind === "image")}
+                  onStateChange={setClarifyFormState}
                   onCancel={skipClarify}
                   onComplete={applyClarify}
                   onAttachImages={attachClarifyImages}
@@ -1089,8 +1328,8 @@ export default function Home() {
             outline={outline}
             onChange={onOutlineChange}
             onConfirm={confirmOutline}
-            busy={running && outline.length > 0}
-            streaming={running && outline.length === 0}
+            busy={running}
+            streaming={running}
             researchDoc={researchDoc}
             headerPrefix={workspaceTabs}
           />

@@ -15,6 +15,7 @@ interface ProjectSummary {
   total: number;
   rendered: number;
   cover: string | null;
+  workflowStage?: "clarify" | "outlining" | "outline" | "inspire" | "rendering" | "deck";
 }
 
 function relativeTime(value: string, locale: UiLocale) {
@@ -37,6 +38,17 @@ export default function RecentProjects() {
   const [loading, setLoading] = useState(true);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const openingProject = projects.find((project) => project.id === openingId);
+
+  function progressLabel(project: ProjectSummary) {
+    switch (project.workflowStage) {
+      case "clarify": return t("projects.stageClarify");
+      case "outlining": return t("projects.stageOutlining");
+      case "outline": return t("projects.stageOutline");
+      case "inspire": return t("projects.stageInspire");
+      case "rendering": return t("projects.stageRendering", { rendered: project.rendered, total: project.total });
+      default: return t("projects.slides", { rendered: project.rendered, total: project.total });
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -84,11 +96,17 @@ export default function RecentProjects() {
           {projects.map((project) => (
             <Link
               className={`project-card${openingId === project.id ? " is-opening" : ""}`}
-              href={`/project/${project.id}`}
+              href={project.workflowStage === "clarify" || project.workflowStage === "outlining"
+                ? `/?resume=${encodeURIComponent(project.id)}`
+                : `/project/${encodeURIComponent(project.id)}`}
               key={project.id}
               onClick={(event) => {
                 if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
                 setOpeningId(project.id);
+                if (project.workflowStage === "clarify" || project.workflowStage === "outlining") {
+                  event.preventDefault();
+                  window.location.assign(`/?resume=${encodeURIComponent(project.id)}`);
+                }
               }}
               aria-label={t("projects.open", { title: project.title })}
             >
@@ -106,7 +124,7 @@ export default function RecentProjects() {
               <div className="project-copy">
                 <strong>{project.title}</strong>
                 <span>
-                  {t("projects.slides", { rendered: project.rendered, total: project.total })}
+                  {progressLabel(project)}
                   <i aria-hidden="true" />
                   {relativeTime(project.updatedAt ?? project.createdAt, locale)}
                 </span>

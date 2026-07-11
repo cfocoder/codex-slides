@@ -7252,6 +7252,20 @@ button:disabled {
   gap: 8px;
   margin-top: 22px;
 }
+.onb-streaming-tail,
+.outline-streaming-tail {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.onb-streaming-tail {
+  margin: -2px 0 4px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--border);
+}
 
 /* Per-question reference-image attach (Image #2). */
 .onb-attach-btn {
@@ -7398,6 +7412,13 @@ button:disabled {
   box-shadow: var(--shadow-sm);
   padding: 14px 16px;
   transition: box-shadow 0.15s, border-color 0.15s;
+}
+.outline-streaming-tail {
+  list-style: none;
+  padding: 14px 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
 }
 .outline-card:focus-within {
   border-color: var(--accent);

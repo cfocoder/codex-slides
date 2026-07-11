@@ -62,6 +62,17 @@ export default function OnboardForm({
   const onStateChangeRef = useRef(onStateChange);
 
   useEffect(() => {
+    setAnswers((current) => {
+      const next = { ...current };
+      for (const question of questions) {
+        if (next[question.id] !== undefined) continue;
+        next[question.id] = question.type === "multi" ? [] : question.recommended ?? "";
+      }
+      return next;
+    });
+  }, [questions]);
+
+  useEffect(() => {
     onStateChangeRef.current = onStateChange;
   }, [onStateChange]);
 
@@ -294,6 +305,12 @@ export default function OnboardForm({
           )}
         </div>
       ))}
+      {busy && (
+        <div className="onb-streaming-tail" aria-live="polite">
+          <span className="spinner sm" />
+          <span>{t("onboard.preparing")}</span>
+        </div>
+      )}
       {attachError && <div className="onb-attach-error" role="alert">{attachError}</div>}
       <div className="onb-actions">
         <button className="ghost" onClick={onCancel} disabled={busy}>

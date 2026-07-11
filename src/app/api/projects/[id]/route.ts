@@ -10,6 +10,15 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const project = loadProject(params.id);
   if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
+  return NextResponse.json(project);
+}
+
+/** Re-tune an existing deck: change template / style, add materials. Then the
+ *  caller regenerates slides (which read the updated project.config). */
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const body = await req.json().catch(() => ({}));
+  const project = loadProject(params.id);
+  if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   if (body.config && typeof body.config === "object") {
     project.config = coerceConfig({ ...project.config, ...body.config });
@@ -35,15 +44,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       ...(typeof next.inspirationSkipped === "boolean" ? { inspirationSkipped: next.inspirationSkipped } : {}),
     };
   }
-  return NextResponse.json(project);
-}
-
-/** Re-tune an existing deck: change template / style, add materials. Then the
- *  caller regenerates slides (which read the updated project.config). */
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const body = await req.json().catch(() => ({}));
-  const project = loadProject(params.id);
-  if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   if (typeof body.template !== "undefined") project.config.template = body.template || undefined;
   if (typeof body.style === "string") project.config.style = body.style;

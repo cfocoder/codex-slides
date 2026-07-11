@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import DeckView from "@/components/DeckView";
 import { loadProject } from "@/lib/store";
 
@@ -17,5 +17,8 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   }
   const project = loadProject(projectId);
   if (!project) notFound();
+  if (project.workflow?.stage === "clarify" || project.workflow?.stage === "outlining") {
+    redirect(`/?resume=${encodeURIComponent(projectId)}`);
+  }
   return <DeckView key={project.id} projectId={projectId} initialProject={project} />;
 }

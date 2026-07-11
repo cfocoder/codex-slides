@@ -39,18 +39,32 @@ import type {
   Project,
   SlidePage,
 } from "./types";
+import { completeJsonArrayObjects } from "./streamingJson";
 
 type Emit = (e: ProgressEvent) => void;
 
 async function generateText(
   engine: Engine,
   prompt: string,
-  opts: { json?: boolean; signal?: AbortSignal; attachments?: CodexInputAttachment[] } = {},
+  opts: {
+    json?: boolean;
+    signal?: AbortSignal;
+    attachments?: CodexInputAttachment[];
+    onText?: (text: string) => void;
+  } = {},
 ): Promise<string> {
   if (engine === "codex") {
     return opts.json
-      ? JSON.stringify(await codexJson(prompt, { signal: opts.signal, attachments: opts.attachments }))
-      : codexText(prompt, { signal: opts.signal, attachments: opts.attachments });
+      ? JSON.stringify(await codexJson(prompt, {
+          signal: opts.signal,
+          attachments: opts.attachments,
+          onText: opts.onText,
+        }))
+      : codexText(prompt, {
+          signal: opts.signal,
+          attachments: opts.attachments,
+          onText: opts.onText,
+        });
   }
   const localItems = (opts.attachments ?? []).filter((item) => item.path);
   const localPrompt = localItems.length
@@ -62,6 +76,7 @@ async function generateText(
       ].join("\n")
     : prompt;
   const { text } = await runCliAgentText(engine, localPrompt, { signal: opts.signal });
+  opts.onText?.(text);
   return text;
 }
 
@@ -70,8 +85,14 @@ async function generateJson<T>(
   prompt: string,
   signal?: AbortSignal,
   attachments?: CodexInputAttachment[],
+  onText?: (text: string) => void,
 ): Promise<T> {
-  const text = await generateText(engine, prompt, { json: engine === "codex", signal, attachments });
+  const text = await generateText(engine, prompt, {
+    json: engine === "codex",
+    signal,
+    attachments,
+    onText,
+  });
   return parseLooseJson<T>(text);
 }
 
@@ -148,14 +169,27 @@ export async function planOutline(
 
   emit({ type: "log", message: "Writing the outline…" });
   const stagedAttachments = loadStagedInputAttachments(config.materialIds);
+  let emittedPages = 0;
+  const emitNewPages = (text: string) => {
+    const partial = normalizeOutline(completeJsonArrayObjects(text));
+    while (emittedPages < partial.length) {
+      emit({ type: "outline_page", page: partial[emittedPages], index: emittedPages });
+      emittedPages += 1;
+    }
+  };
   const outlineRaw = await generateJson<any>(
     config.engine,
     buildOutlinePrompt(config),
     signal,
     stagedAttachments,
+    emitNewPages,
   );
   const outline = normalizeOutline(outlineRaw);
   if (!outline.length) throw new Error("Outline generation returned no slides");
+  while (emittedPages < outline.length) {
+    emit({ type: "outline_page", page: outline[emittedPages], index: emittedPages });
+    emittedPages += 1;
+  }
 
   const title = outline[0]?.title || config.requirement.slice(0, 40) || "Untitled deck";
   const checkpoint = opts.projectId ? loadProject(opts.projectId) : null;
@@ -338,6 +372,7 @@ export async function reviseOutline(
   const outline = normalizeOutline(raw?.outline ?? raw);
   if (!outline.length) throw new Error("Outline revision returned no slides");
   project.status = "draft";
+  project.workflow = { ...(project.workflow ?? {}), stage: "outline" };
   replaceProjectPages(project, outlineToPages(outline));
   const reply = String(raw?.reply ?? "已更新大纲。").trim() || "已更新大纲。";
   return { pages: project.pages, reply };
