@@ -1,10 +1,10 @@
 import { translate, type UiLocale } from "@/i18n/messages";
 
-export type WorkflowStepState = "complete" | "active" | "pending" | "skipped";
+export type WorkflowStepState = "complete" | "active" | "pending" | "skipped" | "error";
 
 export interface WorkflowProgress {
   steps: {
-    id: "clarify" | "outline" | "inspire" | "render";
+    id: "clarify" | "research" | "outline" | "inspire" | "render";
     label: string;
     detail: string;
     state: WorkflowStepState;
@@ -19,6 +19,13 @@ export function buildWorkflowProgress({
   clarifyBusy = false,
   questionCount = 0,
   outlineCount = 0,
+  researchEnabled = false,
+  researchStatus,
+  researchPhase,
+  researchRound = 0,
+  researchTotalRounds = 2,
+  researchSearchCount = 0,
+  researchSourceCount = 0,
   templateLabel,
   inspirationSkipped = false,
   running = false,
@@ -31,6 +38,13 @@ export function buildWorkflowProgress({
   clarifyBusy?: boolean;
   questionCount?: number;
   outlineCount?: number;
+  researchEnabled?: boolean;
+  researchStatus?: "running" | "complete" | "error";
+  researchPhase?: "starting" | "planning" | "searching" | "writing" | "complete" | "error";
+  researchRound?: number;
+  researchTotalRounds?: number;
+  researchSearchCount?: number;
+  researchSourceCount?: number;
   templateLabel?: string;
   inspirationSkipped?: boolean;
   running?: boolean;
@@ -42,10 +56,14 @@ export function buildWorkflowProgress({
   const afterClarify = stage !== "clarify";
   const afterOutline = stage === "inspire" || stage === "deck";
   const afterInspiration = stage === "deck";
+  const researchSettled = researchStatus === "complete" || researchStatus === "error" || afterOutline;
+  const researchBlocking = researchEnabled && afterClarify && !researchSettled;
 
   const clarifyState: WorkflowStepState = afterClarify ? "complete" : "active";
   const outlineState: WorkflowStepState = stage === "clarify"
     ? "pending"
+    : researchBlocking
+      ? "pending"
     : stage === "outline"
       ? "active"
       : "complete";
@@ -64,8 +82,7 @@ export function buildWorkflowProgress({
         ? "complete"
         : "pending";
 
-  return {
-    steps: [
+  const steps: WorkflowProgress["steps"] = [
       {
         id: "clarify",
         label: translate(locale, "workflow.clarify"),
@@ -80,12 +97,42 @@ export function buildWorkflowProgress({
             ? translate(locale, "workflow.questionsConfirmed", { count: questionCount })
             : translate(locale, "workflow.briefConfirmed"),
       },
+      ...(researchEnabled ? [{
+        id: "research" as const,
+        label: translate(locale, "workflow.research"),
+        state: (stage === "clarify"
+          ? "pending"
+          : researchStatus === "error"
+            ? "error"
+            : researchSettled
+              ? "complete"
+              : "active") as WorkflowStepState,
+        detail: stage === "clarify"
+          ? translate(locale, "workflow.researchAfterBrief")
+          : researchStatus === "error"
+            ? translate(locale, "workflow.researchFailed")
+            : researchSettled
+              ? translate(locale, "workflow.researchComplete", {
+                  searches: researchSearchCount,
+                  sources: researchSourceCount,
+                })
+              : researchPhase === "writing"
+                ? translate(locale, "workflow.researchWriting", {
+                    round: researchRound || 1,
+                    total: researchTotalRounds,
+                  })
+                : translate(locale, "workflow.researching", {
+                    round: researchRound || 1,
+                    total: researchTotalRounds,
+                    searches: researchSearchCount,
+                  }),
+      }] : []),
       {
         id: "outline",
         label: translate(locale, "workflow.outline"),
         state: outlineState,
         detail: outlineState === "pending"
-          ? translate(locale, "workflow.afterBrief")
+          ? translate(locale, researchBlocking ? "workflow.afterResearch" : "workflow.afterBrief")
           : outlineState === "active"
             ? running && !outlineCount
               ? translate(locale, "workflow.generatingOutline")
@@ -116,7 +163,10 @@ export function buildWorkflowProgress({
             ? renderDetail || translate(locale, "workflow.rendering", { done: rendered, total })
             : translate(locale, "workflow.rendered", { done: rendered || total, total: total || rendered }),
       },
-    ],
+    ];
+
+  return {
+    steps,
     progress: stage === "deck" && total > 0 ? { done: rendered, total } : undefined,
   };
 }

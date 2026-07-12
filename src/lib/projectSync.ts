@@ -36,6 +36,7 @@ export function editableProjectSignature(project: Project): string {
   return JSON.stringify({
     title: project.title,
     researchDoc: project.researchDoc,
+    research: project.research,
     config: project.config,
     materials: project.materials ?? [],
     workflow: workflowWithoutTimestamp(project.workflow as unknown as Record<string, unknown> | undefined),

@@ -1,5 +1,5 @@
-appId: io.nexu.ppt-anything
-productName: PPT Anything
+appId: io.nexu.codex-slides
+productName: Codex Slides
 asar: true
 
 directories:
@@ -36,30 +36,31 @@ extraResources:
     to: next/public
 
 mac:
+  icon: public/brand/codex-slides-mark.png
   category: public.app-category.productivity
   target:
     - target: dmg
       arch: [arm64, x64]
     - target: zip
       arch: [arm64, x64]
-  artifactName: PPT-Anything-${version}-mac-${arch}.${ext}
+  artifactName: Codex-Slides-${version}-mac-${arch}.${ext}
 
 win:
-  icon: public/brand/ppt-anything-mark.png
+  icon: public/brand/codex-slides-mark.png
   target:
     - target: nsis
       arch: [x64]
-  artifactName: PPT-Anything-${version}-windows-${arch}-Setup.${ext}
+  artifactName: Codex-Slides-${version}-windows-${arch}-Setup.${ext}
 
 linux:
-  icon: public/brand/ppt-anything-mark.png
+  icon: public/brand/codex-slides-mark.png
   category: Office
   target:
     - target: AppImage
       arch: [x64]
     - target: deb
       arch: [x64]
-  artifactName: PPT-Anything-${version}-linux-${arch}.${ext}
+  artifactName: Codex-Slides-${version}-linux-${arch}.${ext}
 
 nsis:
   oneClick: false
@@ -67,4 +68,4 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: PPT Anything
+  shortcutName: Codex Slides

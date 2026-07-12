@@ -6,8 +6,8 @@ Use this copy when preparing the public GitHub repository.
 
 | Field | Recommended value |
 |---|---|
-| Repository name | `ppt-anything` |
-| Display title | **PPT Anything — Browser-first presentations inside Codex** |
+| Repository name | `codex-slides` |
+| Display title | **Codex Slides — the open-source AI slide studio inside Codex** |
 | Owner | `nexu-io` |
 | Primary category | **Productivity** |
 | Secondary categories | AI, Design Tools, Developer Tools, Presentations |
@@ -16,13 +16,17 @@ Use this copy when preparing the public GitHub repository.
 
 ## GitHub description
 
-Recommended short description:
+Recommended short description (About box):
 
-> Browser-first AI presentation workspace for Codex. Create persistent projects, review research, outlines and styles, generate image-native slides, edit by chat or annotation, present, and export PDF/PPTX.
+> 🎨 The open-source AI slide studio that lives inside your coding agent. 🖼️ Image-native decks — every slide a full visual canvas. 🔍 Watch the whole chain live: research → outline → style → render → edit → present → export PDF/PPTX. 🖥️ Browser-first · zero API keys · durable projects. 🤖 Runs in Codex.
+
+Plain-text alternative:
+
+> The best way to make slides with a coding agent. Turn a prompt, a repo, or a pile of files into a beautiful, presentation-ready deck without leaving Codex.
 
 Short alternative:
 
-> Create, review, edit, present, and export visual slide decks without leaving Codex.
+> Create, review, edit, present, and export image-native slide decks without leaving Codex.
 
 ## Topics
 
@@ -30,22 +34,24 @@ GitHub supports up to 20 repository topics. Recommended set:
 
 ```text
 codex
+codex-slides
 codex-plugin
 agent-skills
+coding-agents
 mcp
-presentations
 slides
+ai-slides
+ai-ppt
+ai-presentation
+presentation-generator
 powerpoint
 pptx
-ai-presentation
 image-generation
 deep-research
 design-system
-browser-automation
 generative-ai
 nextjs
 typescript
-productivity
 open-design
 ```
 
@@ -53,7 +59,7 @@ open-design
 
 **Display name**
 
-> PPT Anything
+> Codex Slides
 
 **Short description**
 
@@ -61,7 +67,7 @@ open-design
 
 **Long description**
 
-> PPT Anything gives Codex a Browser-first presentation workflow. Open the product before generation, create a durable project, and keep requirements, research, outline approval, visual direction, rendering, editing, presenting, and export visible and steerable in one workspace. Headless CLI and MCP automation remain available when explicitly requested.
+> Codex Slides gives Codex a Browser-first slide workflow plus a portable Agent Skill and 34 typed MCP tools. Open the product before generation, create a durable project, and keep requirements, research, outline approval, visual direction, rendering, editing, presenting, and export visible and steerable in one workspace. Headless CLI and MCP automation remain available when explicitly requested.
 
 **Category**
 
@@ -69,12 +75,11 @@ open-design
 
 ## Social preview
 
-- Canvas: 1280 × 640 px.
-- Headline: **Make every slide visible and steerable in Codex.**
+- Canvas: 1280 × 640 px (see [`docs/assets/readme/cover.png`](assets/readme/cover.png) for the current hero).
+- Headline: **The open-source AI slide studio inside your coding agent.**
 - Supporting line: **Research → outline → style → render → edit → present → export.**
-- Show the Codex conversation on the left and a completed PPT Anything canvas
-  on the right.
-- Use the PPT Anything mark and the product's blue-violet accent.
+- Show a Codex / coding-agent terminal on the left transforming into finished slides on the right.
+- Use the Codex Slides mark and the product's blue-violet accent (`#6D5EF8`).
 - Avoid tiny UI screenshots or more than two lines of text.
 
 ## Release naming

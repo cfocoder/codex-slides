@@ -9,6 +9,7 @@ import DesignFilesPanel from "@/components/DesignFilesPanel";
 import HomeLibrary from "@/components/HomeLibrary";
 import OnboardForm from "@/components/OnboardForm";
 import OutlineBoard from "@/components/OutlineBoard";
+import ResearchStage from "@/components/ResearchStage";
 import InspireDialog from "@/components/InspireDialog";
 import ScenarioPicker from "@/components/ScenarioPicker";
 import SlideStage, { type MarkAgentEvent } from "@/components/SlideStage";
@@ -62,6 +63,7 @@ import {
   type ProgressEvent,
   type Project,
   type ProjectTemplateSummary,
+  type ResearchProgress,
 } from "@/lib/types";
 import {
   createAgentRunId,
@@ -86,6 +88,7 @@ import {
 import { useChatConversations } from "@/lib/useChatConversations";
 import { runChatTurn } from "@/lib/chatTurn";
 import { buildWorkflowProgress } from "@/lib/workflowProgress";
+import { createResearchProgress, reduceResearchProgress } from "@/lib/researchProgress";
 import { checkpointSignature } from "@/lib/projectSync";
 import type { DesignFile, WorkspaceMode } from "@/lib/designFiles";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -136,6 +139,7 @@ export default function Home() {
   const [title, setTitle] = useState("");
   const [outline, setOutline] = useState<OutlinePage[]>([]);
   const [researchDoc, setResearchDoc] = useState("");
+  const [researchProgress, setResearchProgress] = useState<ResearchProgress | undefined>();
   const [researchNote, setResearchNote] = useState("");
   const [slides, setSlides] = useState<UiSlide[]>([]);
   const slidesRef = useRef<UiSlide[]>(slides);
@@ -169,6 +173,7 @@ export default function Home() {
   // Deep-research surfacing: the assistant turn that shows live web searches.
   const researchMsgIdRef = useRef<string | null>(null);
   const researchSearchCountRef = useRef(0);
+  const researchSearchIdsRef = useRef(new Set<string>());
 
   const currentConversationQueue = queue.filter(
     (item) => item.conversationId === conversationState.activeConversationId,
@@ -207,6 +212,14 @@ export default function Home() {
   const say = (m: ChatMsg) => setChat((c) => [...c, m]);
 
   function currentWorkflowStage() {
+    if (
+      stage === "outline"
+      && running
+      && config.mode === "research"
+      && researchProgress?.status !== "complete"
+      && researchProgress?.status !== "error"
+      && outline.length === 0
+    ) return "research" as const;
     if (stage === "outline" && running) return "outlining" as const;
     if (stage === "deck" && running) return "rendering" as const;
     return stage;
@@ -277,10 +290,12 @@ export default function Home() {
     clarifyFormState,
     config,
     inspirationSkipped,
+    outline.length,
     projectId,
     queue,
     questions,
     researchDoc,
+    researchProgress?.status,
     running,
     selectedDesignFileId,
     stage,
@@ -399,7 +414,11 @@ export default function Home() {
           ...(useCached ? cached?.workflow : {}),
         };
 
-        if (restoredWorkflow.stage !== "clarify" && restoredWorkflow.stage !== "outlining") {
+        if (
+          restoredWorkflow.stage !== "clarify"
+          && restoredWorkflow.stage !== "research"
+          && restoredWorkflow.stage !== "outlining"
+        ) {
           window.location.replace(`/project/${encodeURIComponent(project.id)}`);
           return;
         }
@@ -429,7 +448,15 @@ export default function Home() {
         const restoredQueue = (restoredWorkflow.queuedRequests ?? []) as QueuedChatRequest[];
         queueRef.current = restoredQueue;
         setQueue(restoredQueue);
-        setResearchDoc((useCached ? cached?.researchDoc : undefined) ?? project.researchDoc ?? "");
+        const restoredResearchDoc = (useCached ? cached?.researchDoc : undefined) ?? project.researchDoc ?? "";
+        setResearchDoc(restoredResearchDoc);
+        setResearchProgress(project.research ?? (restoredResearchDoc
+          ? reduceResearchProgress(
+              createResearchProgress(2, Date.parse(project.createdAt) || Date.now()),
+              { type: "research", phase: "complete", markdown: restoredResearchDoc, round: 2, totalRounds: 2 },
+              Date.parse(project.updatedAt) || Date.now(),
+            )
+          : undefined));
         setStage(restoredWorkflow.stage === "clarify" ? "clarify" : "outline");
         setRunning(false);
         setBusy(false);
@@ -442,7 +469,7 @@ export default function Home() {
           project.title,
         );
 
-        if (restoredWorkflow.stage === "outlining") {
+        if (restoredWorkflow.stage === "research" || restoredWorkflow.stage === "outlining") {
           queueMicrotask(() => { void proceedToOutline(restoredConfig, project.id); });
         } else if (!restoredQuestions.length) {
           queueMicrotask(() => { void requestClarifyQuestions(restoredConfig, project.id); });
@@ -486,6 +513,7 @@ export default function Home() {
     setSlides([]);
     setOutline([]);
     setResearchDoc("");
+    setResearchProgress(undefined);
     setResearchNote("");
     setInspirationSkipped(false);
     setClarifyAnswerSummary("");
@@ -616,6 +644,13 @@ export default function Home() {
     // Show the web-research process as its own visible, interleaved turn.
     researchMsgIdRef.current = null;
     researchSearchCountRef.current = 0;
+    researchSearchIdsRef.current = new Set();
+    const needsResearch = cfg.mode === "research" && !cfg.researchDoc?.trim();
+    if (needsResearch) {
+      setResearchProgress(createResearchProgress(2));
+    } else if (cfg.mode !== "research") {
+      setResearchProgress(undefined);
+    }
     if (cfg.mode === "research") {
       const researchId = createAgentRunId("research");
       researchMsgIdRef.current = researchId;
@@ -645,7 +680,7 @@ export default function Home() {
         config: cfg,
         researchDoc,
         workflow: {
-          stage: "outlining",
+          stage: needsResearch ? "research" : "outlining",
           questions,
           clarifyForm: clarifyFormState,
           clarifyAnswerSummary,
@@ -664,34 +699,62 @@ export default function Home() {
   function handleOutlineEvent(ev: ProgressEvent) {
     switch (ev.type) {
       case "research": {
+        setResearchProgress((current) => reduceResearchProgress(current, ev));
         const researchId = researchMsgIdRef.current;
         const patchResearch = (updater: (blocks: MessageBlock[]) => MessageBlock[]) => {
           if (!researchId) return;
           updateChatMessage(researchId, (m) => ({ ...m, blocks: updater(m.blocks ?? []) }));
         };
-        if (ev.phase === "searching") {
+        if (ev.phase === "starting") {
+          setResearchNote(t("research.starting"));
+        } else if (ev.phase === "planning") {
+          setResearchNote(t("research.roundPlan", { round: ev.round ?? 1 }));
+          patchResearch((blocks) => patchBlockTool(blocks, "status", {
+            detail: t("research.stageRound", { round: ev.round ?? 1, total: ev.totalRounds ?? 2 }),
+          }));
+        } else if (ev.phase === "searching") {
           setResearchNote(t("flow.searching", { detail: ev.detail ?? "" }));
           if (ev.detail) {
-            const n = ++researchSearchCountRef.current;
+            const searchKey = ev.callId || `${ev.round ?? 1}-${ev.detail}`;
+            if (!researchSearchIdsRef.current.has(searchKey)) {
+              researchSearchIdsRef.current.add(searchKey);
+              researchSearchCountRef.current += 1;
+            }
+            const n = researchSearchCountRef.current;
             patchResearch((blocks) => patchBlockTool(
               upsertBlock(blocks, {
-                id: `search-${n}`,
+                id: `search-${searchKey}`,
                 type: "tool",
-                tool: { id: `search-${n}`, name: "web_search", kind: "search", label: t("agent.search"), detail: ev.detail, state: "complete" },
+                tool: { id: `search-${searchKey}`, name: "web_search", kind: "search", label: t("agent.search"), detail: ev.detail, state: ev.state ?? "running" },
               }),
               "status",
               { detail: t("research.searchCount", { count: n }) },
             ));
           }
-        } else if (ev.phase === "synthesizing") {
-          setResearchNote(t("flow.synthesizing", { detail: ev.detail ?? "" }));
-          patchResearch((blocks) => patchBlockTool(blocks, "status", { detail: t("flow.synthesizing", { detail: ev.detail ?? "" }) }));
+        } else if (ev.phase === "writing") {
+          setResearchNote(t("research.writingRound", { round: ev.round ?? 1 }));
+          patchResearch((blocks) => patchBlockTool(blocks, "status", { detail: t("research.reportStreaming") }));
         } else if (ev.phase === "brief" && ev.markdown) {
+          if (ev.final) setResearchNote(t("research.completeHelp"));
+        } else if (ev.phase === "complete" && ev.markdown) {
           setResearchDoc(ev.markdown);
+          setConfig((current) => ({ ...current, researchDoc: ev.markdown }));
+          setResearchNote(t("research.outlineStarting"));
+          patchResearch((blocks) => patchBlockTool(
+            upsertBlock(blocks, { id: "report", type: "text", text: ev.markdown ?? "" }),
+            "status",
+            {
+              state: "complete",
+              label: t("research.complete"),
+              detail: t("research.searchCount", { count: researchSearchCountRef.current }),
+            },
+          ));
+        } else if (ev.phase === "error") {
+          setResearchNote(ev.detail || t("research.failed"));
           patchResearch((blocks) => patchBlockTool(blocks, "status", {
-            state: "complete",
-            label: t("research.complete"),
-            detail: t("research.searchCount", { count: researchSearchCountRef.current }),
+            state: "error",
+            label: t("research.failed"),
+            detail: ev.detail,
           }));
         }
         break;
@@ -1243,6 +1306,22 @@ export default function Home() {
         pages: outline.map((page) => ({ title: page.title, points: [...page.points] })),
       });
     }
+    if (config.mode === "research" && (researchProgress || researchDoc)) {
+      const report = researchProgress?.markdown || researchDoc;
+      const reportStatus = researchProgress?.status ?? "complete";
+      files.push({
+        id: "research",
+        kind: "research",
+        title: t("designFiles.researchTitle"),
+        subtitle: reportStatus === "running"
+          ? t("designFiles.researchRunning", { count: researchProgress?.sources.length ?? 0 })
+          : reportStatus === "error"
+            ? t("designFiles.researchError")
+            : t("designFiles.researchComplete", { count: researchProgress?.sources.length ?? 0 }),
+        markdown: report,
+        status: reportStatus,
+      });
+    }
     if (stage === "inspire" || config.template || inspirationSkipped) {
       const matchQuery = [config.requirement, ...outline.map((page) => page.title)].filter(Boolean).join(" ");
       files.push({
@@ -1260,7 +1339,7 @@ export default function Home() {
       });
     }
     return files;
-  }, [clarifyAnswerSummary, config.requirement, config.template, inspirationSkipped, outline, questions, stage, t, title]);
+  }, [clarifyAnswerSummary, config.mode, config.requirement, config.template, inspirationSkipped, outline, questions, researchDoc, researchProgress, stage, t, title]);
 
   // ---------------- WORK VIEW (clarify → outline → deck) ----------------
   if (phase === "work") {
@@ -1279,6 +1358,13 @@ export default function Home() {
       clarifyBusy,
       questionCount: questions.length,
       outlineCount: outline.length,
+      researchEnabled: researchMode || config.mode === "research",
+      researchStatus: researchProgress?.status ?? (researchDoc ? "complete" : undefined),
+      researchPhase: researchProgress?.phase,
+      researchRound: researchProgress?.round,
+      researchTotalRounds: researchProgress?.totalRounds,
+      researchSearchCount: researchProgress?.searchCount,
+      researchSourceCount: researchProgress?.sources.length,
       templateLabel,
       inspirationSkipped,
       running: stage === "deck" && running,
@@ -1403,6 +1489,12 @@ export default function Home() {
               )}
             </div>
           </section>
+        ) : stage === "outline" && config.mode === "research" && researchProgress && outline.length === 0 ? (
+          <ResearchStage
+            progress={researchProgress}
+            headerPrefix={workspaceTabs}
+            outlineStarting={researchProgress.status !== "running" && running}
+          />
         ) : stage === "outline" ? (
           <OutlineBoard
             title={title}

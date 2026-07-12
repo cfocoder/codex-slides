@@ -46,8 +46,9 @@ export default function ResearchPanel({
           if (!line) continue;
           const ev = JSON.parse(line.slice(5).trim());
           if (ev.type === "queries") setLog((l) => [...l, t("research.round", { round: ev.round, queries: ev.queries.join(" · ") })]);
-          else if (ev.type === "search") setLog((l) => [...l, `  ${t("research.results", { query: ev.query, count: ev.count })}`]);
+          else if (ev.type === "search" && ev.query && ev.state === "complete") setLog((l) => [...l, `  ${t("research.results", { query: ev.query, count: ev.count })}`]);
           else if (ev.type === "synth") setLog((l) => [...l, `  ${t("research.synthesizing", { round: ev.round })}`]);
+          else if (ev.type === "delta") setDoc((current) => ev.round === 1 || current ? `${current}${ev.delta}` : ev.delta);
           else if (ev.type === "doc") setDoc(ev.markdown);
           else if (ev.type === "error") setLog((l) => [...l, `✗ ${ev.error}`]);
           else if (ev.type === "done") setLog((l) => [...l, t("research.complete")]);

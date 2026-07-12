@@ -249,6 +249,8 @@ function WorkflowProgressCard({ workflow }: { workflow: WorkflowProgress }) {
                 <CircleNotch size={17} className="spin" />
               ) : step.state === "skipped" ? (
                 <MinusCircle size={17} />
+              ) : step.state === "error" ? (
+                <XCircle size={17} weight="fill" />
               ) : (
                 <Circle size={17} />
               )}

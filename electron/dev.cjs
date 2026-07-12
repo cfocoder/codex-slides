@@ -1,7 +1,12 @@
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
+const fs = require("node:fs");
 const http = require("node:http");
+const path = require("node:path");
 const electronBinary = require("electron");
 
+const PRODUCT_NAME = "Codex Slides";
+const APP_ID = "io.nexu.codex-slides";
+const PROJECT_ROOT = path.resolve(__dirname, "..");
 const DEFAULT_URL = "http://127.0.0.1:4311";
 const TARGETS = new Set(["all", "web", "desktop"]);
 const nextBinary = require.resolve("next/dist/bin/next");
@@ -13,7 +18,7 @@ let closing = false;
 let shutdownPromise = null;
 
 function printHelp() {
-  process.stdout.write(`PPT Anything development runner
+  process.stdout.write(`${PRODUCT_NAME} development runner
 
 Usage:
   pnpm dev [all|web|desktop] [--web-port <port>]
@@ -227,7 +232,7 @@ async function startWebService(appUrl) {
   });
 
   ownsWeb = true;
-  process.stdout.write(`[ppt-anything] Starting Web service at ${displayUrl(appUrl)}\n`);
+  process.stdout.write(`[codex-slides] Starting Web service at ${displayUrl(appUrl)}\n`);
   web = spawn(process.execPath, [nextBinary, "dev", "-H", host, "-p", port], {
     detached: process.platform !== "win32",
     stdio: "inherit",
@@ -246,12 +251,12 @@ async function startWebService(appUrl) {
 
   await Promise.race([waitForDevServer(appUrl), startupFailure]);
   startupSettled = true;
-  process.stdout.write(`[ppt-anything] Web service ready at ${displayUrl(appUrl)}\n`);
+  process.stdout.write(`[codex-slides] Web service ready at ${displayUrl(appUrl)}\n`);
 }
 
 async function ensureWebServer(appUrl) {
   if (await probeDevServer(appUrl, 700)) {
-    process.stdout.write(`[ppt-anything] Reusing Web service at ${displayUrl(appUrl)}\n`);
+    process.stdout.write(`[codex-slides] Reusing Web service at ${displayUrl(appUrl)}\n`);
     return;
   }
   await startWebService(appUrl);
@@ -265,15 +270,71 @@ function desktopEnvironment(appUrl) {
   return env;
 }
 
+function replacePlistString(plistPath, key, value) {
+  const result = spawnSync("/usr/bin/plutil", ["-replace", key, "-string", value, plistPath], {
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    throw new Error(`Could not prepare branded macOS desktop shell: ${result.stderr || result.stdout}`);
+  }
+}
+
+function ensureMacDesktopBinary() {
+  if (process.platform !== "darwin") return electronBinary;
+
+  const sourceContents = path.resolve(path.dirname(electronBinary), "..");
+  const sourceInfo = fs.statSync(electronBinary);
+  const bundleRoot = path.join(PROJECT_ROOT, ".tmp", "electron-dev", `${PRODUCT_NAME}.app`);
+  const contents = path.join(bundleRoot, "Contents");
+  const executable = path.join(contents, "MacOS", PRODUCT_NAME);
+  const markerPath = path.join(contents, ".codex-slides-dev-shell.json");
+  const marker = JSON.stringify({
+    appId: `${APP_ID}.dev`,
+    electronBinary,
+    electronMtimeMs: sourceInfo.mtimeMs,
+    productName: PRODUCT_NAME,
+  });
+
+  if (fs.existsSync(executable) && fs.existsSync(markerPath)) {
+    try {
+      if (fs.readFileSync(markerPath, "utf8") === marker) return executable;
+    } catch {
+      // Recreate the generated shell below.
+    }
+  }
+
+  fs.rmSync(bundleRoot, { force: true, recursive: true });
+  fs.mkdirSync(path.join(contents, "MacOS"), { recursive: true });
+  fs.copyFileSync(path.join(sourceContents, "Info.plist"), path.join(contents, "Info.plist"));
+  fs.copyFileSync(path.join(sourceContents, "PkgInfo"), path.join(contents, "PkgInfo"));
+  try {
+    fs.linkSync(electronBinary, executable);
+  } catch {
+    fs.copyFileSync(electronBinary, executable);
+    fs.chmodSync(executable, 0o755);
+  }
+  fs.symlinkSync(path.join(sourceContents, "Frameworks"), path.join(contents, "Frameworks"), "dir");
+  fs.symlinkSync(path.join(sourceContents, "Resources"), path.join(contents, "Resources"), "dir");
+
+  const plistPath = path.join(contents, "Info.plist");
+  replacePlistString(plistPath, "CFBundleDisplayName", PRODUCT_NAME);
+  replacePlistString(plistPath, "CFBundleExecutable", PRODUCT_NAME);
+  replacePlistString(plistPath, "CFBundleIdentifier", `${APP_ID}.dev`);
+  replacePlistString(plistPath, "CFBundleName", PRODUCT_NAME);
+  replacePlistString(plistPath, "LSApplicationCategoryType", "public.app-category.productivity");
+  fs.writeFileSync(markerPath, marker, "utf8");
+  return executable;
+}
+
 function startDesktop(appUrl) {
-  process.stdout.write(`[ppt-anything] Starting Desktop against ${displayUrl(appUrl)}\n`);
-  desktop = spawn(electronBinary, ["."], {
+  process.stdout.write(`[codex-slides] Starting Desktop against ${displayUrl(appUrl)}\n`);
+  desktop = spawn(ensureMacDesktopBinary(), [PROJECT_ROOT], {
     detached: process.platform !== "win32",
     stdio: "inherit",
     env: desktopEnvironment(appUrl),
   });
   desktop.once("error", (error) => {
-    process.stderr.write(`[ppt-anything] Desktop failed: ${error.message}\n`);
+    process.stderr.write(`[codex-slides] Desktop failed: ${error.message}\n`);
     void shutdown(1);
   });
   desktop.once("exit", (code) => {

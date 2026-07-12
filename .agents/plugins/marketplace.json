@@ -1,11 +1,11 @@
 {
-  "name": "ppt-anything",
+  "name": "codex-slides",
   "interface": {
-    "displayName": "PPT Anything"
+    "displayName": "Codex Slides"
   },
   "plugins": [
     {
-      "name": "ppt-anything",
+      "name": "codex-slides",
       "source": {
         "source": "local",
         "path": "./"

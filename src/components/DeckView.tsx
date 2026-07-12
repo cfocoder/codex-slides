@@ -1181,6 +1181,13 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   const workflow = buildWorkflowProgress({
     stage,
     outlineCount: outline.length,
+    researchEnabled: project.config.mode === "research" || Boolean(project.researchDoc),
+    researchStatus: project.research?.status ?? (project.researchDoc ? "complete" : undefined),
+    researchPhase: project.research?.phase,
+    researchRound: project.research?.round,
+    researchTotalRounds: project.research?.totalRounds,
+    researchSearchCount: project.research?.searchCount,
+    researchSourceCount: project.research?.sources.length,
     templateLabel,
     inspirationSkipped,
     running: stage === "deck" && (running || activeRun?.kind === "render"),

@@ -154,6 +154,45 @@ export interface OutlinePage {
   points: string[];
 }
 
+/** One web source discovered while deep research is running. The URL is the
+ * durable identity; title/snippet can be enriched later by URL citations as
+ * the report streams. */
+export interface ResearchSource {
+  id: string;
+  url: string;
+  title: string;
+  snippet?: string;
+  round?: number;
+}
+
+export interface ResearchActivity {
+  id: string;
+  kind: "round" | "search" | "writing";
+  round: number;
+  detail?: string;
+  state: "pending" | "running" | "complete" | "error";
+  ts: number;
+}
+
+/** Durable mirror of the right-side deep-research stage. It intentionally
+ * stores the process as well as the final markdown so a reload does not turn a
+ * long search into an unexplained blank screen. */
+export interface ResearchProgress {
+  status: "running" | "complete" | "error";
+  phase: "starting" | "planning" | "searching" | "writing" | "complete" | "error";
+  round: number;
+  totalRounds: number;
+  searchCount: number;
+  activities: ResearchActivity[];
+  sources: ResearchSource[];
+  markdown: string;
+  draftRound?: number;
+  error?: string;
+  startedAt: number;
+  updatedAt: number;
+  completedAt?: number;
+}
+
 export type SlideStatus = "pending" | "described" | "rendered" | "error";
 
 export interface SlidePage {
@@ -188,6 +227,7 @@ export type ProjectStatus = "draft" | "rendering" | "ready";
  * clarification screen onward, so leaving or reloading never discards work. */
 export type ProjectWorkflowStage =
   | "clarify"
+  | "research"
   | "outlining"
   | "outline"
   | "inspire"
@@ -396,6 +436,8 @@ export interface Project {
   pages: SlidePage[];
   materials?: MaterialRecord[];
   researchDoc?: string;
+  /** Live and historical deep-research process, including search calls and sources. */
+  research?: ResearchProgress;
   status?: ProjectStatus;
   /** Persisted create-flow checkpoint used for full-chain resume. */
   workflow?: ProjectWorkflowState;
@@ -407,6 +449,45 @@ export interface Project {
   activeConversationId?: string;
   /** The only project mutation currently executing in the server background. */
   activeRun?: ProjectRunState;
+}
+
+/** Immutable deck snapshots shown in version management. Restoring a snapshot
+ * creates a new current version instead of rewriting the selected history item. */
+export type DeckVersionSource = "ai" | "manual" | "restore";
+export type DeckVersionPromptSource = "message" | "project" | "manual" | "restore";
+
+export interface DeckVersionSummary {
+  id: string;
+  version: number;
+  label: string;
+  createdAt: number;
+  source: DeckVersionSource;
+  prompt: string | null;
+  promptSource?: DeckVersionPromptSource;
+  restoreFromVersionId?: string;
+  current: boolean;
+  title: string;
+  aspect: Aspect;
+  slideCount: number;
+  renderedCount: number;
+  coverImage?: string;
+}
+
+export interface DeckVersionDetail {
+  version: DeckVersionSummary;
+  /** Read-only project state captured with this version. Chat/run state is not
+   * rolled back, but page order, images, transitions, notes, and config are. */
+  project: Project;
+}
+
+/** Optional provenance supplied by a multi-step edit. Calls sharing groupId
+ * update one in-progress version instead of creating a version per slide. */
+export interface DeckVersionCaptureInput {
+  prompt?: string | null;
+  promptSource?: DeckVersionPromptSource;
+  source?: DeckVersionSource;
+  label?: string;
+  groupId?: string;
 }
 
 export interface DetectedAgent {
@@ -421,12 +502,26 @@ export interface DetectedAgent {
 }
 
 // ---- SSE progress events streamed by /api/generate, /api/outline, /api/.../render ----
+export interface ResearchProgressEvent {
+  type: "research";
+  phase: "starting" | "planning" | "searching" | "source" | "writing" | "delta" | "brief" | "complete" | "error";
+  round?: number;
+  totalRounds?: number;
+  detail?: string;
+  callId?: string;
+  state?: "running" | "complete";
+  delta?: string;
+  markdown?: string;
+  final?: boolean;
+  source?: ResearchSource;
+}
+
 export type ProgressEvent =
   | { type: "agent"; agent: string; engine: Engine }
   | { type: "question"; question: ProjectWorkflowQuestion; index: number }
   | { type: "questions_done"; questions: ProjectWorkflowQuestion[] }
   | { type: "project"; id: string }
-  | { type: "research"; phase: "searching" | "synthesizing" | "brief"; detail?: string; markdown?: string }
+  | ResearchProgressEvent
   | { type: "outline"; outline: OutlinePage[]; title: string }
   | { type: "outline_page"; page: OutlinePage; index: number }
   | { type: "page_start"; index: number; total: number; title: string }

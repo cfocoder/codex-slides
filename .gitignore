@@ -4,6 +4,7 @@
 /out
 /dist
 /data
+/.tmp
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store

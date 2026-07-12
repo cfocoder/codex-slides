@@ -4,9 +4,11 @@ import {
   CheckCircle,
   FileText,
   Images,
+  MagnifyingGlass,
   Question,
 } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
+import { Markdown } from "@/components/Markdown";
 import { getCommunityTemplate } from "@/lib/community";
 import type { DesignFile } from "@/lib/designFiles";
 import { CATEGORIES, categoryLabel, getTemplate } from "@/lib/templates";
@@ -16,6 +18,7 @@ import { COMMUNITY_GROUP_KEYS } from "@/i18n/community";
 function FileIcon({ kind }: { kind: DesignFile["kind"] }) {
   if (kind === "questions") return <Question size={17} />;
   if (kind === "inspiration") return <Images size={17} />;
+  if (kind === "research") return <MagnifyingGlass size={17} />;
   return <FileText size={17} />;
 }
 
@@ -68,6 +71,21 @@ function OutlinePreview({ file }: { file: Extract<DesignFile, { kind: "outline" 
           </div>
         </article>
       ))}
+    </div>
+  );
+}
+
+function ResearchPreview({ file }: { file: Extract<DesignFile, { kind: "research" }> }) {
+  const { t } = useI18n();
+  return file.markdown ? (
+    <div className="workflow-file-document workflow-research-document">
+      <Markdown source={file.markdown} className="assistant-markdown research-markdown" />
+    </div>
+  ) : (
+    <div className="workflow-file-empty-preview">
+      <MagnifyingGlass size={30} />
+      <strong>{t("designFiles.researchTitle")}</strong>
+      <span>{t("designFiles.researchPending")}</span>
     </div>
   );
 }
@@ -194,6 +212,7 @@ export default function DesignFilesPanel({
               <div className="workflow-file-preview-body">
                 {selected.kind === "questions" ? <QuestionsPreview file={selected} /> : null}
                 {selected.kind === "outline" ? <OutlinePreview file={selected} /> : null}
+                {selected.kind === "research" ? <ResearchPreview file={selected} /> : null}
                 {selected.kind === "inspiration" ? <InspirationPreview file={selected} /> : null}
               </div>
             </>

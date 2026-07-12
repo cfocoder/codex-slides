@@ -1,24 +1,27 @@
 {
-  "name": "ppt-anything-web",
+  "name": "codex-slides-web",
+  "productName": "Codex Slides",
   "version": "0.4.0",
   "private": true,
   "main": "electron/main.cjs",
-  "description": "Browser-first AI presentation workspace for Codex with persistent projects, visual editing, and PDF/PPTX export.",
+  "description": "Codex Slides — the open-source AI slide studio inside Codex, with durable projects, image-native decks, visual editing, and PDF/PPTX export.",
   "license": "MIT",
-  "author": "Nexu and PPT Anything contributors",
+  "author": "Nexu and Codex Slides contributors",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nexu-io/ppt-anything.git"
+    "url": "git+https://github.com/nexu-io/codex-slides.git"
   },
-  "homepage": "https://github.com/nexu-io/ppt-anything#readme",
+  "homepage": "https://github.com/nexu-io/codex-slides#readme",
   "bugs": {
-    "url": "https://github.com/nexu-io/ppt-anything/issues"
+    "url": "https://github.com/nexu-io/codex-slides/issues"
   },
   "keywords": [
     "codex",
+    "codex-slides",
     "codex-plugin",
     "presentations",
     "slides",
+    "ai-slides",
     "powerpoint",
     "pptx",
     "mcp",

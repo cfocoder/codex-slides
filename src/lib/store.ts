@@ -81,11 +81,13 @@ export function syncProjectFiles(project: Project): void {
     outline: project.outline,
     chat: project.chat,
     researchDoc: project.researchDoc,
+    research: project.research,
   });
   const dir = path.join(projectDir(project.id), "files", "generated");
   const expectedFiles = ["brief.md", "outline.md", "deck-config.json"];
   if (project.config.designSystem) expectedFiles.push("brand-design-system.json");
   if (project.researchDoc) expectedFiles.push("research.md");
+  if (project.research) expectedFiles.push("research-process.json");
   if (project.chat?.length) expectedFiles.push("conversation.md");
   if (project.config.template || project.chat?.some((message) => message.inspiration)) {
     expectedFiles.push("inspiration.json");
@@ -116,6 +118,9 @@ export function syncProjectFiles(project: Project): void {
     );
   }
   if (project.researchDoc) writeGeneratedFile(dir, "research.md", project.researchDoc);
+  if (project.research) {
+    writeGeneratedFile(dir, "research-process.json", `${JSON.stringify(project.research, null, 2)}\n`);
+  }
   if (messages.length) {
     writeGeneratedFile(dir, "conversation.md", messages.map((message) =>
       `## ${message.role === "user" ? "User" : "Agent"}\n\n${message.content || ""}`,

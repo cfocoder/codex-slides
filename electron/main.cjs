@@ -5,10 +5,26 @@ const net = require("node:net");
 const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 
+const PRODUCT_NAME = "Codex Slides";
+const APP_ID = "io.nexu.codex-slides";
+
+app.setName(PRODUCT_NAME);
+if (process.platform === "win32") app.setAppUserModelId(APP_ID);
+
 let mainWindow = null;
 let serverProcess = null;
 let serverLogFd = null;
 let appUrl = "";
+
+function resolveDesktopIconPath() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, "next", "public", "brand", "codex-slides-mark.png")
+    : path.join(__dirname, "..", "public", "brand", "codex-slides-mark.png");
+}
+
+function applyDesktopIdentity() {
+  if (process.platform === "darwin" && app.dock) app.dock.setIcon(resolveDesktopIconPath());
+}
 
 ipcMain.handle("ppt-anything:copy-text", (event, value) => {
   if (typeof value !== "string" || !value || value.length > 32_768) return false;
@@ -54,7 +70,7 @@ function waitForServer(url, timeoutMs = 60_000) {
     };
     const retry = () => {
       if (Date.now() >= deadline) {
-        reject(new Error(`PPT Anything server did not become ready at ${url}`));
+        reject(new Error(`${PRODUCT_NAME} server did not become ready at ${url}`));
         return;
       }
       setTimeout(attempt, 350);
@@ -85,7 +101,7 @@ async function startPackagedServer() {
     windowsHide: true,
   });
   serverProcess.once("exit", (code) => {
-    if (code && !app.isQuitting) dialog.showErrorBox("PPT Anything", `The local server stopped unexpectedly (${code}). See ${logPath}.`);
+    if (code && !app.isQuitting) dialog.showErrorBox(PRODUCT_NAME, `The local server stopped unexpectedly (${code}). See ${logPath}.`);
   });
   const url = `http://127.0.0.1:${port}`;
   await waitForServer(url);
@@ -113,10 +129,8 @@ function secureWindowOptions() {
     minHeight: 680,
     show: false,
     backgroundColor: "#F6F5F1",
-    title: "PPT Anything",
-    ...(process.platform === "linux"
-      ? { icon: path.join(process.resourcesPath, "next", "public", "brand", "ppt-anything-mark.png") }
-      : {}),
+    title: PRODUCT_NAME,
+    icon: resolveDesktopIconPath(),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -166,11 +180,12 @@ else {
 
 app.whenReady().then(async () => {
   try {
+    applyDesktopIdentity();
     appUrl = process.env.PPT_ANYTHING_URL?.replace(/\/$/, "")
       || (app.isPackaged ? await startPackagedServer() : "http://127.0.0.1:4311");
     createWindow();
   } catch (error) {
-    dialog.showErrorBox("PPT Anything could not start", error instanceof Error ? error.message : String(error));
+    dialog.showErrorBox(`${PRODUCT_NAME} could not start`, error instanceof Error ? error.message : String(error));
     app.quit();
   }
 });

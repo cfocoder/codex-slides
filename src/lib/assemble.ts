@@ -3,16 +3,21 @@ import { PDFDocument } from "pdf-lib";
 import type { Project } from "./types";
 import { readSlideImage } from "./store";
 
-function orderedImages(project: Project): { index: number; bytes: Buffer }[] {
+export type SlideImageReader = (name: string) => Buffer | null;
+
+function orderedImages(
+  project: Project,
+  readImage: SlideImageReader = (name) => readSlideImage(project.id, name),
+): { index: number; bytes: Buffer }[] {
   return project.pages
     .filter((p) => p.image)
-    .map((p) => ({ index: p.index, bytes: readSlideImage(project.id, p.image!) }))
+    .map((p) => ({ index: p.index, bytes: readImage(p.image!) }))
     .filter((x): x is { index: number; bytes: Buffer } => Boolean(x.bytes))
     .sort((a, b) => a.index - b.index);
 }
 
-export async function buildPdf(project: Project): Promise<Buffer> {
-  const imgs = orderedImages(project);
+export async function buildPdf(project: Project, readImage?: SlideImageReader): Promise<Buffer> {
+  const imgs = orderedImages(project, readImage);
   if (!imgs.length) throw new Error("No rendered slides to export");
   const pdf = await PDFDocument.create();
   for (const { bytes } of imgs) {
@@ -31,8 +36,8 @@ function aspectInches(aspect: string): { w: number; h: number } {
   return { w: width, h: +(width * (ah / aw)).toFixed(3) };
 }
 
-export async function buildPptx(project: Project): Promise<Buffer> {
-  const imgs = orderedImages(project);
+export async function buildPptx(project: Project, readImage?: SlideImageReader): Promise<Buffer> {
+  const imgs = orderedImages(project, readImage);
   if (!imgs.length) throw new Error("No rendered slides to export");
   // pptxgenjs is CommonSJS; import lazily so it stays out of the edge bundle.
   const PptxGenJS = (await import("pptxgenjs")).default;

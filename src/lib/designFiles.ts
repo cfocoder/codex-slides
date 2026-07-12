@@ -18,6 +18,14 @@ export type DesignFile =
       pages: OutlinePage[];
     }
   | {
+      id: "research";
+      kind: "research";
+      title: string;
+      subtitle: string;
+      markdown: string;
+      status: "running" | "complete" | "error";
+    }
+  | {
       id: "inspiration";
       kind: "inspiration";
       title: string;

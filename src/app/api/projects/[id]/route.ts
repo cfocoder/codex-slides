@@ -35,7 +35,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     project.config.researchDoc = body.researchDoc || undefined;
   }
 
-  const workflowStages = new Set(["clarify", "outlining", "outline", "inspire", "rendering", "deck"]);
+  const workflowStages = new Set(["clarify", "research", "outlining", "outline", "inspire", "rendering", "deck"]);
   if (body.workflow && typeof body.workflow === "object") {
     const next = body.workflow;
     project.workflow = {

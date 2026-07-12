@@ -36,9 +36,28 @@ export async function POST(req: Request) {
           const doc = await runResearch(
             config.requirement,
             (event) => {
-              if (event.type === "search") send({ type: "research", phase: "searching", detail: event.query });
-              else if (event.type === "synth") send({ type: "research", phase: "synthesizing", detail: `round ${event.round}` });
-              else if (event.type === "doc") send({ type: "research", phase: "brief", markdown: event.markdown });
+              if (event.type === "search") send({
+                type: "research",
+                phase: "searching",
+                detail: event.query,
+                callId: event.callId,
+                state: event.state,
+                round: event.round,
+                totalRounds: event.totalRounds,
+              });
+              else if (event.type === "source") send({
+                type: "research",
+                phase: "source",
+                source: event.source,
+                round: event.round,
+                totalRounds: event.totalRounds,
+              });
+              else if (event.type === "synth") send({ type: "research", phase: "planning", detail: `round ${event.round}`, round: event.round, totalRounds: event.totalRounds });
+              else if (event.type === "writing") send({ type: "research", phase: "writing", round: event.round, totalRounds: event.totalRounds });
+              else if (event.type === "delta") send({ type: "research", phase: "delta", delta: event.delta, round: event.round, totalRounds: event.totalRounds });
+              else if (event.type === "doc") send({ type: "research", phase: "brief", markdown: event.markdown, final: event.final, round: event.round, totalRounds: event.totalRounds });
+              else if (event.type === "done") send({ type: "research", phase: "complete", markdown: event.markdown, round: event.round, totalRounds: event.totalRounds });
+              else if (event.type === "error") send({ type: "research", phase: "error", detail: event.error });
             },
             { signal: abort.signal, workflowContext: scenarioPromptContext(config.scenarioId) },
           );
