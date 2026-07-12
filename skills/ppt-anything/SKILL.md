@@ -155,7 +155,10 @@ auditing a newly added product feature or changing the Browser/CLI/MCP contract.
   deck snapshots and their originating prompts. Each version owns its slide
   images, transitions, and notes, so preview, Play, and PDF/PPTX export use that
   exact snapshot. Restoring never overwrites history; it creates a new current
-  version linked to the selected source version.
+  version linked to the selected source version. Every AI command or manual
+  action that changes a rendered deck must create a version; one multi-step AI
+  command may update one grouped version. Conversation-only turns, navigation,
+  and saves whose deck content is unchanged do not create empty versions.
 
 Keep durable edits scoped to the project the user named. If no project was
 named and multiple projects exist, inspect the recent list before choosing.

@@ -108,6 +108,23 @@ test("deck versions keep independent assets, group multi-step edits, and restore
   });
   assert.equal(groupedUpdate.id, second.id);
   assert.equal(versions.listDeckVersions(project.id).length, 2);
+  const unchanged = await versions.ensureCurrentDeckVersion(project.id, {
+    prompt: "No content change",
+    promptSource: "manual",
+    source: "manual",
+  });
+  assert.equal(unchanged.id, second.id);
+  assert.equal(versions.listDeckVersions(project.id).length, 2);
+
+  const explicitCheckpoint = await versions.captureDeckVersion(project.id, {
+    prompt: "Save a manual checkpoint",
+    promptSource: "manual",
+    source: "manual",
+    force: true,
+  });
+  assert.equal(explicitCheckpoint.version, 3);
+  assert.equal(explicitCheckpoint.source, "manual");
+  assert.equal(versions.listDeckVersions(project.id).length, 3);
   assert.equal(versions.readDeckVersion(project.id, first.id).project.title, "First deck");
   assert.deepEqual(versions.readDeckVersionImage(project.id, first.id, "01.png"), firstPng);
   const firstDetail = versions.readDeckVersion(project.id, first.id);
@@ -122,12 +139,12 @@ test("deck versions keep independent assets, group multi-step edits, and restore
   assert.equal(restored.project.pages[0].transition, "fade");
   assert.equal(restored.project.pages[0].speakerNotes, "First notes");
   assert.deepEqual(fs.readFileSync(path.join(root, "projects", project.id, "01.png")), firstPng);
-  assert.equal(restored.version.version, 3);
+  assert.equal(restored.version.version, 4);
   assert.equal(restored.version.source, "restore");
   assert.equal(restored.version.restoreFromVersionId, first.id);
   assert.deepEqual(
     versions.listDeckVersions(project.id).map((version) => version.current),
-    [false, false, true],
+    [false, false, false, true],
   );
 });
 

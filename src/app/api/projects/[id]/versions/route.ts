@@ -51,11 +51,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       source: source(body.source),
       label: typeof body.label === "string" ? body.label : undefined,
       groupId: typeof body.groupId === "string" ? body.groupId : undefined,
-      force: body.force === true,
+      // POST is an explicit checkpoint command. Unlike GET's self-healing
+      // ensure path, it must append even when the bytes did not change.
+      force: true,
     });
     return NextResponse.json({ version });
   } catch (error: any) {
     return NextResponse.json({ error: String(error?.message ?? error) }, { status: 500 });
   }
 }
-

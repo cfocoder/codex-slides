@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { coerceConfig } from "@/lib/config";
-import { captureDeckVersion } from "@/lib/deckVersions";
+import { captureDeckVersion, currentDeckVersionSignature } from "@/lib/deckVersions";
 import { normalizeDeckDesignSystem } from "@/lib/designSystem";
 import { attachMaterialsToProject } from "@/lib/materials";
 import { editableProjectSignature, projectResponseEtag } from "@/lib/projectSync";
@@ -22,6 +22,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const project = loadProject(params.id);
   if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
   const beforeSignature = editableProjectSignature(project);
+  const beforeDeckSignature = currentDeckVersionSignature(project);
   const requestedWorkflowUpdatedAt = typeof body.workflow?.updatedAt === "number"
     && Number.isFinite(body.workflow.updatedAt)
     ? body.workflow.updatedAt
@@ -102,12 +103,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     project.workflow.updatedAt = requestedWorkflowUpdatedAt ?? Date.now();
   }
   saveProject(project);
-  const versionablePatch = typeof body.template !== "undefined"
-    || typeof body.style === "string"
-    || typeof body.title === "string"
-    || body.designSystem === null
-    || (body.designSystem && typeof body.designSystem === "object");
-  if (versionablePatch) {
+  const deckChanged = currentDeckVersionSignature(project) !== beforeDeckSignature;
+  if (deckChanged && project.pages.some((page) => page.image)) {
     await captureDeckVersion(project.id, {
       prompt: typeof body.versionPrompt === "string"
         ? body.versionPrompt

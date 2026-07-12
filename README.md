@@ -1,6 +1,8 @@
 <p align="center">
-  <img src="docs/assets/readme/cover.png" alt="Codex Slides — the open-source AI slide studio inside your coding agent" width="880" />
+  <img src="public/brand/codex-slides-mark.png" alt="Codex Slides app icon" width="112" />
 </p>
+
+<h1 align="center">Codex Slides</h1>
 
 <p align="center">
   <strong>The open-source AI slide studio that lives inside Codex.</strong><br />
@@ -22,10 +24,10 @@
 
 ---
 
-**Codex Slides is the best way to make slides with a coding agent.** Describe a deck, point it
-at a repo or a folder of files, and watch your local Codex research, outline, style, render,
-and export a beautiful presentation — every slide a full visual canvas, all of it visible and
-steerable, none of it a hidden background task.
+**Codex Slides is an open-source slide studio built for coding agents.** Describe a deck, point
+it at a repo or a folder of files, and watch your local Codex research, outline, style, render,
+and export a presentation — every slide a full visual canvas, all of it visible and steerable,
+none of it a hidden background task.
 
 Think of it as the **open-source, agent-native alternative to Gamma and Tome** — except it
 lives inside the coding agent you already use, runs on your existing `codex login` with zero
@@ -341,6 +343,8 @@ Play mode, then export PPTX and PDF.
   spacing, radii, and brand assets.
 - **Conversational editing** — rewrite, add, remove, duplicate, reorder, transition,
   regenerate, or restyle through the Deck Agent.
+- **Automatic version history** — every rendered-deck AI command and manual edit creates an
+  immutable checkpoint with its prompt; inspect, play, restore, or export that exact PDF/PPTX.
 - **Queued follow-ups** — keep prompting while generation or edits are in progress; requests
   run in order.
 - **Mark editing** — draw arrows, shapes, labels, and comments directly on a slide, then
@@ -401,18 +405,26 @@ The full Browser/CLI/MCP parity contract lives in
 ```bash
 git clone https://github.com/nexu-io/codex-slides.git
 cd codex-slides
-npm install
+corepack enable
+pnpm install
 codex login
-npm run dev
+pnpm dev
 ```
 
-Open <http://127.0.0.1:4311>.
+`pnpm dev` launches the Web service and Electron desktop together. Choose a narrower mode when
+you only need one surface:
+
+| Command | Starts | Service behavior |
+|---|---|---|
+| `pnpm dev` | Web + Desktop | Starts one shared Web service, opens Electron, and stops owned child processes on exit |
+| `pnpm dev:web` | Web only | Serves <http://127.0.0.1:4311> |
+| `pnpm dev:desktop` | Desktop | Reuses a healthy Web service or starts and waits for one automatically |
 
 Production build:
 
 ```bash
-npm run build
-npm run start
+pnpm build
+pnpm start
 ```
 
 Environment variables:
@@ -452,15 +464,12 @@ The same Next.js application can run in Electron on macOS, Windows, and Linux. I
 builds, Electron starts the bundled standalone server on an available loopback port and stores
 durable data in the operating system's app data directory.
 
-```bash
-pnpm dev                  # Web + Desktop; Ctrl+C stops the services it started
-pnpm dev:web              # Web only at http://localhost:4311
-pnpm dev:desktop          # Desktop; reuse a running Web service or start one
-pnpm electron:check       # validate the desktop/runtime contract
-pnpm electron:dev         # alias of pnpm dev:desktop
-pnpm electron:pack        # unpacked app for the current platform
-pnpm electron:dist        # installers for the current platform
-```
+| Command | Purpose |
+|---|---|
+| `pnpm electron:check` | Validate desktop metadata, icons, service startup, and runtime contracts |
+| `pnpm electron:dev` | Alias of `pnpm dev:desktop` |
+| `pnpm electron:pack` | Build an unpacked app for the current platform |
+| `pnpm electron:dist` | Build installers for the current platform |
 
 The Desktop entry resolves its service dependency first: it attaches to a healthy
 `PPT_ANYTHING_URL` when one already exists, otherwise it starts `dev:web`, waits for
@@ -486,8 +495,9 @@ a coding agent. Priorities are grouped by horizon and may shift with community f
 | ✅ Shipped | Browser-first guided workflow: research → outline → style → render → edit → present → export |
 | ✅ Shipped | Durable projects, reusable project templates, and Design Files |
 | ✅ Shipped | Brand & Design System, mark-based editing, and dual-window Play mode |
+| ✅ Shipped | Immutable automatic version history with prompt inspection, playback, restore, and exact-version PDF/PPTX export |
 | ✅ Shipped | Portable Agent Skill, 34 typed MCP tools, and Electron desktop apps |
-| 🚧 In progress | Deeper `codex-slides` rebrand across the plugin id, MCP namespace, and in-app strings |
+| ✅ Shipped | Unified Codex Slides naming and icon assets across Web, desktop, and the Codex plugin |
 | 🚧 In progress | Sharper template gallery and one-click community-style previews |
 | 🔜 Next | Editable-shape PPTX export (native text and vector objects, not just full-slide images) |
 | 🔜 Next | Live collaboration and shareable read-only present links |
@@ -570,22 +580,22 @@ application API key is stored by Codex Slides.
 Run the complete static contract:
 
 ```bash
-npm run typecheck
-npm test
-npm run check:i18n
-npm run check:project-sync
-npm run check:skill
-npm run check:mcp
-npm run electron:check
-npm run build
+pnpm typecheck
+pnpm test
+pnpm check:i18n
+pnpm check:project-sync
+pnpm check:skill
+pnpm check:mcp
+pnpm electron:check
+pnpm build
 ```
 
 With the local app running:
 
 ```bash
-npm run check:skill:live
-npm run check:mcp:live
-npm run check:project-sync:live
+pnpm check:skill:live
+pnpm check:mcp:live
+pnpm check:project-sync:live
 ```
 
 UI changes should also be checked at desktop, tablet, and phone widths. For project workflow
@@ -604,9 +614,9 @@ changes, verify both the Codex Browser and a second browser tab using the same p
 
 ```bash
 node --version       # must be 20+
-npm install
-npm run build
-npm run start
+pnpm install
+pnpm build
+pnpm start
 ```
 
 Inspect the log at `PPT_ANYTHING_LOG` or the operating system temp directory.

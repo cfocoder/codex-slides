@@ -46,7 +46,7 @@ CLI + MCP operation.
 | Generate speaker notes with the project agent | Notes AI action | `speaker-notes`, `action:generate` | `generate_speaker_notes` |
 | Upload a reference or finished slide | Material/slide controls | `upload-material` / `upload-slide` | `upload_material` / `upload_slide_image` |
 | Apply a marked-up slide edit | Mark canvas | `mark-edit` | `mark_edit_slide` |
-| Browse immutable deck versions, inspect prompts, preview/play, restore as a new current version, and export that exact PDF/PPTX | Project Version history dialog | — Browser workflow | — Browser workflow |
+| Automatically version every rendered-deck AI/manual change; browse immutable versions, inspect prompts, preview/play, restore as a new current version, and export that exact PDF/PPTX | Project Version history dialog | Mutating commands share the same version-aware project APIs | Mutating tools share the same version-aware project APIs |
 | Play from current slide or the beginning | Project Play menu | `open` | `open_ppt_anything` |
 | Dual-window presenter mode with notes and timer | Project Play menu | `open` | `open_ppt_anything` |
 | Export PDF or PPTX | Export menu | `export` | `export_deck` |

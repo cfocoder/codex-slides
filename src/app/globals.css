@@ -10013,6 +10013,7 @@ button:disabled {
   min-height: 0;
   flex: 1;
   grid-template-columns: minmax(248px, 30%) minmax(0, 1fr);
+  overflow: hidden;
 }
 .design-files-list {
   display: flex;
@@ -10225,6 +10226,7 @@ button:disabled {
   min-height: 0;
   flex: 1;
   flex-direction: column;
+  overflow: hidden;
   animation: designFilePaneIn .2s cubic-bezier(.2, .72, .2, 1) both;
 }
 .design-file-toolbar {
@@ -10353,6 +10355,9 @@ button:disabled {
   align-items: stretch;
   justify-content: stretch;
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
   padding: clamp(16px, 2.2vw, 24px);
   background: #f6f7f8;
 }
@@ -10847,6 +10852,38 @@ a {
 .design-files,
 .workflow-files-workspace {
   min-width: 0;
+}
+
+/* A desktop project is a single viewport-sized work surface. Explicitly zero
+   the grid row's min track size so long Design Files documents cannot grow the
+   page; the file list and document viewer own their scrolling instead. */
+@media (min-width: 901px) {
+  body:has(.project-ws) {
+    height: 100vh;
+    overflow: hidden;
+  }
+  .ws.project-ws {
+    grid-template-rows: minmax(0, 1fr);
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+  }
+  .project-ws > .deckpane,
+  .project-ws > .deckpane > .design-files {
+    min-height: 0;
+    overflow: hidden;
+  }
+  .project-ws > .deckpane {
+    height: 100%;
+    max-height: 100%;
+  }
+  @supports (height: 100dvh) {
+    body:has(.project-ws),
+    .ws.project-ws {
+      height: 100dvh;
+      max-height: 100dvh;
+    }
+  }
 }
 
 /* Dynamic viewport units prevent the mobile browser chrome from cropping the
