@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureDeckVersion } from "@/lib/deckVersions";
 import { loadProject, saveProject, saveSlideImage } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -37,5 +38,12 @@ export async function POST(
   page.description = "User-uploaded slide image";
   project.outline[index - 1] = { title: page.title, points: [...page.points] };
   saveProject(project);
-  return NextResponse.json({ page });
+  const version = await captureDeckVersion(project.id, {
+    prompt: String(form.get("versionPrompt") ?? "").trim() || `Replace slide ${index} with uploaded image`,
+    promptSource: "manual",
+    source: "manual",
+    label: `Uploaded slide ${index}`,
+    groupId: String(form.get("versionGroupId") ?? "").trim() || undefined,
+  });
+  return NextResponse.json({ page, version });
 }

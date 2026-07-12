@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { coerceConfig } from "@/lib/config";
+import { captureDeckVersion } from "@/lib/deckVersions";
 import { normalizeDeckDesignSystem } from "@/lib/designSystem";
 import { attachMaterialsToProject } from "@/lib/materials";
 import { editableProjectSignature, projectResponseEtag } from "@/lib/projectSync";
@@ -97,6 +98,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     project.workflow.updatedAt = requestedWorkflowUpdatedAt ?? Date.now();
   }
   saveProject(project);
+  const versionablePatch = typeof body.template !== "undefined"
+    || typeof body.style === "string"
+    || typeof body.title === "string"
+    || body.designSystem === null
+    || (body.designSystem && typeof body.designSystem === "object");
+  if (versionablePatch) {
+    await captureDeckVersion(project.id, {
+      prompt: typeof body.versionPrompt === "string"
+        ? body.versionPrompt
+        : [body.style, body.designSystem?.style?.direction, body.designSystem?.style?.keywords]
+            .filter((value) => typeof value === "string" && value.trim())
+            .join(". ") || "Update deck style and project settings",
+      promptSource: typeof body.versionPrompt === "string" ? "message" : "manual",
+      source: typeof body.versionPrompt === "string" ? "ai" : "manual",
+      label: "Updated deck settings",
+      groupId: typeof body.versionGroupId === "string" ? body.versionGroupId : undefined,
+    });
+  }
   return NextResponse.json(project, {
     headers: {
       "Cache-Control": "no-store",

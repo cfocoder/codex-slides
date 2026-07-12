@@ -22,19 +22,33 @@
 
 ---
 
-**Codex Slides** is built to be the best way to make slides with a coding agent. It turns
-Codex into a visual presentation workspace: Codex opens the product first, creates a durable
-project, and keeps every important checkpoint visible — requirements, research, outline,
-visual direction, rendering, edits, presentation, and export.
+**Codex Slides is the best way to make slides with a coding agent.** Describe a deck, point it
+at a repo or a folder of files, and watch your local Codex research, outline, style, render,
+and export a beautiful presentation — every slide a full visual canvas, all of it visible and
+steerable, none of it a hidden background task.
 
-The default experience is deliberately *not* a hidden six-minute background task. You watch
-the deck being made and can steer it at every step.
+Think of it as the **open-source, agent-native alternative to Gamma and Tome** — except it
+lives inside the coding agent you already use, runs on your existing `codex login` with zero
+extra API keys, and keeps every project on your own disk.
 
 ```text
 Open Codex Slides in the Codex Browser and keep it visible.
-Create a 12-slide Chinese market deck about 2026 humanoid robotics.
+Create a 12-slide market deck about 2026 humanoid robotics.
 Let me confirm the questions, outline, and visual direction before rendering.
 ```
+
+### Try it in 60 seconds
+
+```bash
+codex plugin marketplace add nexu-io/codex-slides
+codex plugin add codex-slides@codex-slides
+```
+
+Then start a new Codex task: *“Open Codex Slides and build me a 6-slide deck about …”* — and
+watch it happen live.
+
+> Like what you see? **[Give it a ⭐](#star-codex-slides)** — one click is the fastest way to
+> help the next developer find Codex Slides.
 
 ## Contents
 

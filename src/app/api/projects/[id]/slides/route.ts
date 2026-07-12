@@ -1,9 +1,20 @@
 import { NextResponse } from "next/server";
+import { captureDeckVersion } from "@/lib/deckVersions";
 import { loadProject, removeProjectPage, replaceProjectPages, saveProject } from "@/lib/store";
 import type { SlidePage, SlideTransition } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function versionInput(body: any, prompt: string, label: string) {
+  return {
+    prompt: typeof body?.versionPrompt === "string" ? body.versionPrompt : prompt,
+    promptSource: "manual" as const,
+    source: "manual" as const,
+    label,
+    groupId: typeof body?.versionGroupId === "string" ? body.versionGroupId : undefined,
+  };
+}
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const body = await req.json().catch(() => ({}));
@@ -27,7 +38,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const pages = [...project.pages];
     pages.splice(insertAt, 0, page);
     replaceProjectPages(project, pages);
-    return NextResponse.json({ page: project.pages[insertAt], pages: project.pages });
+    const version = await captureDeckVersion(project.id, versionInput(
+      body,
+      `Add a slide after slide ${insertAt}`,
+      `Added slide ${insertAt + 1}`,
+    ));
+    return NextResponse.json({ page: project.pages[insertAt], pages: project.pages, version });
   }
 
   if (action === "duplicate") {
@@ -43,7 +59,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const pages = [...project.pages];
     pages.splice(index, 0, page);
     replaceProjectPages(project, pages);
-    return NextResponse.json({ page: project.pages[index], pages: project.pages });
+    const version = await captureDeckVersion(project.id, versionInput(
+      body,
+      `Duplicate slide ${index}`,
+      `Duplicated slide ${index}`,
+    ));
+    return NextResponse.json({ page: project.pages[index], pages: project.pages, version });
   }
 
   if (action === "move") {
@@ -58,7 +79,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const [page] = pages.splice(index - 1, 1);
     pages.splice(toIndex - 1, 0, page);
     replaceProjectPages(project, pages);
-    return NextResponse.json({ page: project.pages[toIndex - 1], pages: project.pages });
+    const version = await captureDeckVersion(project.id, versionInput(
+      body,
+      `Move slide ${index} to position ${toIndex}`,
+      `Moved slide ${index}`,
+    ));
+    return NextResponse.json({ page: project.pages[toIndex - 1], pages: project.pages, version });
   }
 
   if (action === "transition") {
@@ -72,7 +98,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
     page.transition = transition;
     saveProject(project);
-    return NextResponse.json({ page, pages: project.pages });
+    const version = await captureDeckVersion(project.id, versionInput(
+      body,
+      `Set slide ${index} transition to ${transition}`,
+      `Changed slide ${index} transition`,
+    ));
+    return NextResponse.json({ page, pages: project.pages, version });
   }
 
   return NextResponse.json({ error: "unsupported action" }, { status: 400 });
@@ -86,7 +117,12 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   if (!Number.isInteger(index)) return NextResponse.json({ error: "index required" }, { status: 400 });
   try {
     removeProjectPage(project, index);
-    return NextResponse.json({ pages: project.pages });
+    const version = await captureDeckVersion(project.id, versionInput(
+      body,
+      `Delete slide ${index}`,
+      `Deleted slide ${index}`,
+    ));
+    return NextResponse.json({ pages: project.pages, version });
   } catch (error: any) {
     return NextResponse.json({ error: String(error?.message ?? error) }, { status: 404 });
   }

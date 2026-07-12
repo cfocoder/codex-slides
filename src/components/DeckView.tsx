@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DotsThree, Palette } from "@phosphor-icons/react";
+import { ClockCounterClockwise, DotsThree, Palette } from "@phosphor-icons/react";
 import {
   BrandDesignSystemPanel,
   type BrandDesignSystemSubmit,
 } from "@/components/BrandDesignSystemPanel";
 import DesignFiles from "@/components/DesignFiles";
+import DeckVersionDialog from "@/components/DeckVersionDialog";
 import ChatColumn, { type ChatMsg } from "@/components/ChatColumn";
 import type { MaterialTrayItem } from "@/components/MaterialTray";
 import OutlineBoard from "@/components/OutlineBoard";
@@ -332,6 +333,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   const [retuning, setRetuning] = useState(false);
   const [designSystemProgress, setDesignSystemProgress] = useState(0);
   const [headerActionsOpen, setHeaderActionsOpen] = useState(false);
+  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const designSystemTriggerRef = useRef<HTMLButtonElement>(null);
   const headerActionsRef = useRef<HTMLDivElement>(null);
 
@@ -869,13 +871,20 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   async function handleInspireGenerate(templateId?: string) {
     if (running || busy || retuning) return;
     const redrawExisting = Boolean(templateId) && stage === "deck" && slides.some((slide) => slide.status === "rendered");
+    const versionGroupId = createAgentRunId("restyle-version");
+    const versionPrompt = templateId
+      ? t("flow.styleSelected", { name: getCommunityTemplate(templateId)?.name ?? templateId })
+      : t("flow.styleSkipped");
     setInspireOpen(false);
     if (templateId) {
       setInspirationSkipped(false);
       const tpl = getCommunityTemplate(templateId);
       say({ role: "user", content: t("flow.styleSelected", { name: tpl?.name ?? templateId }) });
       try {
-        await patchProjectStyle(projectId, { template: templateId });
+        await patchProjectStyle(projectId, { template: templateId }, {
+          prompt: versionPrompt,
+          groupId: versionGroupId,
+        });
         setProject((p) => ({ ...p, config: { ...p.config, template: templateId } }));
       } catch (e: any) {
         say({ role: "assistant", content: `⚠ ${t("flow.styleFailed", { error: e?.message ?? String(e) })}` });
@@ -906,7 +915,10 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         setDesignSystemProgress(position + 1);
         setSlides((items) => items.map((item) => item.index === slide.index ? { ...item, status: "working" } : item));
         try {
-          const image = await regenerateSlide(projectId, slide.index);
+          const image = await regenerateSlide(projectId, slide.index, undefined, undefined, {
+            prompt: versionPrompt,
+            groupId: versionGroupId,
+          });
           setSlides((items) => items.map((item) => item.index === slide.index
             ? { ...item, status: "rendered", image, bust: Date.now() }
             : item));
@@ -1090,6 +1102,10 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     const redraw = input.redraw && stage === "deck";
     setDesignSystemError("");
     setDesignSystemSaving(true);
+    const versionGroupId = createAgentRunId("brand-version");
+    const versionPrompt = [input.designSystem.style.direction, input.designSystem.style.keywords]
+      .filter(Boolean)
+      .join(". ") || t("brandSystem.saved");
     if (redraw) {
       setRetuning(true);
       setDesignSystemProgress(1);
@@ -1105,6 +1121,8 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
           style: [input.designSystem.style.direction, input.designSystem.style.keywords].filter(Boolean).join(". "),
           materialIds: input.materialIds,
           designSystem: input.designSystem,
+          versionPrompt,
+          versionGroupId,
         }),
       });
       const saved = await response.json().catch(() => null);
@@ -1117,7 +1135,10 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
           setDesignSystemProgress(position + 1);
           setSlides((items) => items.map((item) => (item.index === slide.index ? { ...item, status: "working" } : item)));
           try {
-            const image = await regenerateSlide(projectId, slide.index);
+            const image = await regenerateSlide(projectId, slide.index, undefined, undefined, {
+              prompt: versionPrompt,
+              groupId: versionGroupId,
+            });
             setSlides((items) =>
               items.map((item) =>
                 item.index === slide.index ? { ...item, status: "rendered", image, bust: Date.now() } : item,
@@ -1221,6 +1242,19 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     }));
   const projectHeaderActions = (
     <div className="deck-header-extras" ref={headerActionsRef}>
+      <button
+        type="button"
+        className={`iconbtn version-history-trigger${versionHistoryOpen ? " active" : ""}`}
+        disabled={workspaceBusy}
+        onClick={() => {
+          setHeaderActionsOpen(false);
+          setVersionHistoryOpen(true);
+        }}
+        title={t("versions.title")}
+      >
+        <ClockCounterClockwise size={18} weight="regular" aria-hidden="true" />
+        <span className="stage-action-label">{t("versions.entry")}</span>
+      </button>
       <button
         ref={designSystemTriggerRef}
         type="button"
@@ -1406,6 +1440,21 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
           onSubmit={(id) => handleInspireGenerate(id)}
         />
       )}
+      {versionHistoryOpen ? (
+        <DeckVersionDialog
+          projectId={projectId}
+          onClose={() => setVersionHistoryOpen(false)}
+          onRestored={(restored) => {
+            projectRef.current = restored;
+            setProject(restored);
+            setSlides(projectSlides(restored));
+            setOutline(projectOutline(restored));
+            setStage("deck");
+            latestProjectVersionRef.current = new Date(restored.updatedAt).getTime() || Date.now();
+            projectResponseEtagRef.current = projectResponseEtag(restored);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureDeckVersion } from "@/lib/deckVersions";
 import { mergeDeckDesignSystem, normalizeDeckDesignSystem } from "@/lib/designSystem";
 import { attachMaterialsToProject } from "@/lib/materials";
 import { loadProject, saveProject } from "@/lib/store";
@@ -74,5 +75,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   saveProject(project);
-  return NextResponse.json({ ...responseShape(project), project });
+  const version = await captureDeckVersion(project.id, {
+    prompt: typeof body.versionPrompt === "string"
+      ? body.versionPrompt
+      : body.clear === true
+        ? "Disable the brand design system"
+        : "Update the brand design system",
+    promptSource: typeof body.versionPrompt === "string" ? "message" : "manual",
+    source: typeof body.versionPrompt === "string" ? "ai" : "manual",
+    label: "Updated brand design system",
+    groupId: typeof body.versionGroupId === "string" ? body.versionGroupId : undefined,
+  });
+  return NextResponse.json({ ...responseShape(project), project, version });
 }

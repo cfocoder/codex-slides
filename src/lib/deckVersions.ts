@@ -218,7 +218,20 @@ function snapshotProject(project: Project): Project {
 }
 
 export function currentDeckVersionSignature(project: Project): string {
-  const state = snapshotProject(project);
+  // Project/chat autosaves update `updatedAt` and workspace position without
+  // changing the deck. Keep those fields outside the content signature so a
+  // conversation-only turn never produces a phantom version.
+  const state = {
+    config: project.config,
+    agent: project.agent,
+    title: project.title,
+    outline: project.outline,
+    pages: project.pages,
+    materials: project.materials,
+    researchDoc: project.researchDoc,
+    research: project.research,
+    status: project.status,
+  };
   return createHash("sha256").update(JSON.stringify(state)).digest("hex");
 }
 
@@ -442,4 +455,3 @@ export async function restoreDeckVersion(
     return { project: restored, version };
   });
 }
-

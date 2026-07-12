@@ -170,7 +170,7 @@ export default function ScenarioPicker({
           >
             <header className="scenario-dialog-head">
               <div>
-                <span className="scenario-dialog-kicker">PPT Anything</span>
+                <span className="scenario-dialog-kicker">Codex Slides</span>
                 <h2 id="scenario-dialog-title">{t("scenario.dialogTitle")}</h2>
                 <p>{t("scenario.dialogSubtitle", { count: PRESENTATION_SCENARIOS.length })}</p>
               </div>

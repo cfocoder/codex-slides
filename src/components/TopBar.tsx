@@ -6,7 +6,7 @@ import { ArrowUpRight, CaretDown } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 /** Slim app bar with the current workspace shortcut. */
-export default function TopBar({ workspace = "PPT Anything" }: { workspace?: string }) {
+export default function TopBar({ workspace = "Codex Slides" }: { workspace?: string }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const on = () => setScrolled(window.scrollY > 4);
@@ -22,7 +22,7 @@ export default function TopBar({ workspace = "PPT Anything" }: { workspace?: str
           <span className="brand-mark-shell" aria-hidden="true">
             <Image
               className="brand-mark"
-              src="/brand/ppt-anything-mark.png"
+              src="/brand/codex-slides-mark.png"
               alt=""
               width={32}
               height={32}

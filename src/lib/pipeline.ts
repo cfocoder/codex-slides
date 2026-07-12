@@ -9,6 +9,7 @@
 import { generateSlideImage } from "./codex-image";
 import { codexJson, codexText, parseLooseJson, type CodexInputAttachment } from "./codex-text";
 import { loadCommunityStyleReference } from "./communityReference";
+import { ensureCurrentDeckVersion } from "./deckVersions";
 import { runCliAgentText } from "./agents";
 import {
   attachMaterialsToProject,
@@ -332,6 +333,12 @@ export async function renderProject(
   project.status = "ready";
   project.workflow = { ...(project.workflow ?? {}), stage: "deck" };
   saveProject(project);
+  await ensureCurrentDeckVersion(project, {
+    prompt: project.config.requirement,
+    promptSource: "project",
+    source: "ai",
+    label: "Generated deck",
+  });
   emit({ type: "done", id });
   return project;
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureDeckVersion } from "@/lib/deckVersions";
 import { regeneratePage } from "@/lib/pipeline";
 
 export const runtime = "nodejs";
@@ -15,7 +16,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
   try {
     const page = await regeneratePage(params.id, index, instruction, title);
-    return NextResponse.json({ page });
+    const version = await captureDeckVersion(params.id, {
+      prompt: typeof body.versionPrompt === "string" ? body.versionPrompt : instruction ?? `Regenerate slide ${index}`,
+      promptSource: "message",
+      source: "ai",
+      label: `Updated slide ${index}`,
+      groupId: typeof body.versionGroupId === "string" ? body.versionGroupId : undefined,
+    });
+    return NextResponse.json({ page, version });
   } catch (e: any) {
     return NextResponse.json({ error: String(e?.message ?? e) }, { status: 500 });
   }

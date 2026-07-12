@@ -5,6 +5,7 @@ import type { ContextItem } from "@/lib/contextItems";
 import type { AgentToolCall } from "@/lib/agentActivity";
 import type {
   DesignFileReference,
+  DeckVersionCaptureInput,
   OutlinePage,
   PptConfig,
   ProgressEvent,
@@ -280,11 +281,12 @@ export async function rankInspire(
 export async function patchProjectStyle(
   projectId: string,
   patch: { template?: string | null; style?: string },
+  version?: DeckVersionCaptureInput,
 ): Promise<void> {
   const r = await fetch(`/api/projects/${projectId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
+    body: JSON.stringify({ ...patch, ...versionRequest(version) }),
   });
   if (!r.ok) {
     const d = await r.json().catch(() => ({}));
@@ -427,8 +429,20 @@ async function slideAction(
   return (data.pages ?? []).map(toUiSlide);
 }
 
-export function addProjectSlide(projectId: string, afterIndex?: number, title?: string): Promise<UiSlide[]> {
-  return slideAction(projectId, "POST", { action: "add", afterIndex, title });
+function versionRequest(version?: DeckVersionCaptureInput) {
+  return version ? {
+    versionPrompt: version.prompt,
+    versionGroupId: version.groupId,
+  } : {};
+}
+
+export function addProjectSlide(
+  projectId: string,
+  afterIndex?: number,
+  title?: string,
+  version?: DeckVersionCaptureInput,
+): Promise<UiSlide[]> {
+  return slideAction(projectId, "POST", { action: "add", afterIndex, title, ...versionRequest(version) });
 }
 
 export function duplicateProjectSlide(projectId: string, index: number): Promise<UiSlide[]> {
@@ -456,11 +470,12 @@ export async function generateSingleSlide(
   index: number,
   instruction: string,
   title?: string,
+  version?: DeckVersionCaptureInput,
 ): Promise<UiSlide> {
   const response = await fetch(`/api/projects/${projectId}/regenerate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ index, instruction, title }),
+    body: JSON.stringify({ index, instruction, title, ...versionRequest(version) }),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
@@ -472,10 +487,13 @@ export async function uploadProjectSlide(
   index: number,
   image: Blob,
   title: string,
+  version?: DeckVersionCaptureInput,
 ): Promise<UiSlide> {
   const form = new FormData();
   form.append("image", image, "slide.png");
   form.append("title", title);
+  if (typeof version?.prompt === "string") form.append("versionPrompt", version.prompt);
+  if (version?.groupId) form.append("versionGroupId", version.groupId);
   const response = await fetch(`/api/projects/${projectId}/slides/${index}/image`, {
     method: "POST",
     body: form,
@@ -491,11 +509,17 @@ export async function regenerateSlide(
   index: number,
   instruction?: string,
   title?: string,
+  version?: DeckVersionCaptureInput,
 ): Promise<string> {
   const r = await fetch(`/api/projects/${projectId}/regenerate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ index, instruction: instruction || undefined, title: title || undefined }),
+    body: JSON.stringify({
+      index,
+      instruction: instruction || undefined,
+      title: title || undefined,
+      ...versionRequest(version),
+    }),
   });
   const d = await r.json();
   if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);

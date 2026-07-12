@@ -37,7 +37,8 @@
     ".next-desktop/types/**/*.ts",
     ".next-qa/types/**/*.ts",
     ".next-codex-perf/types/**/*.ts",
-    ".next-playback-qa/types/**/*.ts"
+    ".next-playback-qa/types/**/*.ts",
+    ".next-research-qa/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

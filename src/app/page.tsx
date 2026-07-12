@@ -905,6 +905,10 @@ export default function Home() {
     if (!projectId || running || busy) return;
     const previousTemplate = config.template;
     const redrawExisting = Boolean(templateId) && stage === "deck" && slides.some((slide) => slide.status === "rendered");
+    const versionGroupId = createAgentRunId("restyle-version");
+    const versionPrompt = templateId
+      ? t("flow.styleSelected", { name: getCommunityTemplate(templateId)?.name ?? templateId })
+      : t("flow.styleSkipped");
     setInspireOpen(false);
     if (templateId) {
       setInspirationSkipped(false);
@@ -912,7 +916,10 @@ export default function Home() {
       patchConfig({ template: templateId });
       say({ role: "user", content: t("flow.styleSelected", { name: tpl?.name ?? templateId }) });
       try {
-        await patchProjectStyle(projectId, { template: templateId });
+        await patchProjectStyle(projectId, { template: templateId }, {
+          prompt: versionPrompt,
+          groupId: versionGroupId,
+        });
       } catch (e: any) {
         patchConfig({ template: previousTemplate });
         say({ role: "assistant", content: `⚠ ${t("flow.styleFailed", { error: e?.message ?? String(e) })}` });
@@ -936,7 +943,10 @@ export default function Home() {
       for (const slide of slides) {
         setSlides((items) => items.map((item) => item.index === slide.index ? { ...item, status: "working" } : item));
         try {
-          const image = await regenerateSlide(projectId, slide.index);
+          const image = await regenerateSlide(projectId, slide.index, undefined, undefined, {
+            prompt: versionPrompt,
+            groupId: versionGroupId,
+          });
           setSlides((items) => items.map((item) => item.index === slide.index
             ? { ...item, status: "rendered", image, bust: Date.now() }
             : item));

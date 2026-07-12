@@ -17,3 +17,4 @@ next-env.d.ts
 .next-codex-perf/**
 .next-playback-qa/**
 .next-qa/**
+.next-research-qa/*

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureDeckVersion } from "@/lib/deckVersions";
 import { generateSpeakerNotes } from "@/lib/speakerNotes";
 import { loadProject, saveProject } from "@/lib/store";
 import type { Project } from "@/lib/types";
@@ -80,7 +81,16 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     page.speakerNotes = update.note.trim() || undefined;
   }
   saveProject(project);
-  return NextResponse.json(notesPayload(project));
+  const version = await captureDeckVersion(project.id, {
+    prompt: typeof body.versionPrompt === "string"
+      ? body.versionPrompt
+      : `Update speaker notes for slide${updates.length === 1 ? ` ${updates[0].index}` : "s"}`,
+    promptSource: "manual",
+    source: "manual",
+    label: "Updated speaker notes",
+    groupId: typeof body.versionGroupId === "string" ? body.versionGroupId : undefined,
+  });
+  return NextResponse.json({ ...notesPayload(project), version });
 }
 
 /** Generate the current slide or a coherent full-deck talk track with AI. */
@@ -117,7 +127,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       generated.push(item.index);
     }
     saveProject(latest);
-    return NextResponse.json(notesPayload(latest, generated));
+    const version = await captureDeckVersion(latest.id, {
+      prompt: typeof body.instruction === "string" && body.instruction.trim()
+        ? body.instruction
+        : "Generate speaker notes",
+      promptSource: "message",
+      source: "ai",
+      label: "Generated speaker notes",
+      groupId: typeof body.versionGroupId === "string" ? body.versionGroupId : undefined,
+    });
+    return NextResponse.json({ ...notesPayload(latest, generated), version });
   } catch (error: any) {
     return NextResponse.json({ error: String(error?.message ?? error) }, { status: 500 });
   }

@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   extractCitationSources,
   extractWebSearchSignals,
-} from "./research.ts";
+} from "./researchSignals.ts";
 
 test("extracts query arrays and source URLs from completed web search items", () => {
   const signals = extractWebSearchSignals({

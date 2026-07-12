@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureDeckVersion } from "@/lib/deckVersions";
 import { markEditPage } from "@/lib/pipeline";
 import { readSlideImage } from "@/lib/store";
 
@@ -37,12 +38,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
     console.info("[mark] edit started", { projectId: params.id, index, source, bytes: bytes.length });
     const page = await markEditPage(params.id, index, bytes, note);
+    const version = await captureDeckVersion(params.id, {
+      prompt: note || `Apply marked edits to slide ${index}`,
+      promptSource: "message",
+      source: "ai",
+      label: `Marked slide ${index}`,
+      groupId: typeof form.get("versionGroupId") === "string" ? String(form.get("versionGroupId")) : undefined,
+    });
     console.info("[mark] edit completed", {
       projectId: params.id,
       index,
       durationMs: Date.now() - startedAt,
     });
-    return NextResponse.json({ page });
+    return NextResponse.json({ page, version });
   } catch (e: any) {
     console.error("[mark] edit failed", {
       projectId: params.id,

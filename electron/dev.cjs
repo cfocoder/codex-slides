@@ -287,7 +287,7 @@ function ensureMacDesktopBinary() {
   const bundleRoot = path.join(PROJECT_ROOT, ".tmp", "electron-dev", `${PRODUCT_NAME}.app`);
   const contents = path.join(bundleRoot, "Contents");
   const executable = path.join(contents, "MacOS", PRODUCT_NAME);
-  const markerPath = path.join(contents, ".codex-slides-dev-shell.json");
+  const markerPath = path.join(path.dirname(bundleRoot), "codex-slides-dev-shell.json");
   const marker = JSON.stringify({
     appId: `${APP_ID}.dev`,
     electronBinary,
@@ -297,7 +297,8 @@ function ensureMacDesktopBinary() {
 
   if (fs.existsSync(executable) && fs.existsSync(markerPath)) {
     try {
-      if (fs.readFileSync(markerPath, "utf8") === marker) return executable;
+      const verified = spawnSync("/usr/bin/codesign", ["--verify", bundleRoot]);
+      if (fs.readFileSync(markerPath, "utf8") === marker && verified.status === 0) return executable;
     } catch {
       // Recreate the generated shell below.
     }
@@ -307,12 +308,8 @@ function ensureMacDesktopBinary() {
   fs.mkdirSync(path.join(contents, "MacOS"), { recursive: true });
   fs.copyFileSync(path.join(sourceContents, "Info.plist"), path.join(contents, "Info.plist"));
   fs.copyFileSync(path.join(sourceContents, "PkgInfo"), path.join(contents, "PkgInfo"));
-  try {
-    fs.linkSync(electronBinary, executable);
-  } catch {
-    fs.copyFileSync(electronBinary, executable);
-    fs.chmodSync(executable, 0o755);
-  }
+  fs.copyFileSync(electronBinary, executable);
+  fs.chmodSync(executable, 0o755);
   fs.symlinkSync(path.join(sourceContents, "Frameworks"), path.join(contents, "Frameworks"), "dir");
   fs.symlinkSync(path.join(sourceContents, "Resources"), path.join(contents, "Resources"), "dir");
 
@@ -323,6 +320,11 @@ function ensureMacDesktopBinary() {
   replacePlistString(plistPath, "CFBundleName", PRODUCT_NAME);
   replacePlistString(plistPath, "LSApplicationCategoryType", "public.app-category.productivity");
   fs.writeFileSync(markerPath, marker, "utf8");
+
+  const signed = spawnSync("/usr/bin/codesign", ["--force", "--sign", "-", bundleRoot], { encoding: "utf8" });
+  if (signed.status !== 0) {
+    throw new Error(`Could not sign branded macOS desktop shell: ${signed.stderr || signed.stdout}`);
+  }
   return executable;
 }
 

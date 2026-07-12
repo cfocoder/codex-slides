@@ -165,7 +165,10 @@ export async function runChatTurn(request: ChatRequest, deps: ChatTurnDeps): Pro
       putTool("add", { name: "add_slide", kind: "write", label: t("agent.insert"), detail: t("agent.after", { index: afterIndex }), state: "running" });
       putTool("generate", { name: "generate_slide", kind: "edit", label: t("agent.renderSlide"), detail: t("agent.matchStyle"), state: "pending" });
 
-      const next = await addProjectSlide(projectId, afterIndex, plan.title);
+      const next = await addProjectSlide(projectId, afterIndex, plan.title, {
+        prompt: message,
+        groupId: runId,
+      });
       const insertedIndex = Math.min(Math.max(afterIndex + 1, 1), next.length);
       setSlides(next.map((slide) => (slide.index === insertedIndex ? { ...slide, status: "working" } : slide)));
       patchTool("add", { state: "complete", detail: t("agent.inserted", { index: insertedIndex }) });
@@ -173,7 +176,13 @@ export async function runChatTurn(request: ChatRequest, deps: ChatTurnDeps): Pro
       patchTodo(`${runId}-add`, { content: t("agent.addTask", { index: insertedIndex }) });
 
       try {
-        const generated = await generateSingleSlide(projectId, insertedIndex, plan.instruction || message, plan.title);
+        const generated = await generateSingleSlide(
+          projectId,
+          insertedIndex,
+          plan.instruction || message,
+          plan.title,
+          { prompt: message, groupId: runId },
+        );
         setSlides((items) => items.map((slide) => (slide.index === insertedIndex ? generated : slide)));
         patchTool("generate", { state: "complete", detail: t("agent.renderedSlide", { index: insertedIndex }) });
         patchTodo(`${runId}-add`, { status: "complete" });
@@ -225,7 +234,13 @@ export async function runChatTurn(request: ChatRequest, deps: ChatTurnDeps): Pro
       patchTodo(`${runId}-slide-${target}`, { status: "in_progress" });
       setSlides((slides) => slides.map((slide) => (slide.index === target ? { ...slide, status: "working" } : slide)));
       try {
-        const image = await regenerateSlide(projectId, target, plan.instruction, plan.targets.length === 1 ? plan.title : undefined);
+        const image = await regenerateSlide(
+          projectId,
+          target,
+          plan.instruction,
+          plan.targets.length === 1 ? plan.title : undefined,
+          { prompt: message, groupId: runId },
+        );
         const bust = Date.now();
         setSlides((slides) => slides.map((slide) => (
           slide.index === target

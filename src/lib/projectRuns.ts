@@ -6,6 +6,10 @@ import {
 import { loadProjectFileReferences } from "./projectFiles";
 import { planChatEdit } from "./chat";
 import {
+  currentDeckVersionSignature,
+  ensureCurrentDeckVersion,
+} from "./deckVersions";
+import {
   markEditPage,
   regeneratePage,
   renderProject,
@@ -773,11 +777,32 @@ function settleStoppedProject(projectId: string, kind: ProjectRunInput["kind"]) 
 
 async function executeProjectRun(projectId: string, run: ProjectRunState, controller: AbortController) {
   let stopped = false;
+  const before = loadProject(projectId);
+  const beforeSignature = before ? currentDeckVersionSignature(before) : "";
   try {
     if (run.input.kind === "outline") await runOutline(projectId, run, controller.signal);
     else if (run.input.kind === "render") await runRender(projectId, run, controller.signal);
     else if (run.input.kind === "mark") await runMark(projectId, run, controller.signal);
     else await runChat(projectId, run, controller.signal);
+    const latest = loadProject(projectId);
+    if (latest && currentDeckVersionSignature(latest) !== beforeSignature) {
+      const prompt = run.input.kind === "render"
+        ? latest.config.requirement
+        : run.input.kind === "mark"
+          ? run.input.mark?.note
+          : run.input.request?.message;
+      await ensureCurrentDeckVersion(latest, {
+        prompt,
+        promptSource: run.input.kind === "render" ? "project" : "message",
+        source: "ai",
+        label: run.input.kind === "render"
+          ? "Generated deck"
+          : run.input.kind === "mark"
+            ? `Marked slide ${run.input.mark?.index ?? ""}`.trim()
+            : "Deck Agent edit",
+        groupId: run.id,
+      });
+    }
   } catch (error) {
     const persistedRun = loadProject(projectId)?.activeRun;
     stopped = controller.signal.aborted

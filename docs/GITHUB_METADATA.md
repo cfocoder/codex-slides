@@ -75,10 +75,18 @@ open-design
 
 ## Social preview
 
-- Canvas: 1280 × 640 px (see [`docs/assets/readme/cover.png`](assets/readme/cover.png) for the current hero).
-- Headline: **The open-source AI slide studio inside your coding agent.**
-- Supporting line: **Research → outline → style → render → edit → present → export.**
-- Show a Codex / coding-agent terminal on the left transforming into finished slides on the right.
+A ready-to-use 1280 × 640 social card is generated at
+[`docs/assets/readme/social-preview.png`](assets/readme/social-preview.png). Upload it under
+**Settings → General → Social preview** so shared links on X, LinkedIn, and Slack render with a
+branded card (GitHub has no CLI/API for this, so it is a one-time manual upload).
+
+If regenerating:
+
+- Canvas: 1280 × 640 px.
+- Headline: **Make slides with your coding agent.**
+- Supporting line: **Codex Slides — the open-source AI slide studio inside Codex.**
+- Show a Codex / coding-agent terminal transforming into finished slides.
+- Include `Open source` and `Runs in Codex` pills.
 - Use the Codex Slides mark and the product's blue-violet accent (`#6D5EF8`).
 - Avoid tiny UI screenshots or more than two lines of text.
 
