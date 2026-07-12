@@ -31,8 +31,8 @@
   },
   "scripts": {
     "dev": "node electron/dev.cjs",
-    "dev:web": "next dev -p 4311",
-    "dev:desktop": "node electron/dev.cjs",
+    "dev:web": "node electron/dev.cjs web",
+    "dev:desktop": "node electron/dev.cjs desktop",
     "build": "next build",
     "build:desktop": "node scripts/build-desktop.mjs",
     "start": "next start -p 4311",
@@ -46,7 +46,7 @@
     "check:skill:live": "node skills/ppt-anything/scripts/probe.mjs --live",
     "check:mcp": "node --check scripts/start-mcp.mjs && node --check mcp/server.mjs && node scripts/probe-mcp.mjs",
     "check:mcp:live": "node scripts/probe-mcp.mjs --live",
-    "electron:dev": "npm run dev:desktop",
+    "electron:dev": "node electron/dev.cjs desktop",
     "electron:check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/dev.cjs && node scripts/check-electron.mjs",
     "electron:pack": "npm run build:desktop && electron-builder --dir",
     "electron:dist": "npm run build:desktop && electron-builder"

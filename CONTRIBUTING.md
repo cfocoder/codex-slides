@@ -23,8 +23,8 @@ Requirements:
 ```bash
 git clone https://github.com/nexu-io/ppt-anything.git
 cd ppt-anything
-npm install
-npm run dev
+pnpm install
+pnpm dev:web
 ```
 
 Open <http://127.0.0.1:4311>.

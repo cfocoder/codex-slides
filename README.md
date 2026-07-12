@@ -332,12 +332,13 @@ source link and check any case-level `ATTRIBUTION.yml` or notice.
 ```bash
 git clone https://github.com/nexu-io/ppt-anything.git
 cd ppt-anything
-npm install
+pnpm install
 codex login
-npm run dev
+pnpm dev
 ```
 
-Open <http://127.0.0.1:4311>.
+This starts both Web and Desktop. Open <http://127.0.0.1:4311>, or use
+`pnpm dev:web` when you only need the browser app.
 
 Production build:
 
@@ -396,9 +397,14 @@ pnpm electron:dist        # installers for the current platform
 
 Like Open Design's development runner, the Desktop entry resolves its service
 dependency first: it attaches to a healthy `PPT_ANYTHING_URL` when one already
-exists, otherwise it starts `dev:web`, waits for `/api/agents`, then opens the
+exists, otherwise it starts Web, waits for `/api/agents`, then opens the
 Electron window. Closing or interrupting the combined command stops only the
 Web process that command owns, so a separately launched Web session is kept.
+
+All three scripts use the same runner. You can also select a target through the
+single entry point (`pnpm dev -- web` or `pnpm dev -- desktop`) and use a side
+port with `pnpm dev -- --web-port 4412`. Desktop always receives the resolved
+Web URL, so its service dependency stays on the same port.
 
 Desktop builds use an isolated `.next-desktop` output so a concurrent web/dev
 build cannot overwrite the runtime being packaged.
