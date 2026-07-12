@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Palette } from "@phosphor-icons/react";
+import { DotsThree, Palette } from "@phosphor-icons/react";
 import {
   BrandDesignSystemPanel,
   type BrandDesignSystemSubmit,
@@ -68,11 +68,16 @@ import {
   patchAgentTools,
   stopRunningTools,
 } from "@/lib/agentActivity";
+import {
+  ACTIVE_PROJECT_POLL_MS,
+  IDLE_PROJECT_POLL_MS,
+  checkpointSignature,
+  jsonEqual,
+  projectResponseEtag,
+  slideImageVersion,
+} from "@/lib/projectSync";
 
 function projectSlides(project: Project): UiSlide[] {
-  // Stable across server render + hydration; avoids changing every image URL
-  // while React attaches to the server-rendered workspace.
-  const bust = new Date(project.updatedAt).getTime();
   return project.pages.map((slide) => ({
     index: slide.index,
     title: slide.title,
@@ -81,17 +86,17 @@ function projectSlides(project: Project): UiSlide[] {
       : (slide.status as UiSlide["status"]) ?? "pending",
     image: slide.image,
     error: slide.error,
-    bust,
+    bust: slideImageVersion(project, slide),
     transition: slide.transition ?? "none",
     speakerNotes: slide.speakerNotes,
   }));
 }
 
 /** Rehydrate slide state written by another Browser tab, Codex MCP call, or
- * CLI process. Project images keep stable filenames, so the persisted project
- * timestamp is also the cache-buster for externally regenerated slides. */
+ * CLI process without changing URLs for images whose bytes did not change. */
 function reconcileProjectSlides(_current: UiSlide[], latest: Project): UiSlide[] {
-  return projectSlides(latest);
+  const next = projectSlides(latest);
+  return jsonEqual(_current, next) ? _current : next;
 }
 
 function projectOutline(project: Project): OutlinePage[] {
@@ -274,8 +279,10 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   });
   const chat = conversationState.messages;
   const setChat = conversationState.setMessages;
-  const [queue, setQueue] = useState<QueuedChatRequest[]>([]);
-  const queueRef = useRef<QueuedChatRequest[]>([]);
+  const [queue, setQueue] = useState<QueuedChatRequest[]>(
+    () => (initialProject.workflow?.queuedRequests ?? []) as QueuedChatRequest[],
+  );
+  const queueRef = useRef<QueuedChatRequest[]>(queue);
   const [editingQueuedRequestId, setEditingQueuedRequestId] = useState<string | null>(null);
   const [chatContext, setChatContext] = useState<SlideChatContext | null>(null);
   const [chatFocusKey, setChatFocusKey] = useState(0);
@@ -290,15 +297,33 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   );
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const checkpointTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latestCheckpointRef = useRef<ProjectCheckpointPatch | null>(null);
+  const latestCheckpointRef = useRef<{
+    patch: ProjectCheckpointPatch;
+    signature: string;
+  } | null>(null);
   const resumeRenderRef = useRef(false);
   const projectRef = useRef<Project>(initialProject);
   const slidesRef = useRef<UiSlide[]>(slides);
   slidesRef.current = slides;
   const localWorkRef = useRef({ busy: false, running: false });
   const latestProjectVersionRef = useRef(new Date(initialProject.updatedAt).getTime() || 0);
+  const projectResponseEtagRef = useRef(projectResponseEtag(initialProject));
   const projectSyncInFlightRef = useRef(false);
   const skipNextConversationSaveRef = useRef(false);
+  const persistedConversationSignatureRef = useRef(JSON.stringify(initialProject.conversations ?? []));
+  const lastCheckpointSignatureRef = useRef(checkpointSignature({
+    config: initialProject.config,
+    title: initialProject.title,
+    researchDoc: initialProject.researchDoc ?? "",
+    workflow: {
+      stage: initialProject.status === "rendering" || initialProject.workflow?.stage === "rendering"
+        ? "rendering"
+        : stage,
+      workspaceMode: workspaceView === "files" ? "files" : "canvas",
+      inspirationSkipped,
+      queuedRequests: queue,
+    },
+  }));
   const markRunRef = useRef<{ id: string; startedAt: number; slideIndex: number } | null>(null);
 
   const [showDesignSystem, setShowDesignSystem] = useState(false);
@@ -306,7 +331,9 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   const [designSystemError, setDesignSystemError] = useState("");
   const [retuning, setRetuning] = useState(false);
   const [designSystemProgress, setDesignSystemProgress] = useState(0);
+  const [headerActionsOpen, setHeaderActionsOpen] = useState(false);
   const designSystemTriggerRef = useRef<HTMLButtonElement>(null);
+  const headerActionsRef = useRef<HTMLDivElement>(null);
 
   const currentConversationQueue = queue.filter(
     (item) => item.conversationId === conversationState.activeConversationId,
@@ -336,11 +363,16 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     try {
       const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/runs`, {
         cache: "no-store",
-        headers: { Accept: "application/json" },
+        headers: {
+          Accept: "application/json",
+          "If-None-Match": projectResponseEtagRef.current,
+        },
       });
+      if (response.status === 304) return projectRef.current;
       if (!response.ok) return projectRef.current;
       const payload = await response.json() as { project?: Project } & Partial<Project>;
       const latest = (payload.project ?? payload) as Project;
+      projectResponseEtagRef.current = response.headers.get("etag") ?? projectResponseEtag(latest);
       const latestVersion = new Date(latest.updatedAt).getTime() || 0;
       if (latestVersion <= latestProjectVersionRef.current) return latest;
 
@@ -357,12 +389,16 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       setProject(synchronized);
       setSlides((slidesNow) => reconcileProjectSlides(slidesNow, latest));
       const persistedQueue = (latest.workflow?.queuedRequests ?? []) as QueuedChatRequest[];
-      queueRef.current = persistedQueue;
-      setQueue(persistedQueue);
-      saveQueuedChatRequests(projectId, persistedQueue);
+      if (!jsonEqual(queueRef.current, persistedQueue)) {
+        queueRef.current = persistedQueue;
+        setQueue(persistedQueue);
+        saveQueuedChatRequests(projectId, persistedQueue);
+      }
       // A run may start and finish between two polls. Restore persisted chat on
       // every newer snapshot so fast Codex/MCP edits are visible as well.
-      if (latest.conversations?.length) {
+      const conversationSignature = JSON.stringify(latest.conversations ?? []);
+      if (latest.conversations?.length && conversationSignature !== persistedConversationSignatureRef.current) {
+        persistedConversationSignatureRef.current = conversationSignature;
         skipNextConversationSaveRef.current = true;
         conversationState.restoreConversations(
           latest.conversations,
@@ -380,7 +416,8 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
           setStage("inspire");
         } else if (workflowStage === "rendering" || workflowStage === "deck" || latest.status === "ready") {
           setStage("deck");
-          setOutline(projectOutline(latest));
+          const nextOutline = projectOutline(latest);
+          setOutline((currentOutline) => jsonEqual(currentOutline, nextOutline) ? currentOutline : nextOutline);
         }
       }
       return synchronized;
@@ -401,10 +438,14 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       if (document.visibilityState === "visible") refresh();
     };
 
-    refresh();
-    // Keep polling even when this tab currently looks complete: Codex, MCP, a
-    // CLI, or another Browser tab can begin a new mutation at any time.
-    const timer = window.setInterval(refresh, 1500);
+    // Active work stays near-live. An idle, server-rendered project already has
+    // a canonical snapshot, so focus/visibility plus a slower safety poll are
+    // enough to discover work started from Codex, MCP, CLI, or another tab.
+    if (activeRun) refresh();
+    const timer = window.setInterval(
+      refresh,
+      activeRun ? ACTIVE_PROJECT_POLL_MS : IDLE_PROJECT_POLL_MS,
+    );
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
@@ -413,7 +454,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [refreshPersistedProject]);
+  }, [activeRun?.id, activeRun?.status, refreshPersistedProject]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -438,6 +479,22 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [designSystemSaving, retuning, showDesignSystem]);
+
+  useEffect(() => {
+    if (!headerActionsOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!headerActionsRef.current?.contains(event.target as Node)) setHeaderActionsOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setHeaderActionsOpen(false);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [headerActionsOpen]);
 
   const say = (m: ChatMsg) => setChat((c) => [...c, m]);
 
@@ -497,10 +554,12 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
 
   function adoptRunProject(latest: Project) {
     latestProjectVersionRef.current = new Date(latest.updatedAt).getTime() || Date.now();
+    projectResponseEtagRef.current = projectResponseEtag(latest);
     projectRef.current = latest;
     setProject(latest);
     setSlides(projectSlides(latest));
     if (latest.conversations?.length) {
+      persistedConversationSignatureRef.current = JSON.stringify(latest.conversations);
       skipNextConversationSaveRef.current = true;
       conversationState.restoreConversations(
         latest.conversations,
@@ -547,8 +606,10 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       ? cached
       : (initialProject.workflow?.queuedRequests ?? []) as QueuedChatRequest[];
     if (!cached.length && restored.length) saveQueuedChatRequests(projectId, restored);
-    queueRef.current = restored;
-    setQueue(restored);
+    if (!jsonEqual(queueRef.current, restored)) {
+      queueRef.current = restored;
+      setQueue(restored);
+    }
     setEditingQueuedRequestId(null);
   }, [projectId]);
 
@@ -568,6 +629,21 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
     return () => clearTimeout(t);
   }, [activeRun, conversationState.activeConversationId, conversationState.conversations, projectId]);
 
+  const persistProjectCheckpoint = useCallback(async (
+    patch: ProjectCheckpointPatch,
+    signature: string,
+  ) => {
+    const saved = await saveProjectCheckpoint(projectId, patch);
+    lastCheckpointSignatureRef.current = signature;
+    const savedVersion = new Date(saved.updatedAt).getTime() || 0;
+    if (savedVersion >= latestProjectVersionRef.current) {
+      latestProjectVersionRef.current = savedVersion;
+      projectResponseEtagRef.current = projectResponseEtag(saved);
+      projectRef.current = { ...projectRef.current, updatedAt: saved.updatedAt };
+    }
+    if (latestCheckpointRef.current?.signature === signature) latestCheckpointRef.current = null;
+  }, [projectId]);
+
   useEffect(() => {
     const externalRendering = !running
       && (project.status === "rendering" || project.workflow?.stage === "rendering");
@@ -582,22 +658,32 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         queuedRequests: queue,
       },
     };
-    latestCheckpointRef.current = patch;
+    const signature = checkpointSignature(patch);
+    if (signature === lastCheckpointSignatureRef.current) {
+      latestCheckpointRef.current = null;
+      return;
+    }
+    latestCheckpointRef.current = { patch, signature };
     cacheProjectCheckpoint(projectId, patch);
     if (checkpointTimer.current) clearTimeout(checkpointTimer.current);
     checkpointTimer.current = setTimeout(() => {
       checkpointTimer.current = null;
-      void saveProjectCheckpoint(projectId, patch).catch(() => {});
+      void persistProjectCheckpoint(patch, signature).catch(() => {});
     }, 450);
     return () => {
-      if (checkpointTimer.current) clearTimeout(checkpointTimer.current);
+      if (checkpointTimer.current) {
+        clearTimeout(checkpointTimer.current);
+        checkpointTimer.current = null;
+      }
     };
-  }, [inspirationSkipped, project.config, project.researchDoc, project.title, projectId, queue, running, stage, workspaceView]);
+  }, [inspirationSkipped, persistProjectCheckpoint, project.config, project.researchDoc, project.title, projectId, queue, running, stage, workspaceView]);
 
   useEffect(() => {
     const flush = () => {
-      const patch = latestCheckpointRef.current;
-      if (patch) void saveProjectCheckpoint(projectId, patch).catch(() => {});
+      const pending = latestCheckpointRef.current;
+      if (pending && pending.signature !== lastCheckpointSignatureRef.current) {
+        void persistProjectCheckpoint(pending.patch, pending.signature).catch(() => {});
+      }
     };
     const onVisibility = () => { if (document.visibilityState === "hidden") flush(); };
     window.addEventListener("pagehide", flush);
@@ -607,7 +693,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       document.removeEventListener("visibilitychange", onVisibility);
       flush();
     };
-  }, [projectId]);
+  }, [persistProjectCheckpoint]);
 
   // --- draft outline stage (编辑大纲 → 确认 → 渲染) ---
 
@@ -1126,37 +1212,54 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       name: item.name,
       url: `/api/projects/${encodeURIComponent(projectId)}/materials/${encodeURIComponent(item.file)}`,
     }));
-  const brandSystemTrigger = (
-    <button
-      ref={designSystemTriggerRef}
-      type="button"
-      className={`iconbtn brand-system-trigger${showDesignSystem ? " active" : ""}`}
-      onClick={() => {
-        setDesignSystemError("");
-        setShowDesignSystem((visible) => !visible);
-      }}
-      aria-expanded={showDesignSystem}
-      aria-controls="brand-design-system-panel"
-      aria-haspopup="dialog"
-      disabled={workspaceBusy || retuning || designSystemSaving}
-      title={t("brandSystem.open")}
-    >
-      <Palette size={16} weight="regular" aria-hidden="true" />
-      <span className="brand-system-trigger-label">{t("brandSystem.button")}</span>
-      <span className="brand-system-trigger-swatches" aria-hidden="true">
-        {[designSystem.colors.primary, designSystem.colors.accent, designSystem.colors.ink, designSystem.colors.surface]
-          .map((color, index) => <i key={`${color}-${index}`} style={{ background: color }} />)}
-      </span>
-    </button>
-  );
   const projectHeaderActions = (
-    <div className="deck-header-extras">
-      <SaveProjectTemplateButton
-        projectId={projectId}
-        projectTitle={project.title}
-        disabled={workspaceBusy}
-      />
-      {brandSystemTrigger}
+    <div className="deck-header-extras" ref={headerActionsRef}>
+      <button
+        ref={designSystemTriggerRef}
+        type="button"
+        className={`iconbtn project-actions-trigger${headerActionsOpen || showDesignSystem ? " active" : ""}`}
+        onClick={() => setHeaderActionsOpen((open) => !open)}
+        aria-expanded={headerActionsOpen}
+        aria-controls="project-header-actions-menu"
+        aria-haspopup="menu"
+        title={t("topbar.moreActionsHelp")}
+      >
+        <DotsThree size={18} weight="bold" aria-hidden="true" />
+        <span className="stage-action-label">{t("topbar.moreActions")}</span>
+        <span className="caret" aria-hidden="true">▾</span>
+      </button>
+      {headerActionsOpen ? (
+        <div id="project-header-actions-menu" className="pop down project-actions-pop" role="menu">
+          <SaveProjectTemplateButton
+            projectId={projectId}
+            projectTitle={project.title}
+            disabled={workspaceBusy}
+            variant="menu-item"
+            onModalClose={() => setHeaderActionsOpen(false)}
+          />
+          <button
+            type="button"
+            className="pop-item project-actions-menu-item"
+            role="menuitem"
+            disabled={workspaceBusy || retuning || designSystemSaving}
+            onClick={() => {
+              setHeaderActionsOpen(false);
+              setDesignSystemError("");
+              setShowDesignSystem(true);
+            }}
+          >
+            <Palette size={17} weight="regular" aria-hidden="true" />
+            <span className="grow">
+              <b>{t("brandSystem.button")}</b>
+              <em>{t("brandSystem.open")}</em>
+            </span>
+            <span className="brand-system-trigger-swatches" aria-hidden="true">
+              {[designSystem.colors.primary, designSystem.colors.accent, designSystem.colors.ink, designSystem.colors.surface]
+                .map((color, index) => <i key={`${color}-${index}`} style={{ background: color }} />)}
+            </span>
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 

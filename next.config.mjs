@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Local and packaged builds serve project/community imagery directly. This
+  // avoids a platform-specific sharp binary in the Electron runtime.
+  images: { unoptimized: true },
   // Electron packages the traced Node server plus static/public assets. The
   // same build remains deployable as the normal web application.
   output: "standalone",

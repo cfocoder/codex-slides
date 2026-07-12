@@ -28,7 +28,10 @@ extraResources:
     filter:
       - "**/*"
   - from: .next-desktop/static
-    to: next/.next/static
+    # Keep the generated distDir. The standalone server embeds
+    # `distDir: .next-desktop`, so moving these assets to `.next` makes every
+    # /_next/static request miss only after the app is packaged.
+    to: next/.next-desktop/static
   - from: public
     to: next/public
 

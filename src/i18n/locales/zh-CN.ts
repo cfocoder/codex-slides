@@ -11,6 +11,8 @@ export const zhCN: Dict = {
   "settings.ja": "日本語",
   "settings.close": "关闭设置",
   "topbar.backProjects": "返回项目",
+  "topbar.moreActions": "更多",
+  "topbar.moreActionsHelp": "更多项目操作",
   "home.badge": "✧ 零配置",
   "home.tagline": "本地 Codex 负责撰写文案并绘制幻灯片",
   "home.title": "今天想做什么演示？",

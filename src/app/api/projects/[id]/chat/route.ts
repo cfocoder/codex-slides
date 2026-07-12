@@ -202,6 +202,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   // slide when this PUT eventually reached saveProject().
   const project = loadProject(params.id);
   if (!project) return NextResponse.json({ error: "project not found" }, { status: 404 });
+  const before = JSON.stringify({
+    chat: project.chat ?? [],
+    conversations: project.conversations ?? [],
+    activeConversationId: project.activeConversationId ?? "",
+  });
   if (conversations.length) {
     const requestedActiveId = String(body?.activeConversationId ?? "");
     const activeConversation = conversations.find((conversation) => conversation.id === requestedActiveId)
@@ -222,12 +227,23 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       project.activeConversationId = activeConversation.id;
     }
   }
-  saveProject(project);
+  const changed = before !== JSON.stringify({
+    chat: project.chat ?? [],
+    conversations: project.conversations ?? [],
+    activeConversationId: project.activeConversationId ?? "",
+  });
+  if (changed) saveProject(project);
   return NextResponse.json({
     ok: true,
     count: project.chat?.length ?? 0,
     conversations: project.conversations?.length ?? 0,
     activeConversationId: project.activeConversationId,
+    changed,
+  }, {
+    headers: {
+      "Cache-Control": "no-store",
+      "X-PPT-Anything-Write": changed ? "saved" : "skipped",
+    },
   });
 }
 

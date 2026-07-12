@@ -5,9 +5,11 @@ import {
   ArrowLeft,
   ArrowRight,
   Copy,
+  DownloadSimple,
   FilmStrip,
   Image,
   PencilSimple,
+  Play as PlayIcon,
   Plus,
   Sparkle,
   Trash,
@@ -559,7 +561,8 @@ export default function SlideStage({
         {showTitle ? <span className="title">{title || t("slide.untitled")}</span> : null}
         {!showTitle && title ? <span className="stage-collapsed-title" title={title}>{title}</span> : null}
         <span className="count">
-          {currentPosition >= 0 ? currentPosition + 1 : 0}/{slides.length || "…"} · {aspect}
+          <span>{currentPosition >= 0 ? currentPosition + 1 : 0}/{slides.length || "…"}</span>
+          <span className="stage-count-aspect"> · {aspect}</span>
         </span>
 
         <div className="stage-actions">
@@ -572,7 +575,9 @@ export default function SlideStage({
               aria-haspopup="menu"
               aria-expanded={playOpen}
             >
-              ▶ {t("slide.present")} <span className="caret">▾</span>
+              <PlayIcon size={16} weight="fill" aria-hidden="true" />
+              <span className="stage-action-label">{t("slide.present")}</span>
+              <span className="caret">▾</span>
             </button>
             {playOpen && rendered > 0 && (
               <div className="pop down present-pop" role="menu">
@@ -601,7 +606,9 @@ export default function SlideStage({
 
           <div ref={exportRef} className="export-wrap">
             <button className="iconbtn" disabled={!canExport} onClick={() => setExportOpen((open) => !open)} title={t("slide.exportHelp")}>
-              ⬇ {t("slide.export")} <span className="caret">▾</span>
+              <DownloadSimple size={16} weight="bold" aria-hidden="true" />
+              <span className="stage-action-label">{t("slide.export")}</span>
+              <span className="caret">▾</span>
             </button>
             {exportOpen && canExport && (
               <div className="pop down export-pop">
@@ -682,7 +689,12 @@ export default function SlideStage({
         >
           {current?.image ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={fileUrl(projectId!, current.image, current.bust)} alt={current.title} />
+            <img
+              src={fileUrl(projectId!, current.image, current.bust)}
+              alt={current.title}
+              decoding="async"
+              fetchPriority="high"
+            />
           ) : current?.status === "working" ? (
             <SlideSkeleton caption={t("slide.drawing", { index: current.index, title: current.title ? ` — ${current.title}` : "" })} />
           ) : current?.status === "error" ? (
@@ -756,7 +768,12 @@ export default function SlideStage({
                 <div className="thumb" style={{ ["--ar" as any]: arCss }}>
                   {slide.image ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={fileUrl(projectId!, slide.image, slide.bust)} alt={slide.title} />
+                    <img
+                      src={fileUrl(projectId!, slide.image, slide.bust)}
+                      alt={slide.title}
+                      loading="lazy"
+                      decoding="async"
+                    />
                   ) : slide.status === "error" ? (
                     <span className="mini-ph">⚠</span>
                   ) : slide.status === "working" ? (

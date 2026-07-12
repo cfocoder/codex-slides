@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, shell } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, ipcMain, shell } = require("electron");
 const fs = require("node:fs");
 const http = require("node:http");
 const net = require("node:net");
@@ -9,6 +9,18 @@ let mainWindow = null;
 let serverProcess = null;
 let serverLogFd = null;
 let appUrl = "";
+
+ipcMain.handle("ppt-anything:copy-text", (event, value) => {
+  if (typeof value !== "string" || !value || value.length > 32_768) return false;
+  try {
+    const senderOrigin = new URL(event.senderFrame.url).origin;
+    if (!appUrl || senderOrigin !== new URL(appUrl).origin) return false;
+  } catch {
+    return false;
+  }
+  clipboard.writeText(value);
+  return true;
+});
 
 function freePort(preferred = 4311) {
   return new Promise((resolve, reject) => {
@@ -170,4 +182,3 @@ app.on("before-quit", () => { app.isQuitting = true; stopServer(); });
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
-

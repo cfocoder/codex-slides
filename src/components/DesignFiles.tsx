@@ -538,8 +538,15 @@ export default function DesignFiles({
     if (!selected?.absolutePath) return;
     let copied = false;
     try {
-      await navigator.clipboard.writeText(selected.absolutePath);
-      copied = true;
+      const desktop = (window as typeof window & {
+        pptAnythingDesktop?: { copyText?: (value: string) => Promise<boolean> };
+      }).pptAnythingDesktop;
+      if (desktop?.copyText) {
+        copied = await desktop.copyText(selected.absolutePath);
+      } else {
+        await navigator.clipboard.writeText(selected.absolutePath);
+        copied = true;
+      }
     } catch {
       const input = document.createElement("textarea");
       input.value = selected.absolutePath;

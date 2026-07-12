@@ -13,3 +13,6 @@ next-env.d.ts
 .next-dev/**
 .next/**
 .pnpm-store/**
+.next-codex-perf/**
+.next-playback-qa/**
+.next-qa/**

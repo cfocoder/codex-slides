@@ -10,6 +10,7 @@ import {
   getCommunitySource,
   inspireChips,
   matchCommunityTemplates,
+  scoreCommunityTemplates,
   type CommunityTemplate,
 } from "@/lib/community";
 import { rankInspire } from "@/lib/deckEdit";
@@ -113,17 +114,30 @@ export default function InspireDialog({
   }, [order]);
 
   const q = search.trim().toLowerCase();
-  const visible = ordered.filter((t) => {
-    if (group !== "all" && t.group !== group) return false;
-    if (!q) return true;
-    const sources = (t.sourceIds ?? [])
-      .map((sourceId) => getCommunitySource(sourceId)?.name ?? sourceId)
-      .join(" ");
-    return [t.name, t.group, t.description, t.author, t.tags.join(" "), sources]
-      .join(" ")
-      .toLowerCase()
-      .includes(q);
-  });
+  const searchScores = useMemo(
+    () => new Map(
+      q
+        ? scoreCommunityTemplates(q).map(({ t, score }) => [t.id, score] as const)
+        : [],
+    ),
+    [q],
+  );
+  const visible = ordered
+    .filter((t) => {
+      if (group !== "all" && t.group !== group) return false;
+      if (!q) return true;
+      const sources = (t.sourceIds ?? [])
+        .map((sourceId) => getCommunitySource(sourceId)?.name ?? sourceId)
+        .join(" ");
+      const directMatch = [t.name, t.group, t.description, t.author, t.tags.join(" "), sources]
+        .join(" ")
+        .toLowerCase()
+        .includes(q);
+      return directMatch || (searchScores.get(t.id) ?? 0) > 0;
+    })
+    .sort((a, b) => q
+      ? (searchScores.get(b.id) ?? 0) - (searchScores.get(a.id) ?? 0)
+      : 0);
 
   const pickedTpl = getCommunityTemplate(picked);
   const pickedSource = pickedTpl?.sourceIds?.map(getCommunitySource).find(Boolean);

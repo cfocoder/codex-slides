@@ -232,7 +232,7 @@ export function readProjectCheckpointCache(projectId: string): ProjectCheckpoint
 export async function saveProjectCheckpoint(
   projectId: string,
   patch: ProjectCheckpointPatch,
-): Promise<void> {
+): Promise<Project> {
   const cachedPatch = cacheProjectCheckpoint(projectId, patch);
   const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, {
     method: "PATCH",
@@ -243,10 +243,11 @@ export async function saveProjectCheckpoint(
     }),
     keepalive: true,
   });
+  const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
     throw new Error(data.error || `HTTP ${response.status}`);
   }
+  return data as Project;
 }
 
 /** Step 5: render the confirmed draft's slides, one image per slide. */

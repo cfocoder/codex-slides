@@ -8,6 +8,8 @@ export const en = {
   "settings.ja": "Japanese",
   "settings.close": "Close settings",
   "topbar.backProjects": "Back to projects",
+  "topbar.moreActions": "More",
+  "topbar.moreActionsHelp": "More project actions",
   "home.badge": "✧ Zero-config",
   "home.tagline": "your local Codex writes the copy and draws the slides",
   "home.title": "What would you like to make?",

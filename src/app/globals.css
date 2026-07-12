@@ -11007,6 +11007,132 @@ a {
   }
 }
 
+/* Project workspace header: keep the global settings control on the same
+   57px toolbar plane and collapse secondary project actions into one menu. */
+.stage-head {
+  container-name: stageheader;
+  container-type: inline-size;
+}
+body:has(.project-ws) .global-settings {
+  top: 0;
+  right: 0;
+  display: flex;
+  width: 60px;
+  height: 57px;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+body:has(.project-ws) .global-settings-trigger {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+}
+body:has(.project-ws) .global-settings-popover {
+  top: calc(100% + 8px);
+  right: 12px;
+}
+.deck-header-extras {
+  position: relative;
+}
+.project-actions-trigger.active {
+  color: var(--accent-ink);
+  border-color: #b9ccff;
+  background: var(--accent-soft);
+}
+.project-actions-pop {
+  right: 0;
+  width: min(310px, calc(100vw - 24px));
+  padding: 7px;
+}
+.project-actions-menu-item {
+  min-height: 48px;
+  font: inherit;
+}
+.project-actions-menu-item > svg {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+.project-actions-menu-item .grow {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.project-actions-menu-item b {
+  font-size: 12.5px;
+  font-style: normal;
+  font-weight: 650;
+}
+.project-actions-menu-item em {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 450;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-actions-menu-item:disabled {
+  opacity: 0.44;
+  cursor: not-allowed;
+}
+.project-actions-menu-item:disabled:hover {
+  background: transparent;
+}
+
+/* Container-based density follows the real canvas width, including when the
+   chat panel is open, instead of guessing from the viewport alone. */
+@container stageheader (max-width: 900px) {
+  .workspace-mode-tabs button {
+    width: 32px;
+    padding-inline: 0;
+  }
+  .workspace-mode-tabs button > span,
+  .workspace-mode-tabs small,
+  .stage-count-aspect,
+  .stage-actions .stage-action-label,
+  .stage-actions .caret {
+    display: none;
+  }
+  .stage-actions .iconbtn,
+  .stage-actions .export-wrap > .iconbtn {
+    width: 34px;
+    justify-content: center;
+    padding-inline: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  body:has(.project-ws) .global-settings {
+    width: 56px;
+    height: 58px;
+    padding-inline: 8px;
+  }
+  body:has(.project-ws) .global-settings-trigger {
+    width: 40px;
+    height: 40px;
+  }
+  .stage-actions .stage-action-label,
+  .stage-actions .caret {
+    display: inline;
+  }
+  .stage-actions .iconbtn,
+  .stage-actions .export-wrap > .iconbtn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .stage-actions .caret {
+    display: none;
+  }
+}
+
 @media (forced-colors: active) {
   .workspace-mode-tabs,
   .iconbtn,

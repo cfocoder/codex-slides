@@ -5,16 +5,22 @@ import {
   startProjectRun,
   stopProjectRun,
 } from "@/lib/projectRuns";
+import { projectResponseEtag } from "@/lib/projectSync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 /** Read the canonical project and revive a persisted run after a local server reload. */
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   const project = ensureProjectRun(params.id);
   if (!project) return NextResponse.json({ error: "project not found" }, { status: 404 });
-  return NextResponse.json({ project, activeRun: project.activeRun ?? null });
+  const etag = projectResponseEtag(project);
+  const headers = { "Cache-Control": "no-store", ETag: etag };
+  if (req.headers.get("if-none-match")?.split(",").map((value) => value.trim()).includes(etag)) {
+    return new Response(null, { status: 304, headers });
+  }
+  return NextResponse.json({ project, activeRun: project.activeRun ?? null }, { headers });
 }
 
 /** Start a detached project job. The response returns immediately; progress is

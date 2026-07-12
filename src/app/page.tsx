@@ -86,6 +86,7 @@ import {
 import { useChatConversations } from "@/lib/useChatConversations";
 import { runChatTurn } from "@/lib/chatTurn";
 import { buildWorkflowProgress } from "@/lib/workflowProgress";
+import { checkpointSignature } from "@/lib/projectSync";
 import type { DesignFile, WorkspaceMode } from "@/lib/designFiles";
 import { useI18n } from "@/i18n/I18nProvider";
 
@@ -161,7 +162,8 @@ export default function Home() {
   const [scenarioOpenRequestKey, setScenarioOpenRequestKey] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const checkpointTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latestCheckpointRef = useRef<ProjectCheckpointPatch | null>(null);
+  const latestCheckpointRef = useRef<{ patch: ProjectCheckpointPatch; signature: string } | null>(null);
+  const lastCheckpointSignatureRef = useRef<string | null>(null);
   const creatingProjectRef = useRef(false);
   const markRunRef = useRef<{ id: string; startedAt: number; slideIndex: number } | null>(null);
   // Deep-research surfacing: the assistant turn that shows live web searches.
@@ -210,9 +212,18 @@ export default function Home() {
     return stage;
   }
 
-  function persistCheckpoint(id = projectId) {
+  function persistCheckpoint(
+    id: string | null = projectId,
+    patch: ProjectCheckpointPatch = checkpointPatch(),
+  ) {
     if (!id) return Promise.resolve();
-    return saveProjectCheckpoint(id, checkpointPatch());
+    const signature = checkpointSignature(patch);
+    if (signature === lastCheckpointSignatureRef.current) return Promise.resolve();
+    return saveProjectCheckpoint(id, patch).then((saved) => {
+      lastCheckpointSignatureRef.current = signature;
+      if (latestCheckpointRef.current?.signature === signature) latestCheckpointRef.current = null;
+      return saved;
+    });
   }
 
   function checkpointPatch() {
@@ -242,15 +253,23 @@ export default function Home() {
   useEffect(() => {
     if (!projectId) return;
     const patch = checkpointPatch();
-    latestCheckpointRef.current = patch;
+    const signature = checkpointSignature(patch);
+    if (signature === lastCheckpointSignatureRef.current) {
+      latestCheckpointRef.current = null;
+      return;
+    }
+    latestCheckpointRef.current = { patch, signature };
     cacheProjectCheckpoint(projectId, patch);
     if (checkpointTimer.current) clearTimeout(checkpointTimer.current);
     checkpointTimer.current = setTimeout(() => {
       checkpointTimer.current = null;
-      void persistCheckpoint(projectId).catch(() => {});
+      void persistCheckpoint(projectId, patch).catch(() => {});
     }, 450);
     return () => {
-      if (checkpointTimer.current) clearTimeout(checkpointTimer.current);
+      if (checkpointTimer.current) {
+        clearTimeout(checkpointTimer.current);
+        checkpointTimer.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -272,8 +291,10 @@ export default function Home() {
   useEffect(() => {
     if (!projectId) return;
     const flush = () => {
-      const patch = latestCheckpointRef.current;
-      if (patch) void saveProjectCheckpoint(projectId, patch).catch(() => {});
+      const pending = latestCheckpointRef.current;
+      if (pending && pending.signature !== lastCheckpointSignatureRef.current) {
+        void persistCheckpoint(projectId, pending.patch).catch(() => {});
+      }
     };
     const onVisibility = () => { if (document.visibilityState === "hidden") flush(); };
     window.addEventListener("pagehide", flush);

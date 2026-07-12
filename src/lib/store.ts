@@ -6,6 +6,7 @@ import { DATA_ROOT } from "./dataPaths";
 import type { Project, SlidePage } from "./types";
 
 export const DATA_DIR = path.join(DATA_ROOT, "projects");
+const projectFileSyncSignatures = new Map<string, string>();
 
 function ensureDir(p: string) {
   fs.mkdirSync(p, { recursive: true });
@@ -63,12 +64,36 @@ export function saveProject(project: Project): void {
 
 function writeGeneratedFile(dir: string, name: string, content: string) {
   ensureDir(dir);
-  fs.writeFileSync(path.join(dir, name), content, "utf8");
+  const file = path.join(dir, name);
+  try {
+    if (fs.readFileSync(file, "utf8") === content) return;
+  } catch {
+    // A missing or unreadable generated file is repaired by the write below.
+  }
+  fs.writeFileSync(file, content, "utf8");
 }
 
 /** Keep agent-created inputs and intermediate decisions visible as ordinary files. */
 export function syncProjectFiles(project: Project): void {
+  const signature = JSON.stringify({
+    title: project.title,
+    config: project.config,
+    outline: project.outline,
+    chat: project.chat,
+    researchDoc: project.researchDoc,
+  });
   const dir = path.join(projectDir(project.id), "files", "generated");
+  const expectedFiles = ["brief.md", "outline.md", "deck-config.json"];
+  if (project.config.designSystem) expectedFiles.push("brand-design-system.json");
+  if (project.researchDoc) expectedFiles.push("research.md");
+  if (project.chat?.length) expectedFiles.push("conversation.md");
+  if (project.config.template || project.chat?.some((message) => message.inspiration)) {
+    expectedFiles.push("inspiration.json");
+  }
+  if (
+    projectFileSyncSignatures.get(project.id) === signature
+    && expectedFiles.every((name) => fs.existsSync(path.join(dir, name)))
+  ) return;
   const messages = project.chat ?? [];
   const outline = (project.outline ?? []).map((page, i) =>
     `## ${i + 1}. ${page.title}\n\n${page.points.map((point) => `- ${point}`).join("\n")}`,
@@ -125,6 +150,7 @@ export function syncProjectFiles(project: Project): void {
     });
     writeGeneratedFile(dir, "inspiration.json", `${JSON.stringify(snapshots, null, 2)}\n`);
   }
+  projectFileSyncSignatures.set(project.id, signature);
 }
 
 export function loadProject(id: string): Project | null {
@@ -177,11 +203,32 @@ export function saveMarkSnapshot(id: string, index: number, bytes: Buffer): stri
 }
 
 export function readSlideImage(id: string, name: string): Buffer | null {
+  return readSlideImageAsset(id, name)?.bytes ?? null;
+}
+
+export interface SlideImageAsset {
+  bytes: Buffer;
+  etag: string;
+  lastModified: string;
+  size: number;
+}
+
+/** Read metadata before bytes so conditional image requests can return 304
+ * without allocating and copying a multi-megabyte PNG. */
+export function readSlideImageAsset(id: string, name: string): SlideImageAsset | null {
   // guard against path traversal
   if (!/^[\w.-]+$/.test(name)) return null;
   const f = path.join(projectDir(id), name);
   if (!fs.existsSync(f)) return null;
-  return fs.readFileSync(f);
+  const stat = fs.statSync(f);
+  return {
+    get bytes() {
+      return fs.readFileSync(f);
+    },
+    etag: `W/"slide-${stat.size}-${Math.trunc(stat.mtimeMs)}"`,
+    lastModified: stat.mtime.toUTCString(),
+    size: stat.size,
+  };
 }
 
 /** Persist an ordered page array and compact both indexes and on-disk PNG names. */

@@ -163,6 +163,9 @@ export interface SlidePage {
   description?: string; // "页面文字" body used to compose the image
   imagePrompt?: string;
   image?: string; // file name relative to the project dir, e.g. "03.png"
+  /** Changes only when this slide's image bytes change. Metadata saves must not
+   * invalidate every image in the deck. */
+  imageUpdatedAt?: number;
   status: SlideStatus;
   error?: string;
   /** Presentation-mode transition used when this page becomes active. */

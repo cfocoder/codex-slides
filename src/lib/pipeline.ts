@@ -299,6 +299,7 @@ export async function renderProject(
         signal,
       });
       page.image = saveSlideImage(id, page.index, bytes);
+      page.imageUpdatedAt = Date.now();
       page.status = "rendered";
       saveProject(project);
       emit({ type: "page_rendered", index: page.index, image: page.image });
@@ -455,6 +456,7 @@ export async function regeneratePage(
     signal,
   });
   page.image = saveSlideImage(id, index, bytes);
+  page.imageUpdatedAt = Date.now();
   page.status = "rendered";
   page.error = undefined;
   // Text/image generation can take minutes while chat persistence continues in
@@ -497,6 +499,7 @@ export async function markEditPage(
     signal,
   });
   page.image = saveSlideImage(id, index, bytes);
+  page.imageUpdatedAt = Date.now();
   page.status = "rendered";
   page.error = undefined;
   const latest = loadProject(id);
@@ -504,6 +507,7 @@ export async function markEditPage(
   const latestPage = latest.pages.find((candidate) => candidate.index === index);
   if (!latestPage) throw new Error("page not found");
   latestPage.image = page.image;
+  latestPage.imageUpdatedAt = page.imageUpdatedAt;
   latestPage.status = page.status;
   latestPage.error = undefined;
   saveProject(latest);

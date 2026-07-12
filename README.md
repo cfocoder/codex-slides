@@ -385,11 +385,20 @@ available loopback port and stores durable data in the operating system's app
 data directory.
 
 ```bash
+pnpm dev                  # Web + Desktop; Ctrl+C stops the services it started
+pnpm dev:web              # Web only at http://localhost:4311
+pnpm dev:desktop          # Desktop; reuse a running Web service or start one
 pnpm electron:check       # validate the desktop/runtime contract
-pnpm electron:dev         # Next.js dev server + Electron window
+pnpm electron:dev         # alias of pnpm dev:desktop
 pnpm electron:pack        # unpacked app for the current platform
 pnpm electron:dist        # installers for the current platform
 ```
+
+Like Open Design's development runner, the Desktop entry resolves its service
+dependency first: it attaches to a healthy `PPT_ANYTHING_URL` when one already
+exists, otherwise it starts `dev:web`, waits for `/api/agents`, then opens the
+Electron window. Closing or interrupting the combined command stops only the
+Web process that command owns, so a separately launched Web session is kept.
 
 Desktop builds use an isolated `.next-desktop` output so a concurrent web/dev
 build cannot overwrite the runtime being packaged.

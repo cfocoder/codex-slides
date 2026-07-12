@@ -1,17 +1,21 @@
 "use client";
 
 import { Check, CircleNotch, StackSimple, X } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/i18n/I18nProvider";
 
 export default function SaveProjectTemplateButton({
   projectId,
   projectTitle,
   disabled,
+  variant = "toolbar",
+  onModalClose,
 }: {
   projectId: string;
   projectTitle: string;
   disabled?: boolean;
+  variant?: "toolbar" | "menu-item";
+  onModalClose?: () => void;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -21,14 +25,19 @@ export default function SaveProjectTemplateButton({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
+  const close = useCallback(() => {
+    setOpen(false);
+    onModalClose?.();
+  }, [onModalClose]);
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !saving) setOpen(false);
+      if (event.key === "Escape" && !saving) close();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, saving]);
+  }, [close, open, saving]);
 
   function show() {
     setName(projectTitle);
@@ -52,7 +61,7 @@ export default function SaveProjectTemplateButton({
       if (!response.ok) throw new Error(data.error || t("projectTemplates.saveFailed"));
       setSaved(true);
       window.dispatchEvent(new CustomEvent("ppt-anything:templates-changed", { detail: { template: data.template } }));
-      window.setTimeout(() => setOpen(false), 700);
+      window.setTimeout(close, 700);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -64,16 +73,22 @@ export default function SaveProjectTemplateButton({
     <>
       <button
         type="button"
-        className="iconbtn project-template-save-trigger"
+        className={variant === "menu-item" ? "pop-item project-actions-menu-item" : "iconbtn project-template-save-trigger"}
         onClick={show}
         disabled={disabled}
         title={t("projectTemplates.saveHelp")}
+        role={variant === "menu-item" ? "menuitem" : undefined}
       >
         <StackSimple size={16} />
-        <span>{t("projectTemplates.saveButton")}</span>
+        {variant === "menu-item" ? (
+          <span className="grow">
+            <b>{t("projectTemplates.saveButton")}</b>
+            <em>{t("projectTemplates.saveHelp")}</em>
+          </span>
+        ) : <span>{t("projectTemplates.saveButton")}</span>}
       </button>
       {open ? (
-        <div className="modal-bg project-template-modal-bg" onMouseDown={(event) => event.target === event.currentTarget && !saving && setOpen(false)}>
+        <div className="modal-bg project-template-modal-bg" onMouseDown={(event) => event.target === event.currentTarget && !saving && close()}>
           <div className="project-template-modal" role="dialog" aria-modal="true" aria-labelledby="project-template-modal-title">
             <header>
               <div>
@@ -83,7 +98,7 @@ export default function SaveProjectTemplateButton({
                   <p>{t("projectTemplates.saveSubtitle")}</p>
                 </div>
               </div>
-              <button type="button" onClick={() => setOpen(false)} disabled={saving} aria-label={t("settings.close")}><X size={17} /></button>
+              <button type="button" onClick={close} disabled={saving} aria-label={t("settings.close")}><X size={17} /></button>
             </header>
             <form className="project-template-modal-form" onSubmit={(event) => { event.preventDefault(); void save(); }}>
               <div className="project-template-modal-body">
@@ -105,7 +120,7 @@ export default function SaveProjectTemplateButton({
                 {error ? <p className="project-template-modal-error" role="alert">{error}</p> : null}
               </div>
               <footer>
-                <button type="button" onClick={() => setOpen(false)} disabled={saving}>{t("common.cancel")}</button>
+                <button type="button" onClick={close} disabled={saving}>{t("common.cancel")}</button>
                 <button type="submit" className="primary" disabled={!name.trim() || saving || saved}>
                   {saving ? <CircleNotch className="design-files-spinner" size={15} /> : saved ? <Check size={15} weight="bold" /> : <StackSimple size={15} />}
                   {saving ? t("common.saving") : saved ? t("projectTemplates.saved") : t("projectTemplates.save")}

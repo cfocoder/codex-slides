@@ -10,6 +10,8 @@ export const ja: Dict = {
   "settings.ja": "日本語",
   "settings.close": "設定を閉じる",
   "topbar.backProjects": "プロジェクトに戻る",
+  "topbar.moreActions": "その他",
+  "topbar.moreActionsHelp": "その他のプロジェクト操作",
   "home.badge": "✧ 設定不要",
   "home.tagline": "ローカルの Codex が文章を作成し、スライドを描画します",
   "home.title": "何を作成しますか？",

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { coerceConfig } from "@/lib/config";
 import { normalizeDeckDesignSystem } from "@/lib/designSystem";
 import { attachMaterialsToProject } from "@/lib/materials";
+import { editableProjectSignature, projectResponseEtag } from "@/lib/projectSync";
 import { loadProject, saveProject } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -19,6 +20,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const body = await req.json().catch(() => ({}));
   const project = loadProject(params.id);
   if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const beforeSignature = editableProjectSignature(project);
+  const requestedWorkflowUpdatedAt = typeof body.workflow?.updatedAt === "number"
+    && Number.isFinite(body.workflow.updatedAt)
+    ? body.workflow.updatedAt
+    : undefined;
 
   if (body.config && typeof body.config === "object") {
     project.config = coerceConfig({ ...project.config, ...body.config });
@@ -35,7 +41,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     project.workflow = {
       ...(project.workflow ?? { stage: "outline" as const }),
       ...(workflowStages.has(next.stage) ? { stage: next.stage } : {}),
-      ...(typeof next.updatedAt === "number" && Number.isFinite(next.updatedAt) ? { updatedAt: next.updatedAt } : {}),
       ...(Array.isArray(next.questions) ? { questions: next.questions.slice(0, 12) } : {}),
       ...(next.clarifyForm && typeof next.clarifyForm === "object" ? { clarifyForm: next.clarifyForm } : {}),
       ...(typeof next.clarifyAnswerSummary === "string" ? { clarifyAnswerSummary: next.clarifyAnswerSummary } : {}),
@@ -79,6 +84,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     designSystem.brand.assetMaterialIds = designSystem.brand.assetMaterialIds.filter((id) => availableIds.has(id));
     project.config.designSystem = designSystem;
   }
+  if (editableProjectSignature(project) === beforeSignature) {
+    return NextResponse.json(project, {
+      headers: {
+        "Cache-Control": "no-store",
+        ETag: projectResponseEtag(project),
+        "X-PPT-Anything-Write": "skipped",
+      },
+    });
+  }
+  if (body.workflow && project.workflow) {
+    project.workflow.updatedAt = requestedWorkflowUpdatedAt ?? Date.now();
+  }
   saveProject(project);
-  return NextResponse.json(project);
+  return NextResponse.json(project, {
+    headers: {
+      "Cache-Control": "no-store",
+      ETag: projectResponseEtag(project),
+      "X-PPT-Anything-Write": "saved",
+    },
+  });
 }

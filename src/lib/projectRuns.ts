@@ -801,6 +801,8 @@ function launchRun(projectId: string, run: ProjectRunState, initialize: boolean)
   if (jobs.has(projectId)) return;
   const controller = new AbortController();
   if (initialize) initializeTranscript(projectId, run);
+  // Persist liveness less aggressively than UI progress. Real step changes save
+  // immediately; this heartbeat only protects recovery after a worker restart.
   const heartbeat = setInterval(() => {
     const active = loadProject(projectId)?.activeRun;
     if (!active || active.id !== run.id || active.status === "stopping") {
@@ -808,7 +810,7 @@ function launchRun(projectId: string, run: ProjectRunState, initialize: boolean)
       return;
     }
     patchActiveRun(projectId, run.id, {});
-  }, 2000);
+  }, 5000);
   const promise = Promise.resolve().then(() => executeProjectRun(projectId, run, controller));
   jobs.set(projectId, { id: run.id, controller, promise, heartbeat });
 }

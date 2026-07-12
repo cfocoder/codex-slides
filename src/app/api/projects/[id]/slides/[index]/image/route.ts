@@ -31,6 +31,7 @@ export async function POST(
   const suppliedTitle = String(form.get("title") ?? "").trim();
   if (suppliedTitle) page.title = suppliedTitle.slice(0, 80);
   page.image = saveSlideImage(project.id, index, bytes);
+  page.imageUpdatedAt = Date.now();
   page.status = "rendered";
   page.error = undefined;
   page.description = "User-uploaded slide image";
