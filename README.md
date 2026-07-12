@@ -391,6 +391,9 @@ pnpm electron:pack        # unpacked app for the current platform
 pnpm electron:dist        # installers for the current platform
 ```
 
+Desktop builds use an isolated `.next-desktop` output so a concurrent web/dev
+build cannot overwrite the runtime being packaged.
+
 Pushing a `v*` tag runs
 [`release-desktop.yml`](.github/workflows/release-desktop.yml), builds signed-off
 artifacts on native macOS, Windows, and Linux runners, and publishes the `.dmg`,

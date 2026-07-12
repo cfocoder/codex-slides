@@ -31,7 +31,8 @@
   },
   "scripts": {
     "dev": "next dev -p 4311",
-    "build": "next build && node scripts/prepare-standalone.mjs",
+    "build": "next build",
+    "build:desktop": "node scripts/build-desktop.mjs",
     "start": "next start -p 4311",
     "test": "node --test src/lib/*.test.mjs",
     "typecheck": "tsc --noEmit",
@@ -45,8 +46,8 @@
     "check:mcp:live": "node scripts/probe-mcp.mjs --live",
     "electron:dev": "node electron/dev.cjs",
     "electron:check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/dev.cjs && node scripts/check-electron.mjs",
-    "electron:pack": "npm run build && electron-builder --dir",
-    "electron:dist": "npm run build && electron-builder"
+    "electron:pack": "npm run build:desktop && electron-builder --dir",
+    "electron:dist": "npm run build:desktop && electron-builder"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

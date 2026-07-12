@@ -1,5 +1,6 @@
 /node_modules
 /.next
+/.next-desktop
 /out
 /dist
 /data
@@ -11,3 +12,4 @@ next-env.d.ts
 .claude-sessions/**
 .next-dev/**
 .next/**
+.pnpm-store/**

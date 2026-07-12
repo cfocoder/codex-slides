@@ -7,7 +7,8 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const standalone = join(root, ".next", "standalone");
+const distDir = process.env.PPT_ANYTHING_DIST_DIR || ".next-desktop";
+const standalone = join(root, distDir, "standalone");
 const server = join(standalone, "server.js");
 if (!existsSync(server)) throw new Error("Next standalone server was not produced.");
 
@@ -68,14 +69,19 @@ for (const unsafe of ["data", ".next-dev", ".claude"]) {
 }
 
 const standaloneRequire = createRequire(server);
-for (const dependency of [...runtimeDependencies, "styled-jsx"]) {
+for (const dependency of runtimeDependencies) {
   const resolved = standaloneRequire.resolve(dependency);
   if (!resolved.startsWith(`${standalone}${sep}`)) {
     throw new Error(`${dependency} escaped the standalone runtime: ${resolved}`);
   }
 }
 
-const metadataHelper = standaloneRequire.resolve("next/dist/lib/metadata/get-metadata-route");
+const nextRequire = createRequire(join(destinationNext, "package.json"));
+const styledJsx = nextRequire.resolve("styled-jsx/package.json");
+if (!styledJsx.startsWith(`${standalone}${sep}`)) {
+  throw new Error(`styled-jsx escaped the standalone runtime: ${styledJsx}`);
+}
+const metadataHelper = nextRequire.resolve("next/dist/lib/metadata/get-metadata-route");
 process.stdout.write(
   `Standalone runtime ready: ${relative(standalone, metadataHelper)}; local project data excluded.\n`,
 );

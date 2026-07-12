@@ -55,7 +55,7 @@ jobs:
         run: pnpm electron:check
 
       - name: Build standalone web server
-        run: pnpm build
+        run: pnpm build:desktop
 
       - name: Package desktop app
         shell: bash
@@ -88,4 +88,3 @@ jobs:
         with:
           generate_release_notes: true
           files: release-artifacts/**
-
