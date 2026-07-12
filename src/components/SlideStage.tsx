@@ -2,6 +2,8 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowLeft,
+  ArrowRight,
   Copy,
   FilmStrip,
   Image,
@@ -21,6 +23,7 @@ import {
   fileUrl,
   generateProjectSpeakerNotes,
   markSlide,
+  moveProjectSlide,
   saveMarkSource,
   saveProjectSpeakerNote,
   setProjectSlideTransition,
@@ -345,6 +348,28 @@ export default function SlideStage({
     }
   }
 
+  async function reorderPage(index: number, delta: -1 | 1) {
+    if (!projectId || busy || structureBusy) return;
+    const toIndex = index + delta;
+    if (toIndex < 1 || toIndex > slides.length) return;
+    setStructureBusy(true);
+    setActionError("");
+    try {
+      const before = [...slides];
+      const reordered = [...before];
+      const [moved] = reordered.splice(index - 1, 1);
+      reordered.splice(toIndex - 1, 0, moved);
+      const next = await moveProjectSlide(projectId, index, toIndex);
+      const prepared = await prepareStructuralSlides(next, (slide) => reordered[slide.index - 1]);
+      replaceSlides(prepared);
+      pick(toIndex);
+    } catch (error: any) {
+      setActionError(String(error?.message ?? error));
+    } finally {
+      setStructureBusy(false);
+    }
+  }
+
   function askAgent(index: number) {
     const slide = slides.find((item) => item.index === index);
     if (!slide) return;
@@ -630,6 +655,14 @@ export default function SlideStage({
             >
               <Image size={16} />
               <span>{current.image ? t("slide.replace") : t("slide.upload")}</span>
+            </button>
+            <button type="button" onClick={() => void reorderPage(current.index, -1)} disabled={!canEdit || current.index <= 1} title={t("slide.moveLeftHelp")}>
+              <ArrowLeft size={16} />
+              <span>{t("slide.moveLeft")}</span>
+            </button>
+            <button type="button" onClick={() => void reorderPage(current.index, 1)} disabled={!canEdit || current.index >= slides.length} title={t("slide.moveRightHelp")}>
+              <ArrowRight size={16} />
+              <span>{t("slide.moveRight")}</span>
             </button>
             <button type="button" onClick={() => duplicatePage(current.index)} disabled={!canEdit} title={t("slide.duplicateHelp")}>
               <Copy size={16} />

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { coerceConfig } from "@/lib/config";
 import { attachMaterialsToProject } from "@/lib/materials";
+import { applyProjectTemplateAssets } from "@/lib/projectTemplates";
 import { ensureProjectRun } from "@/lib/projectRuns";
 import { listProjects, loadProject, newProjectId, saveProject } from "@/lib/store";
 import type { Project } from "@/lib/types";
@@ -70,6 +71,7 @@ export async function POST(req: Request) {
     const attachedIds = new Set(project.materials.map((material) => material.id));
     project.config.materialIds = config.materialIds.filter((materialId) => attachedIds.has(materialId));
   }
+  applyProjectTemplateAssets(project);
   saveProject(project);
   return NextResponse.json(project, { status: 201 });
 }

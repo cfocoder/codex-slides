@@ -1,9 +1,11 @@
 // On-disk project store: web/data/projects/<id>/{project.json, NN.png}
 import fs from "node:fs";
 import path from "node:path";
+import { getCommunityTemplate } from "./community";
+import { DATA_ROOT } from "./dataPaths";
 import type { Project, SlidePage } from "./types";
 
-export const DATA_DIR = path.join(process.cwd(), "data", "projects");
+export const DATA_DIR = path.join(DATA_ROOT, "projects");
 
 function ensureDir(p: string) {
   fs.mkdirSync(p, { recursive: true });
@@ -104,7 +106,25 @@ export function syncProjectFiles(project: Project): void {
       resolved: true,
     });
   }
-  if (inspirations.length) writeGeneratedFile(dir, "inspiration.json", `${JSON.stringify(inspirations, null, 2)}\n`);
+  if (inspirations.length) {
+    const snapshots = inspirations.map((inspiration) => {
+      const selected = getCommunityTemplate(inspiration.chosen);
+      return selected ? {
+        ...inspiration,
+        selectedStyle: {
+          id: selected.id,
+          name: selected.name,
+          group: selected.group,
+          description: selected.description,
+          cover: selected.cover,
+          author: selected.author,
+          sourceUrl: selected.sourceUrl,
+          sourceIds: selected.sourceIds,
+        },
+      } : inspiration;
+    });
+    writeGeneratedFile(dir, "inspiration.json", `${JSON.stringify(snapshots, null, 2)}\n`);
+  }
 }
 
 export function loadProject(id: string): Project | null {

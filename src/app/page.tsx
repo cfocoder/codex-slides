@@ -6,10 +6,10 @@ import Composer from "@/components/Composer";
 import Community from "@/components/Community";
 import CodexTutorial from "@/components/CodexTutorial";
 import DesignFilesPanel from "@/components/DesignFilesPanel";
+import HomeLibrary from "@/components/HomeLibrary";
 import OnboardForm from "@/components/OnboardForm";
 import OutlineBoard from "@/components/OutlineBoard";
 import InspireDialog from "@/components/InspireDialog";
-import RecentProjects from "@/components/RecentProjects";
 import ScenarioPicker from "@/components/ScenarioPicker";
 import SlideStage, { type MarkAgentEvent } from "@/components/SlideStage";
 import TopBar from "@/components/TopBar";
@@ -61,6 +61,7 @@ import {
   type PptConfig,
   type ProgressEvent,
   type Project,
+  type ProjectTemplateSummary,
 } from "@/lib/types";
 import {
   createAgentRunId,
@@ -114,6 +115,7 @@ export default function Home() {
   const { locale, t } = useI18n();
   const [config, setConfig] = useState<PptConfig>({ ...DEFAULT_CONFIG, requirement: "" });
   const [engines, setEngines] = useState<EngineInfo[]>([]);
+  const [projectTemplates, setProjectTemplates] = useState<ProjectTemplateSummary[]>([]);
 
   const [materials, setMaterials] = useState<ContextItem[]>([]);
   const [researchMode, setResearchMode] = useState(false);
@@ -177,6 +179,26 @@ export default function Home() {
         setEngines(d.engines ?? []);
       })
       .catch(() => setEngines([]));
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    const refresh = () => {
+      void fetch("/api/templates", { cache: "no-store" })
+        .then((response) => response.ok ? response.json() : Promise.reject(new Error("templates request failed")))
+        .then((data) => {
+          if (!disposed) setProjectTemplates(data.projectTemplates ?? []);
+        })
+        .catch(() => {
+          if (!disposed) setProjectTemplates([]);
+        });
+    };
+    refresh();
+    window.addEventListener("ppt-anything:templates-changed", refresh);
+    return () => {
+      disposed = true;
+      window.removeEventListener("ppt-anything:templates-changed", refresh);
+    };
   }, []);
 
   const patchConfig = (patch: Partial<PptConfig>) => setConfig((c) => ({ ...c, ...patch }));
@@ -306,6 +328,24 @@ export default function Home() {
   }
   function clearScenario() {
     patchConfig({ scenarioId: undefined });
+  }
+  function selectProjectTemplate(template: ProjectTemplateSummary) {
+    patchConfig({
+      projectTemplateId: template.id,
+      template: template.baseTemplateId,
+      style: template.style ?? "",
+      designSystem: template.designSystem,
+      aspect: template.aspect,
+      resolution: template.resolution,
+    });
+  }
+  function clearProjectTemplate() {
+    patchConfig({
+      projectTemplateId: undefined,
+      designSystem: undefined,
+      template: undefined,
+      style: "",
+    });
   }
 
   useEffect(() => {
@@ -779,6 +819,8 @@ export default function Home() {
   /** Apply an inspiration pick (or skip) then render. */
   async function handleInspireGenerate(templateId?: string) {
     if (!projectId || running || busy) return;
+    const previousTemplate = config.template;
+    const redrawExisting = Boolean(templateId) && stage === "deck" && slides.some((slide) => slide.status === "rendered");
     setInspireOpen(false);
     if (templateId) {
       setInspirationSkipped(false);
@@ -788,7 +830,9 @@ export default function Home() {
       try {
         await patchProjectStyle(projectId, { template: templateId });
       } catch (e: any) {
+        patchConfig({ template: previousTemplate });
         say({ role: "assistant", content: `⚠ ${t("flow.styleFailed", { error: e?.message ?? String(e) })}` });
+        return;
       }
     } else {
       setInspirationSkipped(true);
@@ -801,6 +845,26 @@ export default function Home() {
           ? { ...m.inspiration, chosen: templateId, resolved: true }
           : undefined,
       }));
+    }
+    if (redrawExisting && templateId) {
+      setBusy(true);
+      say({ role: "assistant", content: t("restyle.started", { count: slides.length }) });
+      for (const slide of slides) {
+        setSlides((items) => items.map((item) => item.index === slide.index ? { ...item, status: "working" } : item));
+        try {
+          const image = await regenerateSlide(projectId, slide.index);
+          setSlides((items) => items.map((item) => item.index === slide.index
+            ? { ...item, status: "rendered", image, bust: Date.now() }
+            : item));
+        } catch (error: any) {
+          setSlides((items) => items.map((item) => item.index === slide.index
+            ? { ...item, status: "error", error: String(error?.message ?? error) }
+            : item));
+        }
+      }
+      say({ role: "assistant", content: t("restyle.done", { count: slides.length }) });
+      setBusy(false);
+      return;
     }
     renderNow();
   }
@@ -1357,8 +1421,9 @@ export default function Home() {
             requirement={config.requirement}
             outlineTitles={outline.map((o) => o.title).filter(Boolean)}
             selected={config.template}
+            intent={stage === "deck" ? "apply" : "generate"}
             onClose={() => setInspireOpen(false)}
-            onSkip={() => handleInspireGenerate(undefined)}
+            onSkip={stage === "deck" ? undefined : () => handleInspireGenerate(undefined)}
             onSubmit={(id) => handleInspireGenerate(id)}
           />
         )}
@@ -1375,6 +1440,7 @@ export default function Home() {
       ? { id: curatedStyle.id, name: curatedStyle.name, palette: curatedStyle.palette, sub: t("template.preset") }
       : null;
   const selectedScenario = getScenario(config.scenarioId);
+  const selectedProjectTemplate = projectTemplates.find((template) => template.id === config.projectTemplateId) ?? null;
   return (
     <>
       <TopBar />
@@ -1403,14 +1469,30 @@ export default function Home() {
             onRemoveMaterial={onRemoveMaterial}
             styleTemplate={selectedStyle}
             onClearStyle={() => patchConfig({ template: undefined })}
+            projectTemplates={projectTemplates}
+            projectTemplate={selectedProjectTemplate}
+            onSelectProjectTemplate={selectProjectTemplate}
+            onClearProjectTemplate={clearProjectTemplate}
             scenario={selectedScenario}
             onClearScenario={clearScenario}
             onSubmit={submit}
           />
           <CodexTutorial />
         </div>
-        <Community selected={config.template} onPick={(id) => patchConfig({ template: config.template === id ? undefined : id })} />
-        <RecentProjects />
+        <Community
+          selected={config.template}
+          requirement={config.requirement}
+          onPick={(id) => patchConfig({ template: config.template === id ? undefined : id })}
+        />
+        <HomeLibrary
+          templates={projectTemplates}
+          selectedTemplateId={config.projectTemplateId}
+          onUseTemplate={selectProjectTemplate}
+          onDeleteTemplate={(id) => {
+            setProjectTemplates((current) => current.filter((template) => template.id !== id));
+            if (config.projectTemplateId === id) clearProjectTemplate();
+          }}
+        />
       </main>
     </>
   );

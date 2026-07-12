@@ -1,0 +1,67 @@
+appId: io.nexu.ppt-anything
+productName: PPT Anything
+asar: true
+
+directories:
+  app: electron
+  output: dist
+
+files:
+  - main.cjs
+  - preload.cjs
+  - package.json
+  - "!node_modules{,/**/*}"
+
+# The Electron shell has no npm runtime dependencies. Next's traced production
+# dependencies live in extraResources/next, so rebuilding/copying the root
+# package graph would only duplicate the web runtime.
+npmRebuild: false
+
+extraResources:
+  - from: .next/standalone
+    to: next
+    filter:
+      - "**/*"
+      - "!node_modules{,/**/*}"
+  - from: .next/standalone/node_modules
+    to: next/node_modules
+    filter:
+      - "**/*"
+  - from: .next/static
+    to: next/.next/static
+  - from: public
+    to: next/public
+
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  artifactName: PPT-Anything-${version}-mac-${arch}.${ext}
+
+win:
+  icon: public/brand/ppt-anything-mark.png
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: PPT-Anything-${version}-windows-${arch}-Setup.${ext}
+
+linux:
+  icon: public/brand/ppt-anything-mark.png
+  category: Office
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  artifactName: PPT-Anything-${version}-linux-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: PPT Anything

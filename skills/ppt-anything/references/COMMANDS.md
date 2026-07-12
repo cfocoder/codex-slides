@@ -17,10 +17,10 @@ object. Success responses contain `"ok": true`; failures contain
 |---|---|---|
 | `capabilities` | `get_capabilities` | none |
 | `open` | `open_ppt_anything` | optional `projectId`, `view`, `filePath`, `scenarioId` |
-| `start-project` | `start_project` | `topic`; optional deck configuration; creates only a durable project shell and Browser continuation URL |
+| `start-project` | `start_project` | `topic`; optional deck configuration including `projectTemplateId`; creates only a durable project shell and Browser continuation URL |
 | `onboard` | `get_onboarding_questions` | `topic`; optional `scenarioId`, `uiLocale` |
 | `research` | `deep_research` | `topic`, optional `rounds`, `scenarioId` |
-| `create` | `create_deck` | `topic`; optional `scenarioId`, `pages`, `aspect`, `language`, `style`, `template`, `resolution`, `materialIds`, `materialContexts`, `designSystem`, `fast`, `research`, `researchDoc`, `rounds` |
+| `create` | `create_deck` | `topic`; optional `scenarioId`, `projectTemplateId`, `pages`, `aspect`, `language`, `style`, `template`, `resolution`, `materialIds`, `materialContexts`, `designSystem`, `fast`, `research`, `researchDoc`, `rounds` |
 | `outline` | `create_outline` | same planning inputs as `create` |
 | `revise-outline` | `revise_outline` | `projectId` plus `instruction` or `pages`; optional `designFilePaths` |
 | `inspiration` | `rank_inspiration` | `topic` or `outlineTitles` |
@@ -28,9 +28,10 @@ object. Success responses contain `"ok": true`; failures contain
 | `list` | `list_projects` | none |
 | `get` | `get_project` | `projectId`, optional `includeChat` |
 | `speaker-notes` | `get_speaker_notes` / `update_speaker_notes` / `generate_speaker_notes` | `projectId`, `action` (`get`, `set`, or `generate`); optional `index`, `note`, `notes`, `overwrite`, `instruction` |
-| `templates` | `list_templates` | optional `categoryId` |
+| `templates` | `list_templates` | optional `categoryId`, `communityGroup`, `query`; returns curated templates, community styles, and source/license metadata |
+| `project-templates` | `list_project_templates` / `save_project_as_template` / `delete_project_template` | `action` (`list`, `save`, or `delete`); save uses `projectId`, optional `name` / `description`; delete uses `templateId` |
 | `scenarios` | `list_scenarios` | optional `group`, `query`, `featured`, `scenarioId` |
-| `design-files` | `list_design_files` | `projectId`; optional focused `filePath` |
+| `design-files` | `list_design_files` | `projectId`; optional focused `filePath`; results include `absolutePath` and `downloadUrl` |
 | `read-design-file` | `read_design_file` | `projectId`, `filePath` |
 | `write-design-file` | `write_design_file` | `projectId`, `filePath`, complete `content` |
 | `upload-design-file` | `upload_design_file` | `projectId`, local `filePath` |
@@ -38,7 +39,7 @@ object. Success responses contain `"ok": true`; failures contain
 | `set-brand-system` | `update_brand_design_system` | `projectId`; partial `designSystem`, optional `template`, `materialIds`, `brandAssetMaterialIds`, `clear`, `redraw` |
 | `edit` | `edit_deck` | `projectId`, `instruction`; optional `slideIndex`, `materialIds`, `designFilePaths` |
 | `restyle` | `restyle_deck` | `projectId`; optional `template`, `style`, `materialIds`, `redraw` |
-| `slide` | `manage_slide` | `projectId`, `action`; index fields depend on action |
+| `slide` | `manage_slide` | `projectId`, `action`; `move` uses `index` and `toIndex`; other index fields depend on action |
 | `regenerate` | `regenerate_slide` | `projectId`, `index`, optional `instruction` |
 | `upload-material` | `upload_material` | absolute or workspace-relative `filePath` |
 | `upload-slide` | `upload_slide_image` | `projectId`, `index`, PNG `imagePath`, optional `title` |
@@ -96,6 +97,21 @@ node <skill-dir>/scripts/ppt-anything.mjs create --json '{
   "pages": 6,
   "research": true,
   "language": "zh-CN"
+}'
+```
+
+Save a visual system and consume it in a new project:
+
+```bash
+node <skill-dir>/scripts/ppt-anything.mjs project-templates --json '{
+  "action":"save",
+  "projectId":"SOURCE_PROJECT_ID",
+  "name":"Executive launch system"
+}'
+
+node <skill-dir>/scripts/ppt-anything.mjs start-project --json '{
+  "topic":"Create the next launch deck",
+  "projectTemplateId":"PROJECT_TEMPLATE_ID"
 }'
 ```
 

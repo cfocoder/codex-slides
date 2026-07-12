@@ -34,12 +34,16 @@ function relativeTime(value: string, locale: UiLocale) {
 }
 
 /** Persisted decks on disk, surfaced as first-class projects on the launcher. */
-export default function RecentProjects() {
+export default function RecentProjects({ embedded = false, query = "" }: { embedded?: boolean; query?: string }) {
   const { locale, t } = useI18n();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const openingProject = projects.find((project) => project.id === openingId);
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const visibleProjects = normalizedQuery
+    ? projects.filter((project) => project.title.toLocaleLowerCase().includes(normalizedQuery))
+    : projects;
 
   function progressLabel(project: ProjectSummary) {
     if (project.activeRun) return project.activeRun.detail || project.activeRun.label;
@@ -88,8 +92,12 @@ export default function RecentProjects() {
   }, []);
 
   return (
-    <section className="project-section" aria-labelledby="projects-heading">
-      <div className="section-head">
+    <section
+      className={`project-section${embedded ? " embedded" : ""}`}
+      aria-labelledby={embedded ? undefined : "projects-heading"}
+      aria-label={embedded ? t("projects.title") : undefined}
+    >
+      {!embedded ? <div className="section-head">
         <div>
           <h2 id="projects-heading">{t("projects.title")}</h2>
           <p>{t("projects.subtitle")}</p>
@@ -99,7 +107,7 @@ export default function RecentProjects() {
             {t(projects.length === 1 ? "projects.countOne" : "projects.countMany", { count: projects.length })}
           </span>
         )}
-      </div>
+      </div> : null}
 
       {loading ? (
         <div className="project-grid" aria-label={t("projects.loading")}>
@@ -113,9 +121,9 @@ export default function RecentProjects() {
             </div>
           ))}
         </div>
-      ) : projects.length ? (
+      ) : visibleProjects.length ? (
         <div className="project-grid" aria-busy={Boolean(openingId)}>
-          {projects.map((project) => {
+          {visibleProjects.map((project) => {
             const resumeOnHome = project.workflowStage === "clarify" || project.workflowStage === "outlining";
             // Always cross the dedicated project route. Clarify/outlining
             // projects are redirected server-side to the Home resume entry,
@@ -181,6 +189,11 @@ export default function RecentProjects() {
               </Link>
             );
           })}
+        </div>
+      ) : projects.length && normalizedQuery ? (
+        <div className="project-empty compact">
+          <span className="project-empty-icon">⌕</span>
+          <div><strong>{t("projects.noSearchResults")}</strong></div>
         </div>
       ) : (
         <div className="project-empty">

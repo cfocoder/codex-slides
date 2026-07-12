@@ -7,6 +7,7 @@ import {
   COMMUNITY_GROUPS,
   COMMUNITY_TEMPLATES,
   getCommunityTemplate,
+  getCommunitySource,
   inspireChips,
   matchCommunityTemplates,
   type CommunityTemplate,
@@ -36,6 +37,7 @@ export default function InspireDialog({
   requirement,
   outlineTitles,
   selected,
+  intent = "generate",
   onClose,
   onSkip,
   onSubmit,
@@ -43,8 +45,9 @@ export default function InspireDialog({
   requirement: string;
   outlineTitles: string[];
   selected?: string;
+  intent?: "select" | "generate" | "apply";
   onClose: () => void;
-  onSkip: () => void;
+  onSkip?: () => void;
   onSubmit: (templateId: string) => void;
 }) {
   const { t: tr } = useI18n();
@@ -79,6 +82,10 @@ export default function InspireDialog({
   useEffect(() => {
     if (ranReq.current) return;
     ranReq.current = true;
+    if (!matchQuery.trim()) {
+      setRanking(false);
+      return;
+    }
     let alive = true;
     rankInspire(requirement, outlineTitles)
       .then((res) => {
@@ -109,10 +116,24 @@ export default function InspireDialog({
   const visible = ordered.filter((t) => {
     if (group !== "all" && t.group !== group) return false;
     if (!q) return true;
-    return [t.name, t.group, t.description, t.tags.join(" ")].join(" ").toLowerCase().includes(q);
+    const sources = (t.sourceIds ?? [])
+      .map((sourceId) => getCommunitySource(sourceId)?.name ?? sourceId)
+      .join(" ");
+    return [t.name, t.group, t.description, t.author, t.tags.join(" "), sources]
+      .join(" ")
+      .toLowerCase()
+      .includes(q);
   });
 
   const pickedTpl = getCommunityTemplate(picked);
+  const pickedSource = pickedTpl?.sourceIds?.map(getCommunitySource).find(Boolean);
+  const submitLabel = pickedTpl
+    ? intent === "select"
+      ? tr("inspire.selectNamed", { name: pickedTpl.name })
+      : intent === "apply"
+        ? tr("inspire.applyNamed", { name: pickedTpl.name })
+        : tr("inspire.generateNamed", { name: pickedTpl.name })
+    : tr("inspire.choose");
 
   if (typeof document === "undefined") return null;
 
@@ -179,7 +200,7 @@ export default function InspireDialog({
                   {tr("inspire.ranking")}<span className="spinner sm" />
                 </>
               ) : (
-                tr("inspire.ranked")
+                <>{tr("inspire.ranked")} · {tr("inspire.libraryCount", { count: visible.length })}</>
               )}
             </span>
           </div>
@@ -212,6 +233,7 @@ export default function InspireDialog({
           {visible.map((t, i) => {
             const ground = [...t.palette].sort((a, b) => lum(a) - lum(b))[0];
             const reason = reasons[t.id];
+            const source = t.sourceIds?.map(getCommunitySource).find(Boolean);
             const recommended = !ranking && group === "all" && !q && i < 3;
             return (
               <button
@@ -224,7 +246,7 @@ export default function InspireDialog({
               >
                 <div className="tpl-cover" style={{ background: ground }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={t.cover} alt="" loading="lazy" />
+                  <img src={t.cover} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />
                   {recommended && <span className="inspire-badge">{tr("inspire.recommended")}</span>}
                   <span className="tpl-selected" aria-hidden="true">
                     ✓
@@ -233,7 +255,10 @@ export default function InspireDialog({
                 <div className="tpl-info">
                   <div>
                     <div className="tpl-meta">{t.name}</div>
-                    <div className="tpl-cat">{tr(COMMUNITY_GROUP_KEYS[t.group])}</div>
+                    <div className="tpl-cat">
+                      {tr(COMMUNITY_GROUP_KEYS[t.group])}
+                      {source ? ` · ${source.name}` : ""}
+                    </div>
                   </div>
                   <span className="inspire-palette" aria-hidden="true">
                     {t.palette.slice(0, 4).map((c) => (
@@ -241,6 +266,7 @@ export default function InspireDialog({
                     ))}
                   </span>
                 </div>
+                <div className="inspire-card-description">{t.description}</div>
                 {reason && <div className="inspire-reason">{reason}</div>}
               </button>
             );
@@ -251,18 +277,32 @@ export default function InspireDialog({
         </div>
 
         <footer className="inspire-dialog-foot">
-          <span className="inspire-foot-hint">{tr("inspire.pickOne")}</span>
+          {pickedTpl ? (
+            <div className="inspire-foot-selection">
+              <strong>{pickedTpl.name}</strong>
+              <span>{pickedTpl.description}</span>
+              {pickedSource ? (
+                <a href={pickedTpl.sourceUrl ?? pickedSource.url} target="_blank" rel="noreferrer">
+                  {tr("inspire.sourceMeta", { source: pickedSource.name, license: pickedSource.license })}
+                </a>
+              ) : null}
+            </div>
+          ) : (
+            <span className="inspire-foot-hint">{tr("inspire.pickOne")}</span>
+          )}
           <div className="inspire-foot-actions">
-            <button type="button" className="iconbtn ghost" onClick={onSkip}>
-              {tr("inspire.skip")}
-            </button>
+            {onSkip ? (
+              <button type="button" className="iconbtn ghost" onClick={onSkip}>
+                {tr("inspire.skip")}
+              </button>
+            ) : null}
             <button
               type="button"
               className="iconbtn primary"
               disabled={!picked}
               onClick={() => picked && onSubmit(picked)}
             >
-              {pickedTpl ? tr("inspire.generateNamed", { name: pickedTpl.name }) : tr("inspire.choose")}
+              {submitLabel}
             </button>
           </div>
         </footer>

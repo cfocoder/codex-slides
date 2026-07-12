@@ -46,6 +46,21 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ page: project.pages[index], pages: project.pages });
   }
 
+  if (action === "move") {
+    const toIndex = Number(body?.toIndex);
+    if (!Number.isInteger(index) || !Number.isInteger(toIndex)) {
+      return NextResponse.json({ error: "index and toIndex required" }, { status: 400 });
+    }
+    if (index < 1 || index > project.pages.length || toIndex < 1 || toIndex > project.pages.length) {
+      return NextResponse.json({ error: "page not found" }, { status: 404 });
+    }
+    const pages = [...project.pages];
+    const [page] = pages.splice(index - 1, 1);
+    pages.splice(toIndex - 1, 0, page);
+    replaceProjectPages(project, pages);
+    return NextResponse.json({ page: project.pages[toIndex - 1], pages: project.pages });
+  }
+
   if (action === "transition") {
     if (!Number.isInteger(index)) return NextResponse.json({ error: "index required" }, { status: 400 });
     const page = project.pages.find((item) => item.index === index);

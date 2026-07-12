@@ -69,6 +69,9 @@ export interface PptConfig {
   resolution: Resolution;
   engine: Engine;
   template?: string; // DeckTemplate id (see lib/templates.ts); overrides/augments style
+  /** User-created project template. Its brand system, visual references, and
+   * base style are copied into the new project without copying source content. */
+  projectTemplateId?: string;
   materialIds?: string[]; // staged context-item ids (images and supported documents)
   /** Semantic roles assigned by scenario file slots (source deck, dataset, brand guide, etc.). */
   materialContexts?: Array<{ id: string; name: string; role: string }>;
@@ -92,7 +95,26 @@ export interface MaterialRecord {
   kind?: "image" | "file";
   mimeType?: string;
   size?: number;
-  role?: "logo" | "reference" | "content" | "slide";
+  role?: "logo" | "reference" | "content" | "slide" | "template";
+}
+
+/** A reusable visual/brand snapshot saved from an existing presentation. */
+export interface ProjectTemplateSummary {
+  id: string;
+  name: string;
+  description: string;
+  sourceProjectId: string;
+  sourceProjectTitle: string;
+  createdAt: string;
+  updatedAt: string;
+  aspect: Aspect;
+  resolution: Resolution;
+  style?: string;
+  baseTemplateId?: string;
+  designSystem?: DeckDesignSystem;
+  coverUrl?: string;
+  referenceCount: number;
+  brandAssetCount: number;
 }
 
 export interface ProjectFileRecord {
@@ -262,7 +284,7 @@ export interface ProjectRunState {
 /** A non-file choice attached to a user turn, displayed like other context. */
 export interface ContextOptionItem {
   id: string;
-  kind: "research" | "style" | "setting" | "speed" | "scenario";
+  kind: "research" | "style" | "template" | "setting" | "speed" | "scenario";
   label: string;
   value?: string;
 }

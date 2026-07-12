@@ -434,6 +434,10 @@ export function duplicateProjectSlide(projectId: string, index: number): Promise
   return slideAction(projectId, "POST", { action: "duplicate", index });
 }
 
+export function moveProjectSlide(projectId: string, index: number, toIndex: number): Promise<UiSlide[]> {
+  return slideAction(projectId, "POST", { action: "move", index, toIndex });
+}
+
 export function deleteProjectSlide(projectId: string, index: number): Promise<UiSlide[]> {
   return slideAction(projectId, "DELETE", { index });
 }

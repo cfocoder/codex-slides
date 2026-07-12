@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Browser-first · zero separate API keys · persistent projects · visual editing · PDF/PPTX export
+  Browser-first · zero separate API keys · reusable project templates · web and desktop · PDF/PPTX export
 </p>
 
 <p align="center">
@@ -44,7 +44,9 @@ Let me confirm the questions, outline, and visual direction before rendering.
 - [Generate from files](#generate-from-files)
 - [Modify an existing deck](#modify-an-existing-deck)
 - [Features](#features)
+- [Community style library and licenses](#community-style-library-and-licenses)
 - [Local development](#local-development)
+- [Desktop development and releases](#desktop-development-and-releases)
 - [CLI and MCP](#cli-and-mcp)
 - [Architecture and data](#architecture-and-data)
 - [Verification](#verification)
@@ -63,6 +65,7 @@ PPT Anything treats the presentation as a persistent, inspectable project.
 | Discover problems after export | Confirm requirements, outline, and style first |
 | Restart when the result is wrong | Continue editing the same saved project |
 | Re-upload context every time | Keep Design Files and brand rules with the project |
+| Rebuild a successful visual direction | Save a project as a reusable visual-system template |
 | Describe visual bugs in prose | Mark directly on the slide |
 | Separate app and agent histories | Codex and the Browser operate one shared project |
 
@@ -89,9 +92,10 @@ Create a durable project
       └── Review the finished canvas
               │
               ├── Chat edits and queued follow-ups
-              ├── Add / duplicate / delete / transition
+              ├── Add / duplicate / move / delete / transition
               ├── Mark-based slide edits
               ├── Design Files and @ references
+              ├── Save as a reusable project template
               ├── Brand & Design System
               ├── Play mode
               └── PDF / PPTX export
@@ -274,9 +278,15 @@ Play mode, then export PPTX and PDF.
   evidence.
 - **24 workflow scenarios in six groups** — creation, transformation, data,
   research, optimization, and specialized delivery.
-- **45 curated templates in 15 categories** plus community visual inspiration.
+- **45 curated deck templates plus 73 community visual directions** across
+  business reports, data, diagrams, UI, posters, products, brand systems,
+  architecture, photography, editorial, and illustration.
+- **Reusable project templates** — save any project as a visual-system snapshot,
+  then reuse its brand rules, base style, format, brand assets, and up to six
+  rendered-slide references from the home composer without copying its content.
 - **Design Files** — inspect generated artifacts and uploads, edit text sources,
-  and reference project files in agent turns with `@`.
+  reference project files in agent turns with `@`, copy an absolute file path,
+  or download any individual file.
 - **Brand & Design System** — persist identity, voice, palette, typography,
   imagery, effects, spacing, radii, and brand assets.
 - **Conversational editing** — rewrite, add, remove, duplicate, reorder,
@@ -290,6 +300,32 @@ Play mode, then export PPTX and PDF.
 - **English, Simplified Chinese, and Japanese UI** with strict key parity.
 - **Portable Skill and typed MCP server** — the complete workflow remains
   available when one transport is unavailable.
+
+## Community style library and licenses
+
+The Community styles Browser is a presentation-focused index distilled from the
+open prompt galleries below. PPT Anything keeps one catalog for the home Browser,
+the project inspiration checkpoint, Brand & Design System, prompt generation,
+the portable CLI, and MCP. Selecting a community style injects its adapted
+`<page_style>` rules and, when available, sends its preview as the first visual
+reference image. The model is told to match art direction and layout grammar,
+not to copy the preview's literal text, logos, subject, or composition.
+
+| Reference | License noted by the source | How PPT Anything uses it |
+|---|---|---|
+| [YouMind Awesome GPT Image 2](https://github.com/YouMind-OpenLab/awesome-gpt-image-2) and [web gallery](https://youmind.com/gpt-image-2-prompts) | [CC BY 4.0](https://github.com/YouMind-OpenLab/awesome-gpt-image-2/blob/main/LICENSE) | Category research, prompt-language references, and source discovery |
+| [freestylefly Awesome GPT Image 2](https://github.com/freestylefly/awesome-gpt-image-2) | [MIT](https://github.com/freestylefly/awesome-gpt-image-2/blob/main/LICENSE) | Adapted industrial template taxonomy and attributed remote previews |
+| [JimmyLv Awesome Nano Banana](https://github.com/JimmyLv/awesome-nano-banana) | [CC BY 4.0](https://github.com/JimmyLv/awesome-nano-banana/blob/main/LICENSE), subject to per-case attribution overrides | Case discovery, prompt authorship, and presentation-suitable visual directions |
+| [YouMind Awesome Nano Banana Pro Prompts](https://github.com/YouMind-OpenLab/awesome-nano-banana-pro-prompts) | [CC BY 4.0](https://github.com/YouMind-OpenLab/awesome-nano-banana-pro-prompts/blob/main/LICENSE) | Curated local previews and adapted presentation style blocks |
+| [muset-ai Awesome Nano Banana Pro](https://github.com/muset-ai/awesome-nano-banana-pro) | [CC BY 4.0](https://github.com/muset-ai/awesome-nano-banana-pro/blob/main/LICENSE), subject to per-case attribution overrides | Cross-checking Nano Banana Pro cases and visual coverage |
+| [jamez-bondos Awesome GPT-4o Images](https://github.com/jamez-bondos/awesome-gpt4o-images) | [CC BY 4.0](https://github.com/jamez-bondos/awesome-gpt4o-images/blob/main/LICENSE), except separately noted OpenAI files and per-case overrides | Attributed preview images and reusable case-derived art directions |
+
+Each catalog item keeps its source collection, original author when known, and
+source URL in [`src/lib/community.ts`](src/lib/community.ts). The files under
+[`public/community`](public/community) and remote community previews retain their
+upstream terms and attribution requirements; PPT Anything's MIT license does not
+relicense those assets. Before redistributing a specific preview, follow its
+source link and check any case-level `ATTRIBUTION.yml` or notice.
 
 ## Local development
 
@@ -319,6 +355,7 @@ Environment variables:
 | `PPT_ANYTHING_APP_DIR` | plugin root | Source checkout used by the MCP server |
 | `PPT_ANYTHING_LOG` | OS temp directory | Auto-start server log |
 | `PPT_ANYTHING_NO_AUTO_START` | unset | Set to `1` to disable MCP auto-start |
+| `PPT_ANYTHING_DATA_DIR` | `<repo>/data` | Project/template data root; desktop builds set this to the OS user-data directory |
 
 Project data is stored under:
 
@@ -331,9 +368,35 @@ data/projects/<project-id>/
 └── files/
     ├── generated/
     └── uploaded/
+
+data/templates/<template-id>/
+├── template.json
+├── references/
+└── brand-assets/
 ```
 
 Do not commit personal project data or uploaded source material.
+
+## Desktop development and releases
+
+The same Next.js application can run in Electron on macOS, Windows, and Linux.
+In packaged builds, Electron starts the bundled standalone server on an
+available loopback port and stores durable data in the operating system's app
+data directory.
+
+```bash
+pnpm electron:check       # validate the desktop/runtime contract
+pnpm electron:dev         # Next.js dev server + Electron window
+pnpm electron:pack        # unpacked app for the current platform
+pnpm electron:dist        # installers for the current platform
+```
+
+Pushing a `v*` tag runs
+[`release-desktop.yml`](.github/workflows/release-desktop.yml), builds signed-off
+artifacts on native macOS, Windows, and Linux runners, and publishes the `.dmg`,
+`.zip`, `.exe`, `.AppImage`, and `.deb` files to a GitHub Release. Code signing
+can be added through the standard electron-builder secrets without changing the
+workflow shape.
 
 ## CLI and MCP
 
@@ -341,7 +404,7 @@ PPT Anything exposes two equivalent automation transports:
 
 - `skills/ppt-anything/scripts/ppt-anything.mjs` — portable Node CLI using only
   built-in web APIs and the local HTTP service;
-- `mcp/server.mjs` — 28 typed MCP tools for Codex.
+- `mcp/server.mjs` — 34 typed MCP tools for Codex.
 
 Discover the CLI surface:
 
@@ -370,6 +433,7 @@ Important tool groups:
 |---|---|
 | Open and discover | `open_ppt_anything`, `start_project`, `get_capabilities`, `list_projects`, `get_project` |
 | Scenarios and sources | `list_scenarios`, `upload_material`, `list_design_files`, `read_design_file`, `write_design_file`, `upload_design_file` |
+| Reusable templates | `list_templates`, `list_project_templates`, `save_project_as_template`, `delete_project_template` |
 | Research and planning | `get_onboarding_questions`, `deep_research`, `create_outline`, `revise_outline`, `rank_inspiration` |
 | Brand system | `get_brand_design_system`, `update_brand_design_system` |
 | Create and edit | `create_deck`, `render_deck`, `edit_deck`, `restyle_deck`, `manage_slide`, `regenerate_slide` |
@@ -381,7 +445,7 @@ The full Browser/CLI/MCP parity contract lives in
 ## Architecture and data
 
 ```text
-Codex Skill / MCP server / Browser UI
+Codex Skill / MCP server / Browser UI / Electron
                  │
                  ▼
         Next.js local HTTP API
@@ -412,6 +476,7 @@ src/components/   launcher, tutorial, project workspace, editing surfaces
 src/lib/          agents, research, pipeline, project store, export
 scripts/          contract, i18n, Skill, and MCP probes
 data/projects/    local project state and generated assets
+data/templates/   reusable project visual systems and reference assets
 ```
 
 The local app uses the existing `codex login` authentication. Text generation,
@@ -429,6 +494,7 @@ npm run check:i18n
 npm run check:project-sync
 npm run check:skill
 npm run check:mcp
+npm run electron:check
 npm run build
 ```
 
@@ -507,7 +573,9 @@ and pull-request expectations.
 
 ## License
 
-PPT Anything is available under the [MIT License](LICENSE).
+PPT Anything source code is available under the [MIT License](LICENSE).
+Community previews and adapted prompt references retain the upstream terms and
+attribution documented in [Community style library and licenses](#community-style-library-and-licenses).
 
 ## Acknowledgements
 

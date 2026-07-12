@@ -15,6 +15,8 @@ import {
   ArrowClockwise,
   Check,
   CircleNotch,
+  ClipboardText,
+  DownloadSimple,
   File,
   FileCode,
   FileImage,
@@ -135,6 +137,7 @@ export default function DesignFiles({
   const [previewReloadKey, setPreviewReloadKey] = useState(0);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [copiedPath, setCopiedPath] = useState("");
 
   const inputRef = useRef<HTMLInputElement>(null);
   const dragDepthRef = useRef(0);
@@ -384,6 +387,7 @@ export default function DesignFiles({
 
   useEffect(() => {
     contentRequestRef.current += 1;
+    setCopiedPath("");
     setPreviewReady(false);
     setPreviewError(false);
     setSaveState("idle");
@@ -530,6 +534,32 @@ export default function DesignFiles({
     saveFile(selected.path, content, { showSaving: true });
   }
 
+  async function copyFilePath() {
+    if (!selected?.absolutePath) return;
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(selected.absolutePath);
+      copied = true;
+    } catch {
+      const input = document.createElement("textarea");
+      input.value = selected.absolutePath;
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.appendChild(input);
+      input.select();
+      try {
+        copied = document.execCommand("copy");
+      } finally {
+        input.remove();
+      }
+    }
+    if (!copied) return;
+    setCopiedPath(selected.path);
+    window.setTimeout(() => {
+      setCopiedPath((current) => current === selected.path ? "" : current);
+    }, 1800);
+  }
+
   const savedTime = savedAt == null
     ? null
     : new Date(savedAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
@@ -541,6 +571,7 @@ export default function DesignFiles({
         ? t("designFiles.autoSaved", { time: savedTime })
         : t("designFiles.autoSaveHint");
   const previewSrc = selected ? `${apiPath(projectId, selected.path)}?preview=${previewReloadKey}` : "";
+  const downloadSrc = selected ? `${apiPath(projectId, selected.path)}?download=1` : "";
   const previewLoading = Boolean(selected && !selected.editable && !previewReady && !previewError);
 
   return (
@@ -699,27 +730,42 @@ export default function DesignFiles({
                   <strong title={selected.name}>{selected.name}</strong>
                   <span title={selected.path}>{selected.path}</span>
                 </div>
-                {selected.editable ? (
-                  <div className={`design-file-save-status ${saveState}`} aria-live="polite">
-                    {saveState === "error" ? (
-                      <button
-                        type="button"
-                        className="design-file-save-retry"
-                        onClick={() => saveFile(selected.path, content, { showSaving: true })}
-                        title={t("designFiles.retrySave")}
-                      >
-                        <WarningCircle size={15} />
-                        <span>{saveLabel}</span>
-                      </button>
-                    ) : (
-                      <span title={saveLabel}>
-                        {saveState === "saving" ? <CircleNotch className="design-files-spinner" size={14} /> : null}
-                        {saveState !== "saving" && savedTime ? <Check size={14} weight="bold" /> : null}
-                        <span>{saveLabel}</span>
-                      </span>
-                    )}
+                <div className="design-file-toolbar-actions">
+                  {selected.editable ? (
+                    <div className={`design-file-save-status ${saveState}`} aria-live="polite">
+                      {saveState === "error" ? (
+                        <button
+                          type="button"
+                          className="design-file-save-retry"
+                          onClick={() => saveFile(selected.path, content, { showSaving: true })}
+                          title={t("designFiles.retrySave")}
+                        >
+                          <WarningCircle size={15} />
+                          <span>{saveLabel}</span>
+                        </button>
+                      ) : (
+                        <span title={saveLabel}>
+                          {saveState === "saving" ? <CircleNotch className="design-files-spinner" size={14} /> : null}
+                          {saveState !== "saving" && savedTime ? <Check size={14} weight="bold" /> : null}
+                          <span>{saveLabel}</span>
+                        </span>
+                      )}
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    className={copiedPath === selected.path ? "is-copied" : ""}
+                    onClick={() => void copyFilePath()}
+                    title={selected.absolutePath}
+                  >
+                    {copiedPath === selected.path ? <Check size={15} weight="bold" /> : <ClipboardText size={15} />}
+                    <span>{copiedPath === selected.path ? t("designFiles.pathCopied") : t("designFiles.copyPath")}</span>
+                  </button>
+                  <a href={downloadSrc} download={selected.name} title={t("designFiles.downloadNamed", { name: selected.name })}>
+                    <DownloadSimple size={15} />
+                    <span>{t("designFiles.download")}</span>
+                  </a>
                   </div>
-                ) : null}
               </div>
 
               <div className={`design-file-content${contentLoading || previewLoading ? " is-loading" : ""}`}>

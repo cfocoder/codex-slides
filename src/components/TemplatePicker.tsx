@@ -266,7 +266,7 @@ export default function TemplatePicker({
                     >
                       <span className="style-option-cover" aria-hidden="true">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={template.cover} alt="" loading="lazy" />
+                        <img src={template.cover} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />
                       </span>
                       <span className="style-option-copy">
                         <strong>{template.name}</strong>

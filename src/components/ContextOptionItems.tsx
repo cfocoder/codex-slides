@@ -1,6 +1,6 @@
 "use client";
 
-import { Lightning, MagicWand, MagnifyingGlass, Palette, SlidersHorizontal, X } from "@phosphor-icons/react";
+import { Lightning, MagicWand, MagnifyingGlass, Palette, SlidersHorizontal, StackSimple, X } from "@phosphor-icons/react";
 import type { ContextOptionItem } from "@/lib/types";
 import { useI18n } from "@/i18n/I18nProvider";
 
@@ -8,6 +8,7 @@ function OptionIcon({ kind }: { kind: ContextOptionItem["kind"] }) {
   if (kind === "research") return <MagnifyingGlass size={13} />;
   if (kind === "scenario") return <MagicWand size={13} />;
   if (kind === "style") return <Palette size={13} />;
+  if (kind === "template") return <StackSimple size={13} />;
   if (kind === "speed") return <Lightning size={13} weight="fill" />;
   return <SlidersHorizontal size={13} />;
 }

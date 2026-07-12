@@ -164,6 +164,7 @@ export function buildImagePrompt(
   index: number,
   total: number,
   hasMaterials = false,
+  hasStyleReference = false,
 ): string {
   const { aspect, style, language } = config;
   const isCover = index === 1;
@@ -204,6 +205,9 @@ export function buildImagePrompt(
     isCover
       ? "- This is the COVER slide: make it striking — a bold hero title and a calm, confident layout."
       : `- This is slide ${index} of ${total}: keep the header/footer treatment consistent with a deck.`,
+    hasStyleReference
+      ? "- The FIRST reference image is the user's selected COMMUNITY STYLE. Match its art direction, layout grammar, typography character, palette relationships, texture, and visual density across the deck, but do not copy its literal subject, words, logos, or composition verbatim."
+      : "",
     hasMaterials
       ? "- Reference images are the user's brand/content MATERIALS (logo, product shot, style reference). Use them faithfully where appropriate — place the logo, match the brand look/palette — but don't force every material onto every slide, and don't distort any text inside them."
       : "",

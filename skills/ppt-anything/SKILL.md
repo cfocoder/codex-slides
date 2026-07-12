@@ -78,6 +78,10 @@ auditing a newly added product feature or changing the Browser/CLI/MCP contract.
 - Use the Browser-first guided flow above by default. The Browser UI drives the
   staged `clarify -> outline -> inspire -> deck` state and persists the project
   before expensive work starts.
+- Search the shared community style library with `templates` / `list_templates`
+  (`query` and `communityGroup`), then use `inspiration` / `rank_inspiration`
+  when the topic and outline should semantically rank those directions. A chosen
+  community style is both prompt context and the first visual reference image.
 - Use `start-project` / `start_project` only when Codex needs a deterministic
   fallback to create the same durable project shell before returning to the UI.
 - Use `create` / `create_deck` only when the user explicitly requests an
@@ -96,6 +100,9 @@ auditing a newly added product feature or changing the Browser/CLI/MCP contract.
 - Use `design-files` / `list_design_files` to inspect the generated and uploaded
   project file inventory. Use `read-design-file` / `read_design_file` for text
   and the returned Browser deep link for visual or binary files.
+- In the Browser, every selected Design File exposes its absolute local path for
+  copying and a direct download action. CLI/MCP file-list responses include the
+  same `absolutePath` and a `downloadUrl` for automation.
 - Use `write-design-file` / `write_design_file` only when the user asked to
   replace an existing editable file. Use `upload-design-file` /
   `upload_design_file` to add a local file to the project workspace.
@@ -103,6 +110,18 @@ auditing a newly added product feature or changing the Browser/CLI/MCP contract.
   returned paths as `designFilePaths` to `revise-outline` / `revise_outline` or
   `edit` / `edit_deck`. This is the Codex equivalent of selecting a Design File
   with `@` in the Browser composer.
+
+## Reuse project templates
+
+- Use `project-templates`, action `list`, or `list_project_templates` before
+  creating with a reusable project template. Pass the returned id as
+  `projectTemplateId`; do not substitute a built-in `template` id.
+- Use `project-templates`, action `save`, or `save_project_as_template` only when
+  the user wants to preserve an existing project's visual system. The snapshot
+  includes its format, base template/style, brand system, brand assets, and up
+  to six visual references, but not the source project's deck content.
+- Deleting a saved template does not mutate projects already created from it,
+  because assets and brand rules are copied into each new project.
 
 ## Maintain the brand design system
 
@@ -122,7 +141,7 @@ auditing a newly added product feature or changing the Browser/CLI/MCP contract.
 
 - Inspect with `list` and `get` before changing an unknown project.
 - Use `edit` for natural-language add/rewrite/redraw/optimize requests.
-- Use `slide` for deterministic add, duplicate, delete, or transition changes.
+- Use `slide` for deterministic add, duplicate, move, delete, or transition changes.
 - Use `regenerate` for one slide and `restyle` for the whole deck.
 - Use `upload-slide` for a finished local PNG.
 - Use `mark-edit` when the user supplies an annotated PNG and wants a clean

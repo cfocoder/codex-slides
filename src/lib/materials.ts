@@ -4,11 +4,12 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { DATA_ROOT } from "./dataPaths";
 import { projectDir } from "./store";
 import type { CodexInputAttachment } from "./codex-text";
 import type { MaterialRecord } from "./types";
 
-export const STAGING_DIR = path.join(process.cwd(), "data", "materials-staging");
+export const STAGING_DIR = path.join(DATA_ROOT, "materials-staging");
 
 const ID_RE = /^[\w.-]+$/;
 const IMAGE_EXT_RE = /\.(png|jpe?g|webp|gif)$/i;

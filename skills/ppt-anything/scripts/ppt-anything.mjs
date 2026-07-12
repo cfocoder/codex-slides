@@ -17,6 +17,7 @@ const LOG_PATH = process.env.PPT_ANYTHING_LOG || join(tmpdir(), "ppt-anything-se
 const COMMANDS = [
   "capabilities", "open", "start-project", "onboard", "research", "create", "outline",
   "revise-outline", "inspiration", "render", "list", "get", "templates",
+  "project-templates",
   "edit", "restyle", "slide", "regenerate", "upload-material",
   "upload-slide", "mark-edit", "export", "scenarios", "design-files",
   "read-design-file", "write-design-file", "upload-design-file",
@@ -38,7 +39,8 @@ const CAPABILITIES = [
   ["Read per-slide speaker notes", "speaker-notes --action get", "script + Browser"],
   ["Write or clear per-slide speaker notes", "speaker-notes --action set", "script + Browser"],
   ["Generate a slide or full-deck talk track", "speaker-notes --action generate", "script + Browser"],
-  ["Discover categories and templates", "templates", "script"],
+  ["Search curated templates and attributed community styles", "templates", "script"],
+  ["List, save, or delete reusable project templates", "project-templates", "script + Browser"],
   ["Discover 24 scenario workflows and required source slots", "scenarios", "script + Browser"],
   ["List project Design Files", "design-files", "script + Browser"],
   ["Read or edit an existing text Design File", "read-design-file / write-design-file", "script + Browser"],
@@ -257,14 +259,16 @@ function slideSummary(page) {
 }
 
 function deckConfig(input, researchDoc) {
+  const hasPreset = Boolean(input.scenarioId || input.projectTemplateId);
   return {
     requirement: input.topic,
     pages: input.pages ?? (input.scenarioId ? undefined : 6),
-    aspect: input.aspect ?? (input.scenarioId ? undefined : "16:9"),
+    aspect: input.aspect ?? (hasPreset ? undefined : "16:9"),
     language: input.language ?? "auto",
-    style: input.style ?? (input.scenarioId ? undefined : ""),
+    style: input.style ?? (hasPreset ? undefined : ""),
     template: input.template,
-    resolution: input.resolution ?? "2K",
+    projectTemplateId: input.projectTemplateId,
+    resolution: input.resolution ?? (input.projectTemplateId ? undefined : "2K"),
     materialIds: input.materialIds ?? [],
     materialContexts: input.materialContexts ?? [],
     scenarioId: input.scenarioId,
@@ -473,10 +477,44 @@ async function run(command, input) {
   }
   if (command === "templates") {
     const data = await apiJson("/api/templates");
+    const query = String(input.query || "").trim().toLowerCase();
+    const matches = (item) => !query || [item.name, item.description, item.categoryId, item.group, ...(item.tags || [])]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(query);
     return {
       categories: data.categories,
-      templates: input.categoryId ? data.templates.filter((template) => template.categoryId === input.categoryId) : data.templates,
+      templates: (input.categoryId ? data.templates.filter((template) => template.categoryId === input.categoryId) : data.templates).filter(matches),
+      communityGroups: data.communityGroups || [],
+      communityStyles: (data.communityStyles || [])
+        .filter((style) => !input.communityGroup || style.group === input.communityGroup)
+        .filter(matches),
+      communitySources: data.communitySources || [],
+      projectTemplates: data.projectTemplates || [],
     };
+  }
+  if (command === "project-templates") {
+    const action = input.action || "list";
+    if (action === "list") {
+      const data = await apiJson("/api/templates");
+      return { projectTemplates: data.projectTemplates || [] };
+    }
+    if (action === "save") {
+      if (!input.projectId) throw new Error("save requires projectId.");
+      const data = await postJson("/api/templates", {
+        projectId: input.projectId,
+        name: input.name,
+        description: input.description,
+      });
+      return { template: data.template, previewUrl: browserUrl(input.projectId) };
+    }
+    if (action === "delete") {
+      if (!input.templateId) throw new Error("delete requires templateId.");
+      await apiJson(`/api/templates/${encodeURIComponent(input.templateId)}`, { method: "DELETE" });
+      return { templateId: input.templateId, deleted: true };
+    }
+    throw new Error("project-templates action must be list, save, or delete.");
   }
   if (command === "scenarios") {
     const data = await apiJson("/api/scenarios");
@@ -500,7 +538,10 @@ async function run(command, input) {
     const data = await apiJson(projectFileApiPath(input.projectId));
     return {
       projectId: input.projectId,
-      files: data.files || [],
+      files: (data.files || []).map((file) => ({
+        ...file,
+        downloadUrl: `${BASE}${projectFileApiPath(input.projectId, file.path)}?download=1`,
+      })),
       browserUrl: browserUrl(input.projectId, { view: "design-files", filePath: input.filePath }),
     };
   }
@@ -638,11 +679,11 @@ async function run(command, input) {
   }
   if (command === "slide") {
     if (!input.projectId || !input.action) throw new Error("projectId and action are required.");
-    if (!["add", "duplicate", "delete", "transition"].includes(input.action)) throw new Error("Unsupported slide action.");
+    if (!["add", "duplicate", "delete", "move", "transition"].includes(input.action)) throw new Error("Unsupported slide action.");
     const path = `/api/projects/${encodeURIComponent(input.projectId)}/slides`;
     const data = input.action === "delete"
       ? await apiJson(path, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ index: input.index }) })
-      : await postJson(path, { action: input.action, index: input.index, afterIndex: input.afterIndex, transition: input.transition });
+      : await postJson(path, { action: input.action, index: input.index, toIndex: input.toIndex, afterIndex: input.afterIndex, transition: input.transition });
     return { projectId: input.projectId, action: input.action, pages: (data.pages || []).map(slideSummary), previewUrl: browserUrl(input.projectId) };
   }
   if (command === "regenerate") {

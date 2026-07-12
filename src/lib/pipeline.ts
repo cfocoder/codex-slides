@@ -8,6 +8,7 @@
 
 import { generateSlideImage } from "./codex-image";
 import { codexJson, codexText, parseLooseJson, type CodexInputAttachment } from "./codex-text";
+import { loadCommunityStyleReference } from "./communityReference";
 import { runCliAgentText } from "./agents";
 import {
   attachMaterialsToProject,
@@ -15,6 +16,7 @@ import {
   loadProjectMaterialBuffers,
   loadStagedInputAttachments,
 } from "./materials";
+import { applyProjectTemplateAssets } from "./projectTemplates";
 import {
   buildImagePrompt,
   buildMarkEditPrompt,
@@ -228,6 +230,7 @@ export async function planOutline(
     project.materials = [...(project.materials ?? []), ...attached];
     project.config.materialIds = project.materials.map((material) => material.id);
   }
+  applyProjectTemplateAssets(project);
   saveProject(project);
   emit({ type: "project", id });
   emit({ type: "outline", outline, title });
@@ -250,6 +253,8 @@ export async function renderProject(
   const { config } = project;
 
   const materialBuffers = loadProjectMaterialBuffers(id, project.materials);
+  const styleReference = await loadCommunityStyleReference(config.template, signal);
+  const referenceBuffers = styleReference ? [styleReference, ...materialBuffers] : materialBuffers;
   const projectAttachments = loadProjectInputAttachments(id, project.materials);
   if (projectAttachments.length) {
     emit({ type: "log", message: `Using ${projectAttachments.length} context item(s)` });
@@ -285,10 +290,10 @@ export async function renderProject(
       saveProject(project);
       emit({ type: "page_described", index: page.index });
 
-      const imgPrompt = buildImagePrompt(config, page, page.index, total, hasMaterials);
+      const imgPrompt = buildImagePrompt(config, page, page.index, total, hasMaterials, Boolean(styleReference));
       page.imagePrompt = imgPrompt;
       const bytes = await generateSlideImage(imgPrompt, {
-        refImages: materialBuffers,
+        refImages: referenceBuffers,
         aspect: config.aspect,
         resolution: config.resolution,
         signal,
@@ -432,10 +437,19 @@ export async function regeneratePage(
   page.description = extractSlideText(descRaw);
 
   const materialBuffers = loadProjectMaterialBuffers(id, project.materials);
-  const imgPrompt = buildImagePrompt(project.config, page, index, total, materialBuffers.length > 0);
+  const styleReference = await loadCommunityStyleReference(project.config.template, signal);
+  const referenceBuffers = styleReference ? [styleReference, ...materialBuffers] : materialBuffers;
+  const imgPrompt = buildImagePrompt(
+    project.config,
+    page,
+    index,
+    total,
+    materialBuffers.length > 0,
+    Boolean(styleReference),
+  );
   page.imagePrompt = imgPrompt;
   const bytes = await generateSlideImage(imgPrompt, {
-    refImages: materialBuffers,
+    refImages: referenceBuffers,
     aspect: project.config.aspect,
     resolution: project.config.resolution,
     signal,

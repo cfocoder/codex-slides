@@ -40,7 +40,10 @@ const CAPABILITIES = [
   ["Read per-slide speaker notes", "get_speaker_notes", "MCP + Browser"],
   ["Write or clear per-slide speaker notes", "update_speaker_notes", "MCP + Browser"],
   ["Generate a slide or full-deck talk track", "generate_speaker_notes", "MCP + Browser"],
-  ["Discover categories and templates", "list_templates", "MCP"],
+  ["Search curated templates and attributed community styles", "list_templates", "MCP"],
+  ["List reusable project templates", "list_project_templates", "MCP + Browser"],
+  ["Save a project as a reusable visual template", "save_project_as_template", "MCP + Browser"],
+  ["Delete a reusable project template", "delete_project_template", "MCP"],
   ["Discover 24 scenario workflows and required source slots", "list_scenarios", "MCP + Browser"],
   ["List project Design Files", "list_design_files", "MCP + Browser"],
   ["Read or edit an existing text Design File", "read_design_file / write_design_file", "MCP + Browser"],
@@ -71,6 +74,7 @@ const server = new McpServer(
       "Use MCP tools for deterministic recovery and deck mutations while keeping the Browser project open for progress, confirmation, direct manipulation, presentation mode, and verification.",
       "Use create_deck only when the user explicitly asks for a headless, unattended, one-call result or the current Codex surface has no Browser.",
       "Use list_scenarios before scenario-led work, preserve required source-slot roles in materialContexts, and pass scenarioId through onboarding, research, and creation.",
+      "Use list_project_templates before applying projectTemplateId. A project template reuses brand rules, base style, aspect, brand assets, and visual references without copying source content.",
       "Use list/read/write/upload Design File tools for the project file workspace; pass designFilePaths to outline or deck edits when those files are evidence.",
       "Use get_brand_design_system before update_brand_design_system. Brand updates are always-on project context; redraw existing slides only when requested.",
       "Use get_speaker_notes, update_speaker_notes, and generate_speaker_notes for presenter-only talk tracks. Speaker notes are project data, appear in presenter mode, and are embedded in PPTX export.",
@@ -475,6 +479,7 @@ const deckConfigShape = {
   language: z.enum(["auto", "zh", "en", "ja"]).optional(),
   style: z.string().optional(),
   template: z.string().optional().describe("Template id from list_templates"),
+  projectTemplateId: z.string().optional().describe("Reusable project template id from list_project_templates"),
   resolution: z.enum(["1K", "2K", "4K"]).optional(),
   materialIds: z.array(z.string()).optional().describe("Reference ids returned by upload_material"),
   materialContexts: z.array(materialContextShape).max(24).optional()
@@ -487,14 +492,16 @@ const deckConfigShape = {
 };
 
 function deckRequest(args, researchDoc) {
+  const hasPreset = Boolean(args.scenarioId || args.projectTemplateId);
   return {
     requirement: args.topic,
     pages: args.pages ?? (args.scenarioId ? undefined : 6),
-    aspect: args.aspect ?? (args.scenarioId ? undefined : "16:9"),
+    aspect: args.aspect ?? (hasPreset ? undefined : "16:9"),
     language: args.language ?? "auto",
-    style: args.style ?? (args.scenarioId ? undefined : ""),
+    style: args.style ?? (hasPreset ? undefined : ""),
     template: args.template,
-    resolution: args.resolution ?? "2K",
+    projectTemplateId: args.projectTemplateId,
+    resolution: args.resolution ?? (args.projectTemplateId ? undefined : "2K"),
     materialIds: args.materialIds ?? [],
     materialContexts: args.materialContexts ?? [],
     scenarioId: args.scenarioId,
@@ -815,20 +822,103 @@ register(
 register(
   "list_templates",
   {
-    title: "List PPT Anything templates",
-    description: "List available deck categories and template ids for create_deck or restyle_deck.",
-    inputSchema: { categoryId: z.string().optional() },
+    title: "Search PPT Anything visual styles",
+    description: "List curated deck templates and attributed community styles for create_deck, inspiration ranking, or restyle_deck.",
+    inputSchema: {
+      categoryId: z.string().optional(),
+      communityGroup: z.string().optional(),
+      query: z.string().optional(),
+    },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
-  async ({ categoryId }) => {
+  async ({ categoryId, communityGroup, query }) => {
     const data = await apiJson("/api/templates");
-    const templates = categoryId
+    const needle = String(query || "").trim().toLowerCase();
+    const matches = (item) => !needle || [item.name, item.description, item.categoryId, item.group, ...(item.tags || [])]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(needle);
+    const templates = (categoryId
       ? (data.templates || []).filter((template) => template.categoryId === categoryId)
-      : data.templates || [];
+      : data.templates || []).filter(matches);
+    const communityStyles = (data.communityStyles || [])
+      .filter((style) => !communityGroup || style.group === communityGroup)
+      .filter(matches);
+    const lines = [
+      templates.length ? "Curated deck templates:" : "",
+      ...templates.map((template) => `- ${template.id} — ${template.name}: ${template.description}`),
+      communityStyles.length ? "Community visual directions:" : "",
+      ...communityStyles.map((style) => `- ${style.id} — ${style.name} [${style.group}]: ${style.description}`),
+    ].filter(Boolean);
     return ok(
-      templates.map((template) => `- ${template.id} — ${template.name}: ${template.description}`).join("\n"),
-      { categories: data.categories, templates },
+      lines.join("\n") || "No visual styles matched the requested filters.",
+      {
+        categories: data.categories,
+        templates,
+        communityGroups: data.communityGroups || [],
+        communityStyles,
+        communitySources: data.communitySources || [],
+      },
     );
+  },
+);
+
+register(
+  "list_project_templates",
+  {
+    title: "List reusable PPT Anything project templates",
+    description: "List visual systems saved from existing projects. Pass one returned id as projectTemplateId when starting or creating another deck.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async () => {
+    const data = await apiJson("/api/templates");
+    const templates = data.projectTemplates || [];
+    return ok(
+      templates.map((template) => `- ${template.id} — ${template.name} (${template.referenceCount} visual references)`).join("\n") || "No reusable project templates yet.",
+      { projectTemplates: templates, browserUrl: BASE },
+      [{ uri: BASE, name: "Open project template library", description: "Open the PPT Anything home library in the Codex Browser." }],
+    );
+  },
+);
+
+register(
+  "save_project_as_template",
+  {
+    title: "Save a project as a reusable template",
+    description: "Snapshot a project's brand system, base style, aspect, brand assets, and up to six rendered slides as visual references without copying its content.",
+    inputSchema: {
+      projectId: z.string(),
+      name: z.string().max(100).optional(),
+      description: z.string().max(500).optional(),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+  },
+  async ({ projectId, name, description }, extra) => {
+    const data = await postJson("/api/templates", { projectId, name, description }, extra.signal);
+    return ok(
+      `Saved project template “${data.template?.name || name || projectId}”.`,
+      { template: data.template, previewUrl: browserUrl(projectId) },
+      [projectLink(projectId, "Return to source project")],
+    );
+  },
+);
+
+register(
+  "delete_project_template",
+  {
+    title: "Delete a reusable project template",
+    description: "Delete one saved project template. Existing projects created from it keep their copied brand rules and references.",
+    inputSchema: { templateId: z.string() },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+  },
+  async ({ templateId }, extra) => {
+    await apiJson(`/api/templates/${encodeURIComponent(templateId)}`, {
+      method: "DELETE",
+      signal: extra.signal,
+    });
+    return ok(`Deleted project template ${templateId}.`, { templateId, deleted: true });
   },
 );
 
@@ -878,10 +968,14 @@ register(
   },
   async ({ projectId, filePath }) => {
     const data = await apiJson(projectFileApiPath(projectId));
+    const files = (data.files || []).map((file) => ({
+      ...file,
+      downloadUrl: `${BASE}${projectFileApiPath(projectId, file.path)}?download=1`,
+    }));
     const uri = browserUrl(projectId, { view: "design-files", filePath });
     return ok(
-      (data.files || []).map((file) => `- ${file.path} — ${file.kind}, ${file.size} bytes${file.editable ? ", editable" : ""}`).join("\n") || "This project has no Design Files yet.",
-      { projectId, files: data.files || [], browserUrl: uri },
+      files.map((file) => `- ${file.path} — ${file.kind}, ${file.size} bytes${file.editable ? ", editable" : ""}`).join("\n") || "This project has no Design Files yet.",
+      { projectId, files, browserUrl: uri },
       [projectLink(projectId, "Open Design Files", { view: "design-files", filePath })],
     );
   },
@@ -897,8 +991,12 @@ register(
   },
   async ({ projectId, filePath }) => {
     const listing = await apiJson(projectFileApiPath(projectId));
-    const file = (listing.files || []).find((item) => item.path === filePath);
-    if (!file) throw new Error(`Design File not found: ${filePath}`);
+    const found = (listing.files || []).find((item) => item.path === filePath);
+    if (!found) throw new Error(`Design File not found: ${filePath}`);
+    const file = {
+      ...found,
+      downloadUrl: `${BASE}${projectFileApiPath(projectId, found.path)}?download=1`,
+    };
     const link = projectLink(projectId, `Open ${file.name}`, { view: "design-files", filePath });
     if (!file.editable) {
       return ok(`${file.path} is a ${file.kind} file. Open it in the Codex Browser to inspect it visually.`, {
@@ -1127,18 +1225,20 @@ register(
   "manage_slide",
   {
     title: "Manage deck slide structure",
-    description: "Add, duplicate, delete, or set the transition of a slide.",
+    description: "Add, duplicate, delete, move, or set the transition of a slide.",
     inputSchema: {
       projectId: z.string(),
-      action: z.enum(["add", "duplicate", "delete", "transition"]),
+      action: z.enum(["add", "duplicate", "delete", "move", "transition"]),
       index: z.number().int().min(1).optional(),
+      toIndex: z.number().int().min(1).optional(),
       afterIndex: z.number().int().min(0).optional(),
       transition: z.enum(["none", "fade", "push", "wipe", "zoom", "flip"]).optional(),
     },
     annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
   },
-  async ({ projectId, action, index, afterIndex, transition }, extra) => {
-    if (["duplicate", "delete", "transition"].includes(action) && !index) throw new Error(`${action} requires index.`);
+  async ({ projectId, action, index, toIndex, afterIndex, transition }, extra) => {
+    if (["duplicate", "delete", "move", "transition"].includes(action) && !index) throw new Error(`${action} requires index.`);
+    if (action === "move" && !toIndex) throw new Error("move action requires toIndex.");
     if (action === "transition" && !transition) throw new Error("transition action requires transition.");
     const path = `/api/projects/${encodeURIComponent(projectId)}/slides`;
     const data = action === "delete"
@@ -1148,7 +1248,7 @@ register(
           body: JSON.stringify({ index }),
           signal: extra.signal,
         })
-      : await postJson(path, { action, index, afterIndex, transition }, extra.signal);
+      : await postJson(path, { action, index, toIndex, afterIndex, transition }, extra.signal);
     return ok(
       `${action} complete. The deck now has ${data.pages?.length || 0} slides.`,
       { projectId, action, pages: (data.pages || []).map(slideSummary) },

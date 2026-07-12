@@ -22,11 +22,11 @@ function call(command, input = {}) {
 }
 
 const capabilities = call("capabilities");
-if (capabilities.commands.length !== 29) {
-  throw new Error(`Expected 29 commands, got ${capabilities.commands.length}.`);
+if (capabilities.commands.length !== 30) {
+  throw new Error(`Expected 30 commands, got ${capabilities.commands.length}.`);
 }
-if (capabilities.capabilities.length < 31) {
-  throw new Error(`Expected at least 31 capability surfaces, got ${capabilities.capabilities.length}.`);
+if (capabilities.capabilities.length < 32) {
+  throw new Error(`Expected at least 32 capability surfaces, got ${capabilities.capabilities.length}.`);
 }
 
 const summary = {
@@ -38,12 +38,14 @@ const summary = {
 if (live) {
   const projects = call("list");
   const templates = call("templates");
+  const projectTemplates = call("project-templates");
   const scenarios = call("scenarios");
   const opened = call("open", { view: "scenarios", scenarioId: "new-deck" });
   if (!Array.isArray(projects.projects)) throw new Error("Project list is missing.");
   if (templates.categories?.length !== 15 || templates.templates?.length !== 45) {
     throw new Error(`Expected 15 categories and 45 templates, got ${templates.categories?.length}/${templates.templates?.length}.`);
   }
+  if (!Array.isArray(projectTemplates.projectTemplates)) throw new Error("Project template list is missing.");
   if (scenarios.groups?.length !== 6 || scenarios.scenarios?.length !== 24) {
     throw new Error(`Expected 6 groups and 24 scenarios, got ${scenarios.groups?.length}/${scenarios.scenarios?.length}.`);
   }

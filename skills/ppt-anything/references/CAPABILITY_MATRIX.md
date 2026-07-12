@@ -19,8 +19,13 @@ CLI + MCP operation.
 | Render a confirmed draft | Live project workspace | `render` | `render_deck` |
 | Explicit unattended one-call deck | Open result after completion | `create` | `create_deck` |
 | List and inspect projects | Home and project workspace | `list` / `get` | `list_projects` / `get_project` |
-| Browse templates | Community/template UI | `templates` | `list_templates` |
+| Browse, search, and match 70+ attributed community styles | Home/project Community Browser | `templates` with `communityGroup` / `query`; `inspiration` for semantic ranking | `list_templates` with `communityGroup` / `query`; `rank_inspiration` |
+| Browse saved project visual systems | Home Templates tab / composer picker | `project-templates`, `action:list` | `list_project_templates` |
+| Save a project as a reusable template | Project header Save as template | `project-templates`, `action:save` | `save_project_as_template` |
+| Delete a saved project template | Home Templates tab | `project-templates`, `action:delete` | `delete_project_template` |
+| Create with a saved project template | Composer template picker | `start-project` / `create` / `outline` with `projectTemplateId` | `start_project` / `create_deck` / `create_outline` with `projectTemplateId` |
 | Open project Design Files | `open`, view `design-files` | `design-files` | `list_design_files` |
+| Copy a Design File path or download it | Design File viewer toolbar | `design-files` response `absolutePath` / `downloadUrl` | `list_design_files` response `absolutePath` / `downloadUrl` |
 | Read a Design File | Focused `filePath` deep link | `read-design-file` | `read_design_file` |
 | Edit an existing text Design File | Design Files editor | `write-design-file` | `write_design_file` |
 | Upload into Design Files | Design Files upload | `upload-design-file` | `upload_design_file` |
@@ -34,7 +39,7 @@ CLI + MCP operation.
 | Natural-language deck editing | Deck Agent | `edit` | `edit_deck` |
 | Queue project-chat turns; edit text/images/files, reorder, delete, or prioritize before serial execution | Deck Agent queue | — interactive Browser session control | — interactive Browser session control |
 | Whole-deck template/style restyle | Brand/template UI | `restyle` | `restyle_deck` |
-| Add, duplicate, delete, or transition slides | Slide controls | `slide` | `manage_slide` |
+| Add, duplicate, move, delete, or transition slides | Slide controls | `slide` | `manage_slide` |
 | Generate or regenerate one slide | Slide/agent controls | `regenerate` | `regenerate_slide` |
 | Read per-slide speaker notes | Notes strip / presenter view | `speaker-notes`, `action:get` | `get_speaker_notes` |
 | Write or clear speaker notes | Inline notes editor | `speaker-notes`, `action:set` | `update_speaker_notes` |
@@ -44,6 +49,7 @@ CLI + MCP operation.
 | Play from current slide or the beginning | Project Play menu | `open` | `open_ppt_anything` |
 | Dual-window presenter mode with notes and timer | Project Play menu | `open` | `open_ppt_anything` |
 | Export PDF or PPTX | Export menu | `export` | `export_deck` |
+| Run the same local-first product as a desktop app | Electron window | `electron:dev` / `electron:dist` from checkout | — packaged product transport |
 
 Run `npm run check:skill`, `npm run check:mcp`, `npm run typecheck`,
 `npm run check:i18n`, and `npm run build` after changing any row. When a live

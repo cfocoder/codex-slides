@@ -11,6 +11,7 @@ import ChatColumn, { type ChatMsg } from "@/components/ChatColumn";
 import type { MaterialTrayItem } from "@/components/MaterialTray";
 import OutlineBoard from "@/components/OutlineBoard";
 import InspireDialog from "@/components/InspireDialog";
+import SaveProjectTemplateButton from "@/components/SaveProjectTemplateButton";
 import SlideStage, { type MarkAgentEvent } from "@/components/SlideStage";
 import WorkspaceModeTabs from "@/components/WorkspaceModeTabs";
 import {
@@ -780,7 +781,8 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
 
   /** Apply an inspiration pick (or skip) then render. */
   async function handleInspireGenerate(templateId?: string) {
-    if (running || busy) return;
+    if (running || busy || retuning) return;
+    const redrawExisting = Boolean(templateId) && stage === "deck" && slides.some((slide) => slide.status === "rendered");
     setInspireOpen(false);
     if (templateId) {
       setInspirationSkipped(false);
@@ -791,6 +793,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         setProject((p) => ({ ...p, config: { ...p.config, template: templateId } }));
       } catch (e: any) {
         say({ role: "assistant", content: `⚠ ${t("flow.styleFailed", { error: e?.message ?? String(e) })}` });
+        return;
       }
     } else {
       const useBrandSystem = Boolean(project.config.designSystem);
@@ -807,6 +810,31 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
           ? { ...m.inspiration, chosen: templateId, resolved: true }
           : undefined,
       }));
+    }
+    if (redrawExisting && templateId) {
+      setRetuning(true);
+      setDesignSystemProgress(1);
+      setBusy(true);
+      say({ role: "assistant", content: t("restyle.started", { count: slides.length }) });
+      for (const [position, slide] of slides.entries()) {
+        setDesignSystemProgress(position + 1);
+        setSlides((items) => items.map((item) => item.index === slide.index ? { ...item, status: "working" } : item));
+        try {
+          const image = await regenerateSlide(projectId, slide.index);
+          setSlides((items) => items.map((item) => item.index === slide.index
+            ? { ...item, status: "rendered", image, bust: Date.now() }
+            : item));
+        } catch (error: any) {
+          setSlides((items) => items.map((item) => item.index === slide.index
+            ? { ...item, status: "error", error: String(error?.message ?? error) }
+            : item));
+        }
+      }
+      say({ role: "assistant", content: t("restyle.done", { count: slides.length }) });
+      setDesignSystemProgress(0);
+      setRetuning(false);
+      setBusy(false);
+      return;
     }
     renderNow();
   }
@@ -1121,6 +1149,16 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       </span>
     </button>
   );
+  const projectHeaderActions = (
+    <div className="deck-header-extras">
+      <SaveProjectTemplateButton
+        projectId={projectId}
+        projectTitle={project.title}
+        disabled={workspaceBusy}
+      />
+      {brandSystemTrigger}
+    </div>
+  );
 
   return (
     <div className="ws project-ws">
@@ -1202,7 +1240,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             streaming={false}
             researchDoc={project.researchDoc}
             headerPrefix={workspaceTabs}
-            headerExtra={brandSystemTrigger}
+            headerExtra={projectHeaderActions}
           />
         ) : (
           // Both "inspire" (pending skeleton deck while picking a style) and
@@ -1222,7 +1260,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             onStartMarkRun={startBackgroundMark}
             focusSlideIndex={focusSlideIndex}
             focusSlideKey={focusSlideKey}
-            headerExtra={<div className="deck-header-extras">{brandSystemTrigger}</div>}
+            headerExtra={projectHeaderActions}
           />
         )}
         {showDesignSystem && (
@@ -1252,8 +1290,9 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
           requirement={project.config.requirement}
           outlineTitles={outline.map((o) => o.title).filter(Boolean)}
           selected={project.config.template}
+          intent={stage === "deck" ? "apply" : "generate"}
           onClose={() => setInspireOpen(false)}
-          onSkip={() => handleInspireGenerate(undefined)}
+          onSkip={stage === "deck" ? undefined : () => handleInspireGenerate(undefined)}
           onSubmit={(id) => handleInspireGenerate(id)}
         />
       )}

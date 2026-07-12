@@ -4,6 +4,7 @@ import { Check, Paperclip, Plus, UploadSimple } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import ContextItems from "@/components/ContextItems";
 import ContextOptionItems from "@/components/ContextOptionItems";
+import ProjectTemplatePicker from "@/components/ProjectTemplatePicker";
 import {
   CONTEXT_ITEM_ACCEPT,
   contextItemMatchesAccept,
@@ -18,7 +19,7 @@ import {
   type PresentationScenario,
   type ScenarioInputSlot,
 } from "@/lib/scenarios";
-import type { ContextOptionItem, PptConfig } from "@/lib/types";
+import type { ContextOptionItem, PptConfig, ProjectTemplateSummary } from "@/lib/types";
 import { useI18n } from "@/i18n/I18nProvider";
 
 interface EngineInfo {
@@ -79,6 +80,10 @@ export default function Composer({
   onRemoveMaterial,
   styleTemplate,
   onClearStyle,
+  projectTemplates,
+  projectTemplate,
+  onSelectProjectTemplate,
+  onClearProjectTemplate,
   scenario,
   onClearScenario,
   onSubmit,
@@ -95,6 +100,10 @@ export default function Composer({
   /** Currently chosen deck style (from Community / For you), shown as a chip. */
   styleTemplate?: { id: string; name: string; cover?: string; palette?: string[]; sub?: string } | null;
   onClearStyle?: () => void;
+  projectTemplates?: ProjectTemplateSummary[];
+  projectTemplate?: ProjectTemplateSummary | null;
+  onSelectProjectTemplate?: (template: ProjectTemplateSummary) => void;
+  onClearProjectTemplate?: () => void;
   scenario?: PresentationScenario | null;
   onClearScenario?: () => void;
   onSubmit: (
@@ -194,6 +203,9 @@ export default function Composer({
     ...(styleTemplate
       ? [{ id: "style", kind: "style" as const, label: t("composer.design"), value: styleTemplate.name }]
       : []),
+    ...(projectTemplate
+      ? [{ id: "project-template", kind: "template" as const, label: t("projectTemplates.context"), value: projectTemplate.name }]
+      : []),
     ...(quality !== "auto"
       ? [{ id: "quality", kind: "setting" as const, label: t("composer.quality"), value: qualitySummary }]
       : []),
@@ -207,6 +219,7 @@ export default function Composer({
     else if (id === "research") setResearchMode(false);
     else if (id === "fast") setConfig({ fast: false });
     else if (id === "style") onClearStyle?.();
+    else if (id === "project-template") onClearProjectTemplate?.();
     else if (id === "quality") {
       setQuality("auto");
       setConfig({ resolution: "2K" });
@@ -454,6 +467,14 @@ export default function Composer({
         <button className="cbtn active" title={t("composer.outputType")}>
           ▦ {t("composer.slides")}
         </button>
+
+        <ProjectTemplatePicker
+          templates={projectTemplates ?? []}
+          selected={projectTemplate}
+          disabled={running || uploading}
+          onSelect={(template) => onSelectProjectTemplate?.(template)}
+          onClear={() => onClearProjectTemplate?.()}
+        />
 
         {/* model */}
         <div ref={modelRef} style={{ position: "relative" }}>

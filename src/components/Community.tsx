@@ -1,6 +1,8 @@
 "use client";
 
+import { SquaresFour } from "@phosphor-icons/react";
 import { useMemo, useRef, useState } from "react";
+import InspireDialog from "@/components/InspireDialog";
 import { COMMUNITY_GROUPS, COMMUNITY_TEMPLATES } from "@/lib/community";
 import { CATEGORIES, categoryLabel, getTemplate } from "@/lib/templates";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -72,14 +74,17 @@ const GROUPS: string[] = [FORYOU_GROUP, ...COMMUNITY_GROUPS];
  *  Picking one seeds config.template (styleBlock). */
 export default function Community({
   selected,
+  requirement = "",
   onPick,
 }: {
   selected?: string;
+  requirement?: string;
   onPick: (id: string) => void;
 }) {
   const { locale, t } = useI18n();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [group, setGroup] = useState<string>("all");
+  const [browserOpen, setBrowserOpen] = useState(false);
 
   const cards = useMemo(() => {
     const list = group === "all" ? ALL_ITEMS : ALL_ITEMS.filter((i) => i.group === group);
@@ -102,6 +107,7 @@ export default function Community({
   };
 
   return (
+    <>
     <section className="foryou community" aria-labelledby="community-heading">
       <div className="section-head foryou-head">
         <div>
@@ -109,6 +115,10 @@ export default function Community({
           <p>{t("community.subtitle")}</p>
         </div>
         <div className="foryou-nav">
+          <button type="button" className="community-browser-button" onClick={() => setBrowserOpen(true)}>
+            <SquaresFour size={15} aria-hidden="true" />
+            {t("community.browseCount", { count: COMMUNITY_TEMPLATES.length })}
+          </button>
           <button className="round-btn" onClick={() => nudge(-1)} aria-label={t("community.scrollLeft")}>
             ‹
           </button>
@@ -153,7 +163,7 @@ export default function Community({
           >
             <div className="tpl-cover" style={{ background: ground }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={i.img} alt="" loading="lazy" />
+              <img src={i.img} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />
               <span className="tpl-selected" aria-hidden="true">
                 ✓
               </span>
@@ -173,5 +183,19 @@ export default function Community({
         ))}
       </div>
     </section>
+    {browserOpen ? (
+      <InspireDialog
+        requirement={requirement}
+        outlineTitles={[]}
+        selected={selected}
+        intent="select"
+        onClose={() => setBrowserOpen(false)}
+        onSubmit={(id) => {
+          if (id !== selected) onPick(id);
+          setBrowserOpen(false);
+        }}
+      />
+    ) : null}
+    </>
   );
 }

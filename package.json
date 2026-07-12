@@ -1,7 +1,8 @@
 {
   "name": "ppt-anything-web",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
+  "main": "electron/main.cjs",
   "description": "Browser-first AI presentation workspace for Codex with persistent projects, visual editing, and PDF/PPTX export.",
   "license": "MIT",
   "author": "Nexu and PPT Anything contributors",
@@ -30,7 +31,7 @@
   },
   "scripts": {
     "dev": "next dev -p 4311",
-    "build": "next build",
+    "build": "next build && node scripts/prepare-standalone.mjs",
     "start": "next start -p 4311",
     "test": "node --test src/lib/*.test.mjs",
     "typecheck": "tsc --noEmit",
@@ -41,12 +42,16 @@
     "check:skill": "node --check skills/ppt-anything/scripts/ppt-anything.mjs && node --check skills/ppt-anything/scripts/probe.mjs && node skills/ppt-anything/scripts/probe.mjs && npm run check:browser-first",
     "check:skill:live": "node skills/ppt-anything/scripts/probe.mjs --live",
     "check:mcp": "node --check scripts/start-mcp.mjs && node --check mcp/server.mjs && node scripts/probe-mcp.mjs",
-    "check:mcp:live": "node scripts/probe-mcp.mjs --live"
+    "check:mcp:live": "node scripts/probe-mcp.mjs --live",
+    "electron:dev": "node electron/dev.cjs",
+    "electron:check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/dev.cjs && node scripts/check-electron.mjs",
+    "electron:pack": "npm run build && electron-builder --dir",
+    "electron:dist": "npm run build && electron-builder"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@phosphor-icons/react": "^2.1.10",
-    "next": "14.2.33",
+    "next": "14.2.35",
     "pdf-lib": "^1.17.1",
     "pptxgenjs": "^3.12.0",
     "react": "18.3.1",
@@ -57,6 +62,8 @@
     "@types/node": "^20.14.0",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
+    "electron": "43.1.0",
+    "electron-builder": "26.5.0",
     "typescript": "^5.5.0"
   }
 }

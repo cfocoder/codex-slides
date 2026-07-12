@@ -40,6 +40,9 @@ const expected = [
   "update_speaker_notes",
   "generate_speaker_notes",
   "list_templates",
+  "list_project_templates",
+  "save_project_as_template",
+  "delete_project_template",
   "list_scenarios",
   "list_design_files",
   "read_design_file",
@@ -78,6 +81,7 @@ try {
   assert.ok(createDeck?.inputSchema?.properties?.scenarioId, "create_deck must expose scenarioId");
   assert.ok(createDeck?.inputSchema?.properties?.materialContexts, "create_deck must expose materialContexts");
   assert.ok(createDeck?.inputSchema?.properties?.designSystem, "create_deck must expose designSystem");
+  assert.ok(createDeck?.inputSchema?.properties?.projectTemplateId, "create_deck must expose projectTemplateId");
   const openTool = listed.tools.find((tool) => tool.name === "open_ppt_anything");
   assert.ok(openTool?.inputSchema?.properties?.view, "open_ppt_anything must expose Browser views");
   const startProject = listed.tools.find((tool) => tool.name === "start_project");
@@ -86,7 +90,7 @@ try {
 
   const capabilities = await client.callTool({ name: "get_capabilities", arguments: {} });
   assert.equal(capabilities.isError, undefined);
-  assert.equal(capabilities.structuredContent?.capabilities?.length, 33);
+  assert.equal(capabilities.structuredContent?.capabilities?.length, 36);
   assert.ok(capabilities.content.some((item) => item.type === "resource_link"));
 
   if (live) {
@@ -95,6 +99,8 @@ try {
     const templates = await client.callTool({ name: "list_templates", arguments: {} });
     assert.equal(templates.isError, undefined);
     assert.ok(templates.structuredContent?.templates?.length >= 45);
+    const projectTemplates = await client.callTool({ name: "list_project_templates", arguments: {} });
+    assert.equal(projectTemplates.isError, undefined);
     const scenarios = await client.callTool({ name: "list_scenarios", arguments: {} });
     assert.equal(scenarios.structuredContent?.groups?.length, 6);
     assert.equal(scenarios.structuredContent?.scenarios?.length, 24);

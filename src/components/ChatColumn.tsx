@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  ArrowDown,
   ArrowUp,
   At,
   ArrowsOut,
@@ -29,7 +30,7 @@ import {
   XCircle,
 } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 import ContextItems from "@/components/ContextItems";
 import ContextOptionItems from "@/components/ContextOptionItems";
 import { AgentToolActivity } from "@/components/AgentToolActivity";
@@ -54,6 +55,7 @@ import {
   type ActiveFileMention,
 } from "@/lib/designFileMentions";
 import { getCommunityTemplate } from "@/lib/community";
+import { isNearChatBottom } from "@/lib/chatScroll";
 import { shouldSubmitTextarea } from "@/lib/keyboard";
 import type { ContextOptionItem, DesignFileReference, ProjectFileRecord, ProjectRunState } from "@/lib/types";
 import type { WorkflowProgress } from "@/lib/workflowProgress";
@@ -491,7 +493,7 @@ function InspirationCard({
             const t = getCommunityTemplate(id);
             return t ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img key={id} src={t.cover} alt="" loading="lazy" />
+              <img key={id} src={t.cover} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />
             ) : null;
           })}
           {!chosen && extra > 0 && <span className="inspo-more">+{extra}</span>}
@@ -508,7 +510,11 @@ function InspirationCard({
             <button
               type="button"
               className="inspo-preview"
-              onClick={() => onOpenDesignFile ? onOpenDesignFile("inspiration") : setPreviewOpen(true)}
+              onClick={() => onInspire
+                ? onInspire("browse")
+                : onOpenDesignFile
+                  ? onOpenDesignFile("inspiration")
+                  : setPreviewOpen(true)}
             >
               {t("chat.previewAgain")} <ArrowsOut size={13} />
             </button>
@@ -801,6 +807,7 @@ export default function ChatColumn({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [editingContext, setEditingContext] = useState<SlideChatContext | null>(null);
   const [draggedQueuedId, setDraggedQueuedId] = useState<string | null>(null);
   const [queuedDropTarget, setQueuedDropTarget] = useState<{
@@ -815,7 +822,41 @@ export default function ChatColumn({
   const composerDragDepthRef = useRef(0);
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationPanelRef = useRef<HTMLDivElement>(null);
+  const followLatestRef = useRef(false);
+  const programmaticScrollRef = useRef(false);
+  const scrollReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeContext = editingQueuedId ? editingContext : context;
+
+  const updateFeedPosition = useCallback(() => {
+    const feed = feedRef.current;
+    if (!feed) return;
+    const nearBottom = isNearChatBottom(feed);
+    if (programmaticScrollRef.current) {
+      if (nearBottom) programmaticScrollRef.current = false;
+      followLatestRef.current = true;
+      setShowScrollToBottom(false);
+      return;
+    }
+    followLatestRef.current = nearBottom;
+    setShowScrollToBottom(!nearBottom && feed.scrollHeight > feed.clientHeight + 8);
+  }, []);
+
+  const scrollToLatest = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const feed = feedRef.current;
+    if (!feed) return;
+    if (scrollReleaseTimerRef.current) clearTimeout(scrollReleaseTimerRef.current);
+    programmaticScrollRef.current = behavior === "smooth";
+    followLatestRef.current = true;
+    setShowScrollToBottom(false);
+    feed.scrollTo({ top: feed.scrollHeight, behavior });
+    if (behavior === "smooth") {
+      scrollReleaseTimerRef.current = setTimeout(() => {
+        programmaticScrollRef.current = false;
+        scrollReleaseTimerRef.current = null;
+        updateFeedPosition();
+      }, 600);
+    }
+  }, [updateFeedPosition]);
 
   const filteredConversations = useMemo(() => {
     const query = conversationQuery.trim().toLocaleLowerCase();
@@ -882,8 +923,24 @@ export default function ChatColumn({
   }, [fileMentionIndex, filteredProjectFiles.length]);
 
   useEffect(() => {
-    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, busy, status, queued.length]);
+    const frame = requestAnimationFrame(() => {
+      const feed = feedRef.current;
+      if (!feed) return;
+      if (followLatestRef.current) feed.scrollTop = feed.scrollHeight;
+      updateFeedPosition();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [messages, busy, status, queued.length, todos, workflow, updateFeedPosition]);
+
+  useEffect(() => {
+    followLatestRef.current = false;
+    programmaticScrollRef.current = false;
+    const frame = requestAnimationFrame(() => {
+      if (feedRef.current) feedRef.current.scrollTop = 0;
+      updateFeedPosition();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [projectId, activeConversationId, updateFeedPosition]);
 
   useEffect(() => {
     if (!editingQueuedId) return;
@@ -902,6 +959,7 @@ export default function ChatColumn({
 
   useEffect(() => () => {
     if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
+    if (scrollReleaseTimerRef.current) clearTimeout(scrollReleaseTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -1109,6 +1167,8 @@ export default function ChatColumn({
         onUpdateQueued(editingQueuedId, request);
         onEditingQueuedChange?.(null);
       } else {
+        followLatestRef.current = true;
+        scrollToLatest("auto");
         await onSend(request);
         onClearContext?.();
       }
@@ -1357,7 +1417,8 @@ export default function ChatColumn({
         </div>
       ) : null}
 
-      <div className="chatfeed" ref={feedRef}>
+      <div className="chatfeed-shell">
+      <div className="chatfeed" ref={feedRef} onScroll={updateFeedPosition}>
         {todos.length ? <GlobalTodoPanel todos={todos} /> : null}
         {!messages.length ? (
           <div className="chat-empty">
@@ -1430,6 +1491,18 @@ export default function ChatColumn({
           </div>
         )}
 
+      </div>
+      {showScrollToBottom ? (
+        <button
+          type="button"
+          className="chat-scroll-latest"
+          onClick={() => scrollToLatest("smooth")}
+          aria-label={t("chat.scrollToBottom")}
+          title={t("chat.scrollToBottom")}
+        >
+          <ArrowDown size={15} weight="bold" aria-hidden="true" />
+        </button>
+      ) : null}
       </div>
 
       {queued.length > 0 ? (

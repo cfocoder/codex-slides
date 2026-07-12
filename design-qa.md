@@ -1,53 +1,65 @@
-# Design QA — persistent deck workflow and Design Files shell
+# Design QA — 会话 Markdown 预览与输入框尺寸
 
-## Visual sources
+## 视觉真值
 
-- Immersive collapsed workspace: `/var/folders/5j/fb63hyxj11nblszkmd3vfcjm0000gn/T/codex-clipboard-1c7vC9.png` (3024 × 1896)
-- Conversation manager and answer metadata reference: `/var/folders/5j/fb63hyxj11nblszkmd3vfcjm0000gn/T/codex-clipboard-H1XMNf.png` (846 × 1400)
-- Workflow history during generation: `/var/folders/5j/fb63hyxj11nblszkmd3vfcjm0000gn/T/codex-clipboard-vf1RLL.png` (3024 × 1896)
-- Reviewable outline and selected inspiration: `/var/folders/5j/fb63hyxj11nblszkmd3vfcjm0000gn/T/codex-clipboard-aZaO8L.png` (3024 × 1896)
-- Shared right-side Design Files preview: `/var/folders/5j/fb63hyxj11nblszkmd3vfcjm0000gn/T/codex-clipboard-OTW23h.png` (3024 × 1896)
-- Missing completion/process history: `/var/folders/5j/fb63hyxj11nblszkmd3vfcjm0000gn/T/codex-clipboard-XtikBU.png` (3024 × 1896)
-- Persistent Todo reference: `/var/folders/5j/fb63hyxj11nblszkmd3vfcjm0000gn/T/codex-clipboard-qCN1Ky.png` (3024 × 1896)
+- 助手消息 Markdown 原始状态：`/var/folders/5j/fb63hyxj11nblszkmd3vfcjm0000gn/T/codex-clipboard-5Vr1QB.png`（1192 × 1732，约 596 × 866 CSS px 的局部裁切）。
+- 首页输入框原始状态：`/var/folders/5j/fb63hyxj11nblszkmd3vfcjm0000gn/T/codex-clipboard-FYW5oW.png`（3024 × 1896，约 1512 × 948 CSS px）。
+- 项目页输入框原始状态：`/var/folders/5j/fb63hyxj11nblszkmd3vfcjm0000gn/T/codex-clipboard-MzYRUf.png`（3024 × 1896，约 1512 × 948 CSS px）。
 
-## Implementation target
+## 实现目标
 
-- URL: `http://localhost:4311/project/20260711093455-agent-native-design-b8xx`
-- Intended viewport: 1920 × 1200 CSS pixels (desktop Chrome), matching the reference aspect and state as closely as possible.
-- State: existing ready project with 10 generated pages, restored legacy workflow history, Canvas / Design Files tabs, expanded and collapsed chat states.
-- Implementation screenshot path: unavailable — no authorized browser surface could create a rendered capture in this run.
+- 首页：`http://localhost:4311/`
+- 项目页：`http://localhost:4311/project/20260711152839-为-vibe-design-workspace-制作一份面向-受众-的演示文稿--5krk`
+- 目标视口：1512 × 948 CSS px；Markdown 局部对照使用约 596 × 866 CSS px 的左栏裁切。
+- 状态：已有 10 页成品的 `vibe design workspace` 项目；滚动到 `## 总结` 助手消息；底部项目输入框可见；首页输入框包含多行需求。
+- 实现截图路径：不可用。Chrome 窗口已按用户授权打开，但浏览器控制连接在重试后仍不可用，无法生成实现截图。
 
-## Comparison evidence and history
+## 对照证据与历史
 
-1. Source screenshots were captured and their exact dimensions were verified.
-2. The implementation was checked against the source states at the component and CSS level: zero-width collapsed grid column, delayed restore control, conversation popover, answer footer, four-step workflow card, persistent process/tool cards, artifact cards, and shared Design Files preview routes.
-3. The existing `Agent Native Design` project JSON was inspected. Legacy messages contained an outline card without pages/artifact identity, an unresolved inspiration prompt, and no completion process card. Runtime enrichment now restores those records without duplicating them on later opens.
-4. Browser verification attempts:
-   - in-app Browser runtime: no browser surface available;
-   - `agent-browser`: daemon startup denied by the filesystem sandbox;
-   - local Chrome headless: process terminated by the sandbox (exit 134), so no screenshot was written;
-   - Computer Use for Google Chrome: not approved for this run.
-5. Because there is no implementation screenshot, a combined source-versus-implementation visual comparison and console inspection could not be completed.
+1. 三张视觉真值已按原始分辨率重新打开并核对；Markdown 局部清楚显示原始 `##`、`**`、反引号和编号列表未被渲染，首页和项目页清楚标出输入区域尺寸问题。
+2. 本轮已打开新的 Chrome 窗口并按规定重试连接；Chrome、本地服务与目标路由均可用，但浏览器控制后端仍未建立会话。
+3. 因缺少浏览器渲染后的实现截图，无法完成要求的同视口并排比较，也无法检查控制台错误。
+4. 本轮没有视觉迭代历史：截图采集在第一次实现对照前即被浏览器连接阻断。
 
-## Functional verification
+## 功能验证
 
-- `pnpm typecheck`: passed.
-- `pnpm check:i18n`: passed for both locales.
-- `pnpm build`: passed; `/`, `/project/[id]`, chat, file, render, and project API routes compiled.
-- `git diff --check`: passed during implementation.
-- React review: timer cleanup, semantic buttons/nav/main, stable list identities, image alt text, and typed props were checked; the visible inspiration glyph uses the existing Phosphor icon set.
+- `npm run typecheck`：通过。
+- `npm run check:i18n`：通过，3 个语言包、782 个源键。
+- `npm run build`：通过；首页、项目页和相关 API 路由完成生产构建。
+- HTTP：`/` 返回 200；目标 `/project/[id]` 返回 200。
+- 真实会话 fixture 渲染：8 项断言全部通过，包括标题、粗体、行内代码、编号保持、嵌套项目、隐藏 Markdown 符号、转义原始 HTML 和阻断不安全链接。
+- `git diff --check`：通过。
+
+## 必查视觉面
+
+- 字体与排版：实现值已落到助手正文 14px、项目输入框 14px；Markdown 标题、正文、列表、引用、链接和代码存在独立层级。缺少实现截图，无法认证实际字体栅格化、换行和视觉密度。
+- 间距与布局：首页输入区最小高度为 108px，窄屏为 88px；项目输入区保持 72px 高度并收紧字距与内边距。缺少实现截图，无法认证折行数量、底部工具栏间距和左栏滚动位置。
+- 色彩与视觉 token：复用现有 `--text`、`--text-2`、`--muted`、`--accent`、`--border` 与 `--bg-soft`，未引入新的色彩体系。缺少实现截图，无法认证实际对比度观感。
+- 图像与资产：本次改动不新增或替换图像、图标、品牌资产；该面无资产漂移。
+- 文案与内容：真实 `## 总结` 消息已证明语法标记会转换为语义元素，编号 1–8 不重置，原内容不改写。
 
 ## Findings
 
-- **[P1] Rendered visual sign-off is blocked.**
-  - Location: full deck workspace, collapsed state, chat history cards, and Design Files preview.
-  - Evidence: all available browser paths above failed before a screenshot could be captured.
-  - Impact: exact spacing, overflow, focus treatment, and responsive fidelity cannot be certified from source/build checks alone.
-  - Required follow-up: open the target URL in an authorized Chrome surface, capture expanded/collapsed and Design Files states at 1920 × 1200, compare them beside the supplied references, inspect the console, and correct any P0/P1/P2 mismatch.
+- **[P1] 浏览器渲染后的视觉签收被阻断。**
+  - Location：助手 Markdown 长消息、首页输入框、项目页底部输入框。
+  - Evidence：Chrome 窗口打开并重试后仍无法建立浏览器控制会话，因此没有实现截图、并排比较或控制台记录。
+  - Impact：无法从代码、构建和静态渲染断言中认证最终字号、折行、间距、滚动与响应式视觉是否达到截图目标。
+  - Fix：从 ChatGPT 插件界面重新安装或恢复 Chrome 插件连接；随后在 1512 × 948 视口捕获首页和项目页，并对 Markdown 左栏做同尺寸局部对照。
 
-## Follow-up polish
+## Open Questions
 
-- Validate the 640 px and 820 px responsive breakpoints once a browser surface is available.
-- Confirm clipboard permission behavior in the user's live Chrome profile.
+- Chrome 插件连接恢复后，是否仍有 P0/P1/P2 视觉偏差，必须以浏览器截图和控制台检查为准。
+
+## Implementation Checklist
+
+1. 恢复 Chrome 浏览器控制连接。
+2. 捕获首页 1512 × 948 实现截图，确认输入区默认可见约四行。
+3. 捕获项目页 1512 × 948 实现截图，确认项目输入框字号与工具栏比例。
+4. 滚动到 `## 总结`，捕获约 596 × 866 的左栏局部截图，确认标题、强调、代码、编号和嵌套列表。
+5. 将实现截图与三张视觉真值放在同一比较输入中，并检查控制台；修复所有 P0/P1/P2 后再改为通过。
+
+## Follow-up Polish
+
+- 浏览器恢复后补测 760px 与 480px 断点，确认首页 88px 输入区和移动端 16px 防缩放规则不会互相覆盖。
 
 final result: blocked

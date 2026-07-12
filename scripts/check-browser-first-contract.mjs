@@ -25,7 +25,11 @@ assert.match(cli, /"start-project"/);
 assert.match(cli, /interactionMode: "browser-guided"/);
 
 const manifest = JSON.parse(read(".codex-plugin/plugin.json"));
-assert.match(manifest.version, /^0\.3\.1\+codex\./);
+const packageManifest = JSON.parse(read("package.json"));
+assert.ok(
+  manifest.version.startsWith(`${packageManifest.version}+codex.`),
+  `plugin version ${manifest.version} must track package version ${packageManifest.version}`,
+);
 assert.ok(manifest.interface.defaultPrompt.some((prompt) => /Browser.*step by step/i.test(prompt)));
 assert.ok(manifest.interface.capabilities.includes("Guided project checkpoints"));
 
