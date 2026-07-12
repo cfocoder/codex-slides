@@ -15,10 +15,10 @@ files:
 npmRebuild: false
 
 extraResources:
-  - from: public/brand/codex-slides-mark.png
-    to: codex-slides-mark.png
+  - from: public/brand/codex-slides-app-icon.png
+    to: codex-slides-app-icon.png
 
 mac:
-  icon: public/brand/codex-slides-mark.png
+  icon: public/brand/codex-slides-app-icon.png
   category: public.app-category.productivity
   target: dir

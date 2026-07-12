@@ -17,6 +17,7 @@ import {
   CircleNotch,
   ClipboardText,
   DownloadSimple,
+  Eye,
   File,
   FileCode,
   FileImage,
@@ -26,6 +27,14 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
+import { Markdown } from "@/components/Markdown";
+import { DesignFilePreview } from "@/components/DesignFilesPanel";
+import type { DesignFile } from "@/lib/designFiles";
+import {
+  defaultDesignFileViewerMode,
+  designFilePreviewKind,
+  type DesignFileViewerMode,
+} from "@/lib/designFilePreview";
 import type { ProjectFileRecord } from "@/lib/types";
 import { useI18n } from "@/i18n/I18nProvider";
 
@@ -103,6 +112,58 @@ function ViewerSkeleton() {
   );
 }
 
+const JSON_PREVIEW_ITEM_LIMIT = 120;
+
+function JsonPreviewValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
+  if (value === null) return <code className="null">null</code>;
+  if (typeof value === "string") return <span className="string">{value}</span>;
+  if (typeof value === "number" || typeof value === "boolean") {
+    return <code className={typeof value}>{String(value)}</code>;
+  }
+  if (depth >= 7) return <code>{JSON.stringify(value)}</code>;
+  if (Array.isArray(value)) {
+    const visible = value.slice(0, JSON_PREVIEW_ITEM_LIMIT);
+    return (
+      <ol className="design-file-json-array">
+        {visible.map((item, index) => (
+          <li key={index}><JsonPreviewValue value={item} depth={depth + 1} /></li>
+        ))}
+        {value.length > visible.length ? <li className="truncated">+{value.length - visible.length}</li> : null}
+      </ol>
+    );
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    const visible = entries.slice(0, JSON_PREVIEW_ITEM_LIMIT);
+    return (
+      <dl className="design-file-json-object">
+        {visible.map(([key, item]) => (
+          <div key={key}>
+            <dt>{key}</dt>
+            <dd><JsonPreviewValue value={item} depth={depth + 1} /></dd>
+          </div>
+        ))}
+        {entries.length > visible.length ? (
+          <div className="truncated"><dt>…</dt><dd>+{entries.length - visible.length}</dd></div>
+        ) : null}
+      </dl>
+    );
+  }
+  return <code>{String(value)}</code>;
+}
+
+function JsonPreview({ source }: { source: string }) {
+  try {
+    return (
+      <div className="design-file-rendered-document design-file-json-preview">
+        <JsonPreviewValue value={JSON.parse(source)} />
+      </div>
+    );
+  } catch {
+    return <pre className="design-file-json-invalid"><code>{source}</code></pre>;
+  }
+}
+
 export default function DesignFiles({
   projectId,
   title,
@@ -111,6 +172,7 @@ export default function DesignFiles({
   showProjectTitle = true,
   initialPath,
   selectionRequestKey,
+  workflowFiles = [],
 }: {
   projectId: string;
   title: string;
@@ -120,6 +182,8 @@ export default function DesignFiles({
   initialPath?: string;
   /** Changes whenever a chat artifact asks to reveal this path again. */
   selectionRequestKey?: number;
+  /** Durable workflow snapshots used to restore the rich running-step previews. */
+  workflowFiles?: DesignFile[];
 }) {
   const { locale, t } = useI18n();
   const [files, setFiles] = useState<ProjectFileRecord[]>([]);
@@ -135,6 +199,7 @@ export default function DesignFiles({
   const [previewReady, setPreviewReady] = useState(false);
   const [previewError, setPreviewError] = useState(false);
   const [previewReloadKey, setPreviewReloadKey] = useState(0);
+  const [viewerMode, setViewerMode] = useState<DesignFileViewerMode>("source");
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [copiedPath, setCopiedPath] = useState("");
@@ -156,6 +221,18 @@ export default function DesignFiles({
   const pendingSaveRef = useRef<Map<string, PendingSave>>(new Map());
 
   const selected = files.find((file) => file.path === selectedPath);
+  const workflowFileMap = useMemo(
+    () => new Map(workflowFiles.map((file) => [file.id, file])),
+    [workflowFiles],
+  );
+  const workflowArtifactIds = useMemo(
+    () => new Set(workflowFileMap.keys()),
+    [workflowFileMap],
+  );
+  const previewKind = selected ? designFilePreviewKind(selected, workflowArtifactIds) : null;
+  const workflowPreview = previewKind && workflowArtifactIds.has(previewKind as DesignFile["id"])
+    ? workflowFileMap.get(previewKind as DesignFile["id"])
+    : undefined;
 
   const updateFiles = useCallback((next: ProjectFileRecord[]) => {
     filesRef.current = next;
@@ -402,6 +479,12 @@ export default function DesignFiles({
   }, [loadEditableContent, previewReloadKey, selected?.editable, selected?.path]);
 
   useEffect(() => {
+    setViewerMode(defaultDesignFileViewerMode(previewKind));
+    setPreviewReady(false);
+    setPreviewError(false);
+  }, [previewKind, selected?.path]);
+
+  useEffect(() => {
     const path = selected?.editable ? selected.path : null;
     return () => {
       if (path) flushPath(path);
@@ -514,7 +597,8 @@ export default function DesignFiles({
     const file = filesRef.current.find((item) => item.path === path);
     if (file?.editable) {
       void loadEditableContent(path, true);
-    } else if (file) {
+    }
+    if (file) {
       setPreviewReady(false);
       setPreviewError(false);
       setPreviewReloadKey((key) => key + 1);
@@ -532,6 +616,14 @@ export default function DesignFiles({
     if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s" || !selected?.editable) return;
     event.preventDefault();
     saveFile(selected.path, content, { showSaving: true });
+  }
+
+  function selectViewerMode(mode: DesignFileViewerMode) {
+    if (mode === "preview" && mode !== viewerMode) {
+      setPreviewReady(false);
+      setPreviewError(false);
+    }
+    setViewerMode(mode);
   }
 
   async function copyFilePath() {
@@ -579,7 +671,17 @@ export default function DesignFiles({
         : t("designFiles.autoSaveHint");
   const previewSrc = selected ? `${apiPath(projectId, selected.path)}?preview=${previewReloadKey}` : "";
   const downloadSrc = selected ? `${apiPath(projectId, selected.path)}?download=1` : "";
-  const previewLoading = Boolean(selected && !selected.editable && !previewReady && !previewError);
+  const previewUsesFrame = previewKind === "html" || previewKind === "embed";
+  const previewUsesImage = previewKind === "image";
+  const previewUsesText = previewKind === "markdown" || previewKind === "json";
+  const previewLoading = Boolean(
+    selected
+      && viewerMode === "preview"
+      && ((previewUsesFrame || previewUsesImage)
+        ? !previewReady && !previewError
+        : previewUsesText && contentLoading),
+  );
+  const viewerLoading = viewerMode === "source" ? contentLoading : previewLoading;
 
   return (
     <section
@@ -722,7 +824,7 @@ export default function DesignFiles({
 
         <main
           className="design-file-viewer"
-          aria-busy={listState === "loading" || contentLoading || previewLoading}
+          aria-busy={listState === "loading" || viewerLoading}
         >
           {listState === "loading" && !selected ? <ViewerSkeleton /> : !selected ? (
             <div className="design-file-placeholder">
@@ -738,7 +840,29 @@ export default function DesignFiles({
                   <span title={selected.path}>{selected.path}</span>
                 </div>
                 <div className="design-file-toolbar-actions">
-                  {selected.editable ? (
+                  {selected.editable && previewKind ? (
+                    <div className="design-file-view-tabs" role="group" aria-label={t("designFiles.viewMode")}>
+                      <button
+                        type="button"
+                        aria-pressed={viewerMode === "preview"}
+                        className={viewerMode === "preview" ? "active" : ""}
+                        onClick={() => selectViewerMode("preview")}
+                      >
+                        <Eye size={14} />
+                        <span>{t("designFiles.preview")}</span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={viewerMode === "source"}
+                        className={viewerMode === "source" ? "active" : ""}
+                        onClick={() => selectViewerMode("source")}
+                      >
+                        <FileCode size={14} />
+                        <span>{t("designFiles.source")}</span>
+                      </button>
+                    </div>
+                  ) : null}
+                  {selected.editable && viewerMode === "source" ? (
                     <div className={`design-file-save-status ${saveState}`} aria-live="polite">
                       {saveState === "error" ? (
                         <button
@@ -775,8 +899,8 @@ export default function DesignFiles({
                   </div>
               </div>
 
-              <div className={`design-file-content${contentLoading || previewLoading ? " is-loading" : ""}`}>
-                {selected.editable ? (
+              <div className={`design-file-content${viewerLoading ? " is-loading" : ""}`}>
+                {viewerMode === "source" && selected.editable ? (
                   contentLoading ? <DocumentSkeleton /> : contentError ? (
                     <div className="design-file-content-error" role="alert">
                       <WarningCircle size={28} />
@@ -794,7 +918,35 @@ export default function DesignFiles({
                       aria-label={t("designFiles.edit", { name: selected.name })}
                     />
                   )
-                ) : selected.kind === "image" ? (
+                ) : workflowPreview ? (
+                  <div className="design-file-workflow-preview">
+                    <DesignFilePreview file={workflowPreview} />
+                  </div>
+                ) : previewKind === "markdown" ? (
+                  contentLoading ? <DocumentSkeleton /> : contentError ? (
+                    <div className="design-file-content-error" role="alert">
+                      <WarningCircle size={28} />
+                      <strong>{t("designFiles.contentLoadFailed")}</strong>
+                      <button type="button" onClick={() => void loadEditableContent(selected.path, true)}>
+                        {t("designFiles.retry")}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="design-file-rendered-document design-file-markdown-preview">
+                      <Markdown source={content} className="assistant-markdown" />
+                    </div>
+                  )
+                ) : previewKind === "json" ? (
+                  contentLoading ? <DocumentSkeleton /> : contentError ? (
+                    <div className="design-file-content-error" role="alert">
+                      <WarningCircle size={28} />
+                      <strong>{t("designFiles.contentLoadFailed")}</strong>
+                      <button type="button" onClick={() => void loadEditableContent(selected.path, true)}>
+                        {t("designFiles.retry")}
+                      </button>
+                    </div>
+                  ) : <JsonPreview source={content} />
+                ) : previewKind === "image" ? (
                   <>
                     {previewLoading ? <DocumentSkeleton preview /> : null}
                     {previewError ? (
@@ -812,7 +964,7 @@ export default function DesignFiles({
                       />
                     )}
                   </>
-                ) : (
+                ) : previewKind === "html" || previewKind === "embed" ? (
                   <>
                     {previewLoading ? <DocumentSkeleton /> : null}
                     {previewError ? (
@@ -825,12 +977,13 @@ export default function DesignFiles({
                         className={previewReady ? "is-ready" : ""}
                         src={previewSrc}
                         title={selected.name}
+                        sandbox={previewKind === "html" ? "allow-scripts allow-downloads allow-forms allow-modals allow-popups" : undefined}
                         onLoad={() => setPreviewReady(true)}
                         onError={() => setPreviewError(true)}
                       />
                     )}
                   </>
-                )}
+                ) : null}
               </div>
             </div>
           )}

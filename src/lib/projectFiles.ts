@@ -4,8 +4,8 @@ import { projectDir } from "./store";
 import type { CodexInputAttachment } from "./codex-text";
 import type { DesignFileReference, ProjectFileRecord } from "./types";
 
-const TEXT_EXTENSIONS = new Set([".md", ".txt", ".json", ".csv", ".tsv", ".html", ".css", ".js", ".jsx", ".ts", ".tsx", ".yaml", ".yml", ".xml"]);
-const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
+const TEXT_EXTENSIONS = new Set([".md", ".txt", ".json", ".csv", ".tsv", ".html", ".htm", ".css", ".js", ".mjs", ".jsx", ".ts", ".tsx", ".yaml", ".yml", ".xml"]);
+const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
 
 export function filesDir(projectId: string) { return path.join(projectDir(projectId), "files"); }
 
@@ -24,15 +24,18 @@ function mimeTypeFor(name: string): string {
     case ".jpeg": return "image/jpeg";
     case ".webp": return "image/webp";
     case ".gif": return "image/gif";
+    case ".svg": return "image/svg+xml";
     case ".pdf": return "application/pdf";
     case ".md": return "text/markdown";
     case ".txt": return "text/plain";
     case ".json": return "application/json";
     case ".csv": return "text/csv";
     case ".tsv": return "text/tab-separated-values";
-    case ".html": return "text/html";
+    case ".html":
+    case ".htm": return "text/html";
     case ".css": return "text/css";
     case ".js":
+    case ".mjs":
     case ".jsx": return "text/javascript";
     case ".ts":
     case ".tsx": return "text/typescript";
@@ -48,9 +51,9 @@ function kindFor(name: string): ProjectFileRecord["kind"] {
   if (IMAGE_EXTENSIONS.has(ext)) return "image";
   // HTML is a presentation-native source format in Codex Slides. Keep it with
   // decks/documents in Design Files instead of presenting it as source code.
-  if ([".md", ".txt", ".html", ".pdf", ".doc", ".docx", ".ppt", ".pptx"].includes(ext)) return "document";
+  if ([".md", ".txt", ".html", ".htm", ".pdf", ".doc", ".docx", ".ppt", ".pptx"].includes(ext)) return "document";
   if ([".json", ".csv", ".tsv", ".yaml", ".yml", ".xml"].includes(ext)) return "data";
-  if ([".css", ".js", ".jsx", ".ts", ".tsx"].includes(ext)) return "code";
+  if ([".css", ".js", ".mjs", ".jsx", ".ts", ".tsx"].includes(ext)) return "code";
   return "other";
 }
 

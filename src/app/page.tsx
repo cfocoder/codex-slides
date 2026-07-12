@@ -9,8 +9,10 @@ import CodexTutorial from "@/components/CodexTutorial";
 import DesignFilesPanel from "@/components/DesignFilesPanel";
 import DeckVersionDialog from "@/components/DeckVersionDialog";
 import HomeLibrary from "@/components/HomeLibrary";
+import InspirationStage from "@/components/InspirationStage";
 import OnboardForm from "@/components/OnboardForm";
 import OutlineBoard from "@/components/OutlineBoard";
+import ProjectLoadingShell from "@/components/ProjectLoadingShell";
 import ResearchStage from "@/components/ResearchStage";
 import InspireDialog from "@/components/InspireDialog";
 import ScenarioPicker from "@/components/ScenarioPicker";
@@ -49,6 +51,7 @@ import {
   type PresentationScenario,
 } from "@/lib/scenarios";
 import type { QuestionSpec } from "@/lib/onboard";
+import { ensureRequiredOnboardQuestions } from "@/lib/questionSemantics";
 import { getTemplate } from "@/lib/templates";
 import {
   COMMUNITY_TEMPLATES,
@@ -90,6 +93,7 @@ import {
 import { useChatConversations } from "@/lib/useChatConversations";
 import { runChatTurn } from "@/lib/chatTurn";
 import { buildWorkflowProgress } from "@/lib/workflowProgress";
+import { shouldResumeResearch } from "@/lib/workflowResume";
 import { createResearchProgress, reduceResearchProgress } from "@/lib/researchProgress";
 import { checkpointSignature } from "@/lib/projectSync";
 import type { DesignFile, WorkspaceMode } from "@/lib/designFiles";
@@ -117,14 +121,23 @@ function checkpointMaterials(project: Project): ContextItem[] {
   }));
 }
 
-export default function Home() {
+interface HomeSearchParams {
+  resume?: string | string[];
+}
+
+export default function Home({ searchParams }: { searchParams?: HomeSearchParams }) {
   const { locale, t } = useI18n();
+  const resumeId = typeof searchParams?.resume === "string" ? searchParams.resume.trim() : "";
   const [config, setConfig] = useState<PptConfig>({ ...DEFAULT_CONFIG, requirement: "" });
   const [engines, setEngines] = useState<EngineInfo[]>([]);
   const [projectTemplates, setProjectTemplates] = useState<ProjectTemplateSummary[]>([]);
 
   const [materials, setMaterials] = useState<ContextItem[]>([]);
-  const [researchMode, setResearchMode] = useState(false);
+  const researchMode = config.mode === "research";
+  const setResearchMode = (enabled: boolean) => {
+    setConfig((current) => ({ ...current, mode: enabled ? "research" : "direct" }));
+  };
+  const [resumeLoading, setResumeLoading] = useState(Boolean(resumeId));
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [stage, setStage] = useState<Stage>("clarify");
@@ -164,6 +177,7 @@ export default function Home() {
   const [focusSlideKey, setFocusSlideKey] = useState(0);
   const [inspireOpen, setInspireOpen] = useState(false);
   const [inspireMsgId, setInspireMsgId] = useState<string | null>(null);
+  const [inspireSelection, setInspireSelection] = useState<string | undefined>();
   const [inspirationSkipped, setInspirationSkipped] = useState(false);
   const [scenarioOpenRequestKey, setScenarioOpenRequestKey] = useState(0);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
@@ -249,12 +263,14 @@ export default function Home() {
       researchDoc,
       workflow: {
         stage: currentWorkflowStage(),
+        researchMode,
         questions,
         clarifyForm: clarifyFormState,
         clarifyAnswerSummary,
         workspaceMode,
         selectedDesignFileId,
         inspirationSkipped,
+        inspirationSelection: inspireSelection,
         queuedRequests: queue,
       },
     };
@@ -293,6 +309,7 @@ export default function Home() {
     clarifyFormState,
     config,
     inspirationSkipped,
+    inspireSelection,
     outline.length,
     projectId,
     queue,
@@ -362,8 +379,8 @@ export default function Home() {
       pages: scenario.defaults.pages,
       aspect: scenario.defaults.aspect,
       style: scenario.defaults.style,
+      mode: scenario.defaults.research ? "research" : "direct",
     });
-    setResearchMode(Boolean(scenario.defaults.research));
   }
   function clearScenario() {
     patchConfig({ scenarioId: undefined });
@@ -397,7 +414,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const resumeId = new URLSearchParams(window.location.search).get("resume")?.trim();
     if (!resumeId) return;
     let cancelled = false;
     void fetch(`/api/projects/${encodeURIComponent(resumeId)}`, { cache: "no-store" })
@@ -411,10 +427,15 @@ export default function Home() {
         const cachedAt = Number(cached?.workflow?.updatedAt) || 0;
         const serverAt = Number(project.workflow?.updatedAt) || 0;
         const useCached = Boolean(cached && cachedAt > serverAt);
-        const restoredConfig = useCached && cached?.config ? cached.config : project.config;
+        const checkpointConfig = useCached && cached?.config ? cached.config : project.config;
         const restoredWorkflow = {
           ...(project.workflow ?? { stage: project.status === "rendering" ? "rendering" as const : "outline" as const }),
           ...(useCached ? cached?.workflow : {}),
+        };
+        const restoreResearch = shouldResumeResearch(project, checkpointConfig, restoredWorkflow);
+        const restoredConfig: PptConfig = {
+          ...checkpointConfig,
+          mode: restoreResearch ? "research" : "direct",
         };
 
         if (
@@ -426,10 +447,12 @@ export default function Home() {
           return;
         }
 
-        const restoredQuestions = (restoredWorkflow.questions ?? []) as QuestionSpec[];
+        const restoredQuestions = ensureRequiredOnboardQuestions(
+          (restoredWorkflow.questions ?? []) as QuestionSpec[],
+          locale,
+        );
         setProjectId(project.id);
         setConfig(restoredConfig);
-        setResearchMode(restoredConfig.mode === "research");
         setMaterials(checkpointMaterials(project));
         setTitle((useCached ? cached?.title : undefined) || project.title);
         setOutline(project.outline.map((page) => ({ title: page.title, points: [...page.points] })));
@@ -448,6 +471,7 @@ export default function Home() {
         setWorkspaceMode(restoredWorkflow.workspaceMode ?? "canvas");
         setSelectedDesignFileId(restoredWorkflow.selectedDesignFileId ?? "questions");
         setInspirationSkipped(Boolean(restoredWorkflow.inspirationSkipped));
+        setInspireSelection(restoredWorkflow.inspirationSelection);
         const restoredQueue = (restoredWorkflow.queuedRequests ?? []) as QueuedChatRequest[];
         queueRef.current = restoredQueue;
         setQueue(restoredQueue);
@@ -465,10 +489,27 @@ export default function Home() {
         setBusy(false);
         setClarifyBusy(false);
         setPhase("work");
+        setResumeLoading(false);
+        const restoredQuestionSubtitle = restoredWorkflow.clarifyAnswerSummary
+          ? t("designFiles.questionsConfirmed", { count: restoredQuestions.length })
+          : t("designFiles.questionsPending", { count: restoredQuestions.length });
+        const restoreQuestionArtifact = (messages: ChatMsg[]) => messages.map((message) => (
+          message.artifact?.kind === "questions"
+            ? {
+                ...message,
+                content: t("designFiles.questionsPrepared", { count: restoredQuestions.length }),
+                artifact: { ...message.artifact, subtitle: restoredQuestionSubtitle },
+              }
+            : message
+        ));
+        const restoredConversations = project.conversations?.map((conversation) => ({
+          ...conversation,
+          messages: restoreQuestionArtifact(conversation.messages as unknown as ChatMsg[]) as unknown as typeof conversation.messages,
+        }));
         conversationState.restoreConversations(
-          project.conversations,
+          restoredConversations,
           project.activeConversationId,
-          (project.chat ?? []) as unknown as ChatMsg[],
+          restoreQuestionArtifact((project.chat ?? []) as unknown as ChatMsg[]),
           project.title,
         );
 
@@ -479,12 +520,15 @@ export default function Home() {
         }
       })
       .catch(() => {
-        if (!cancelled) window.history.replaceState({}, "", "/");
+        if (!cancelled) {
+          setResumeLoading(false);
+          window.history.replaceState({}, "", "/");
+        }
       });
     return () => { cancelled = true; };
     // Restore once from the explicit deep link. Later navigation stays in-page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [resumeId]);
   /** Reference images attached to a clarify question join the shared materials. */
   function attachClarifyImages(items: ContextItem[]) {
     onAddItems(mergeContextItems(materials, items));
@@ -519,6 +563,7 @@ export default function Home() {
     setResearchProgress(undefined);
     setResearchNote("");
     setInspirationSkipped(false);
+    setInspireSelection(undefined);
     setClarifyAnswerSummary("");
     setClarifyFormState(undefined);
     setWorkspaceMode("canvas");
@@ -591,6 +636,7 @@ export default function Home() {
           config: cfg,
           workflow: {
             stage: "clarify",
+            researchMode: cfg.mode === "research",
             questions: received,
             workspaceMode: "canvas",
             selectedDesignFileId: "questions",
@@ -684,6 +730,7 @@ export default function Home() {
         researchDoc,
         workflow: {
           stage: needsResearch ? "research" : "outlining",
+          researchMode: cfg.mode === "research",
           questions,
           clarifyForm: clarifyFormState,
           clarifyAnswerSummary,
@@ -861,12 +908,14 @@ export default function Home() {
       // whose Browse button opens the style popup. Render waits for the pick/skip.
       setSlides(outline.map((o, i) => ({ index: i + 1, title: o.title, status: "pending" })));
       setStage("inspire");
+      setInspireSelection("");
       void saveProjectCheckpoint(projectId, {
         config,
         title,
         researchDoc,
         workflow: {
           stage: "inspire",
+          researchMode,
           questions,
           clarifyForm: clarifyFormState,
           clarifyAnswerSummary,
@@ -899,7 +948,8 @@ export default function Home() {
 
   /** Browse opens the popup; skip resolves the step with the default style. */
   function onInspire(action: "browse" | "skip") {
-    if (action === "browse") setInspireOpen(true);
+    if (action === "browse" && stage === "inspire") setWorkspaceMode("canvas");
+    else if (action === "browse") setInspireOpen(true);
     else void handleInspireGenerate(undefined);
   }
 
@@ -913,6 +963,7 @@ export default function Home() {
       ? t("flow.styleSelected", { name: getCommunityTemplate(templateId)?.name ?? templateId })
       : t("flow.styleSkipped");
     setInspireOpen(false);
+    setInspireSelection("");
     if (templateId) {
       setInspirationSkipped(false);
       const tpl = getCommunityTemplate(templateId);
@@ -1346,15 +1397,19 @@ export default function Home() {
           : config.template
             ? t("designFiles.inspirationSelected")
             : t("designFiles.inspirationPending"),
-        selectedTemplateId: config.template,
+        selectedTemplateId: config.template ?? inspireSelection,
         candidateTemplateIds: matchCommunityTemplates(matchQuery, 4).map((template) => template.id),
         skipped: inspirationSkipped,
       });
     }
     return files;
-  }, [clarifyAnswerSummary, config.mode, config.requirement, config.template, inspirationSkipped, outline, questions, researchDoc, researchProgress, stage, t, title]);
+  }, [clarifyAnswerSummary, config.mode, config.requirement, config.template, inspirationSkipped, inspireSelection, outline, questions, researchDoc, researchProgress, stage, t, title]);
 
   // ---------------- WORK VIEW (clarify → outline → deck) ----------------
+  if (resumeLoading && phase === "idle") {
+    return <ProjectLoadingShell />;
+  }
+
   if (phase === "work") {
     const status: GenStatus | null =
       stage === "deck"
@@ -1535,10 +1590,18 @@ export default function Home() {
             researchDoc={researchDoc}
             headerPrefix={workspaceTabs}
           />
+        ) : stage === "inspire" ? (
+          <InspirationStage
+            requirement={config.requirement}
+            outlineTitles={outline.map((page) => page.title).filter(Boolean)}
+            selected={inspireSelection}
+            busy={running || busy}
+            headerPrefix={workspaceTabs}
+            onSelect={(templateId) => setInspireSelection(templateId ?? "")}
+            onSkip={() => void handleInspireGenerate(undefined)}
+            onConfirm={(templateId) => void handleInspireGenerate(templateId)}
+          />
         ) : (
-          // Both "inspire" (pending skeleton deck while picking a style) and
-          // "deck" render the SlideStage. During inspire, streaming keeps the
-          // pages as skeletons; the in-chat card + popup drive the style pick.
           <SlideStage
             projectId={projectId}
             aspect={config.aspect}
@@ -1548,7 +1611,7 @@ export default function Home() {
             onSlides={(u) => setSlides(u)}
             busy={busy}
             setBusy={setBusy}
-            streaming={stage === "inspire" || running}
+            streaming={running}
             headerPrefix={workspaceTabs}
             onAskSlide={askAboutSlide}
             onMarkAgentEvent={mirrorMarkToChat}

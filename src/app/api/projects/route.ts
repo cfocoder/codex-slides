@@ -61,6 +61,7 @@ export async function POST(req: Request) {
     status: "draft",
     workflow: {
       stage: "clarify",
+      researchMode: config.mode === "research",
       workspaceMode: "canvas",
       selectedDesignFileId: "questions",
     },

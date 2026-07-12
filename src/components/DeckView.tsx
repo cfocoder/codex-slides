@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ClockCounterClockwise, DotsThree, Palette } from "@phosphor-icons/react";
 import {
   BrandDesignSystemPanel,
@@ -10,11 +10,13 @@ import DesignFiles from "@/components/DesignFiles";
 import DeckVersionDialog from "@/components/DeckVersionDialog";
 import ChatColumn, { type ChatMsg } from "@/components/ChatColumn";
 import type { MaterialTrayItem } from "@/components/MaterialTray";
+import InspirationStage from "@/components/InspirationStage";
 import OutlineBoard from "@/components/OutlineBoard";
 import InspireDialog from "@/components/InspireDialog";
 import SaveProjectTemplateButton from "@/components/SaveProjectTemplateButton";
 import SlideStage, { type MarkAgentEvent } from "@/components/SlideStage";
 import WorkspaceModeTabs from "@/components/WorkspaceModeTabs";
+import type { DesignFile } from "@/lib/designFiles";
 import {
   COMMUNITY_TEMPLATES,
   getCommunityTemplate,
@@ -120,6 +122,24 @@ function enrichProjectChat(project: Project, messages: ChatMsg[], locale: UiLoca
   if (!hasWorkflowEvidence) return messages;
 
   const next = messages.map((message) => ({ ...message }));
+  const workflowQuestionCount = project.workflow?.questions?.length ?? 0;
+  if (workflowQuestionCount) {
+    const questionsConfirmed = Boolean(project.workflow?.clarifyAnswerSummary?.trim());
+    for (let index = 0; index < next.length; index += 1) {
+      if (next[index].artifact?.kind !== "questions") continue;
+      next[index] = {
+        ...next[index],
+        artifact: {
+          ...next[index].artifact!,
+          subtitle: translate(
+            locale,
+            questionsConfirmed ? "designFiles.questionsConfirmed" : "designFiles.questionsPending",
+            { count: workflowQuestionCount },
+          ),
+        },
+      };
+    }
+  }
   const outlineIndex = next.findIndex((message) => message.doc);
   if (outline.length && outlineIndex >= 0 && !next[outlineIndex].doc?.pages?.length) {
     next[outlineIndex] = {
@@ -291,10 +311,14 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   const [focusSlideKey, setFocusSlideKey] = useState(0);
   const [inspireOpen, setInspireOpen] = useState(false);
   const [inspireMsgId, setInspireMsgId] = useState<string | null>(null);
+  const [inspireSelection, setInspireSelection] = useState<string | undefined>(
+    initialProject.workflow?.inspirationSelection,
+  );
   const [inspirationSkipped, setInspirationSkipped] = useState(
-    initialProject.status !== "draft"
-      && !initialProject.config.template
-      && !initialProject.config.designSystem,
+    initialProject.workflow?.inspirationSkipped
+      ?? (initialProject.status !== "draft"
+        && !initialProject.config.template
+        && !initialProject.config.designSystem),
   );
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const checkpointTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -321,7 +345,9 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         ? "rendering"
         : stage,
       workspaceMode: workspaceView === "files" ? "files" : "canvas",
+      researchMode: initialProject.config.mode === "research",
       inspirationSkipped,
+      inspirationSelection: initialProject.workflow?.inspirationSelection,
       queuedRequests: queue,
     },
   }));
@@ -412,10 +438,11 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
 
       if (!localWorkRef.current.busy && !localWorkRef.current.running) {
         const workflowStage = latest.workflow?.stage;
-        if (workflowStage === "outline" || latest.status === "draft") {
-          setStage("outline");
-        } else if (workflowStage === "inspire") {
+        if (workflowStage === "inspire") {
           setStage("inspire");
+          setInspireSelection(latest.workflow?.inspirationSelection);
+        } else if (workflowStage === "outline" || (!workflowStage && latest.status === "draft")) {
+          setStage("outline");
         } else if (workflowStage === "rendering" || workflowStage === "deck" || latest.status === "ready") {
           setStage("deck");
           const nextOutline = projectOutline(latest);
@@ -656,7 +683,9 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       workflow: {
         stage: running || externalRendering ? "rendering" as const : stage,
         workspaceMode: workspaceView === "files" ? "files" as const : "canvas" as const,
+        researchMode: project.config.mode === "research",
         inspirationSkipped,
+        inspirationSelection: inspireSelection,
         queuedRequests: queue,
       },
     };
@@ -678,7 +707,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
         checkpointTimer.current = null;
       }
     };
-  }, [inspirationSkipped, persistProjectCheckpoint, project.config, project.researchDoc, project.title, projectId, queue, running, stage, workspaceView]);
+  }, [inspirationSkipped, inspireSelection, persistProjectCheckpoint, project.config, project.researchDoc, project.title, projectId, queue, running, stage, workspaceView]);
 
   useEffect(() => {
     const flush = () => {
@@ -824,12 +853,14 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       // whose Browse button opens the style popup. Render waits for pick/skip.
       setSlides(outline.map((o, i) => ({ index: i + 1, title: o.title, status: "pending" })));
       setStage("inspire");
+      setInspireSelection("");
       void saveProjectCheckpoint(projectId, {
         config: project.config,
         title: project.title,
         researchDoc: project.researchDoc ?? "",
         workflow: {
           stage: "inspire",
+          researchMode: project.config.mode === "research",
           workspaceMode: "canvas",
           selectedDesignFileId: "inspiration",
           inspirationSkipped: false,
@@ -863,7 +894,8 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
 
   /** Browse opens the popup; skip resolves the step with the default style. */
   function onInspire(action: "browse" | "skip") {
-    if (action === "browse") setInspireOpen(true);
+    if (action === "browse" && stage === "inspire") setWorkspaceView("deck");
+    else if (action === "browse") setInspireOpen(true);
     else void handleInspireGenerate(undefined);
   }
 
@@ -876,6 +908,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       ? t("flow.styleSelected", { name: getCommunityTemplate(templateId)?.name ?? templateId })
       : t("flow.styleSkipped");
     setInspireOpen(false);
+    setInspireSelection("");
     if (templateId) {
       setInspirationSkipped(false);
       const tpl = getCommunityTemplate(templateId);
@@ -1228,6 +1261,73 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       onChange={(mode) => setWorkspaceView(mode === "files" ? "files" : "deck")}
     />
   );
+  const persistedWorkflowFiles = useMemo<DesignFile[]>(() => {
+    const files: DesignFile[] = [];
+    const questions = project.workflow?.questions ?? [];
+    const answerSummary = project.workflow?.clarifyAnswerSummary?.trim();
+    if (questions.length) {
+      files.push({
+        id: "questions",
+        kind: "questions",
+        title: t("designFiles.questionsTitle"),
+        subtitle: answerSummary
+          ? t("designFiles.questionsConfirmed", { count: questions.length })
+          : t("designFiles.questionsPending", { count: questions.length }),
+        questions,
+        answerSummary: answerSummary || undefined,
+      });
+    }
+    if (outline.length) {
+      files.push({
+        id: "outline",
+        kind: "outline",
+        title: project.title || t("designFiles.outlineTitle"),
+        subtitle: stage === "outline"
+          ? t("designFiles.outlineEditing", { count: outline.length })
+          : t("designFiles.outlineConfirmed", { count: outline.length }),
+        pages: outline.map((page) => ({ title: page.title, points: [...page.points] })),
+      });
+    }
+    const researchMarkdown = project.research?.markdown || project.researchDoc || "";
+    if (researchMarkdown || project.research) {
+      const researchStatus = project.research?.status ?? "complete";
+      files.push({
+        id: "research",
+        kind: "research",
+        title: t("designFiles.researchTitle"),
+        subtitle: researchStatus === "running"
+          ? t("designFiles.researchRunning", { count: project.research?.sources.length ?? 0 })
+          : researchStatus === "error"
+            ? t("designFiles.researchError")
+            : t("designFiles.researchComplete", { count: project.research?.sources.length ?? 0 }),
+        markdown: researchMarkdown,
+        status: researchStatus,
+      });
+    }
+    const inspiration = [...chat].reverse().find((message) => message.inspiration)?.inspiration;
+    if (stage === "inspire" || project.config.template || inspirationSkipped || inspiration) {
+      const selectedTemplateId = project.config.template || inspiration?.chosen || inspireSelection;
+      const fallbackQuery = [project.config.requirement, ...outline.map((page) => page.title)]
+        .filter(Boolean)
+        .join(" ");
+      files.push({
+        id: "inspiration",
+        kind: "inspiration",
+        title: t("designFiles.inspirationTitle"),
+        subtitle: inspirationSkipped
+          ? t("designFiles.inspirationSkipped")
+          : selectedTemplateId
+            ? t("designFiles.inspirationSelected")
+            : t("designFiles.inspirationPending"),
+        selectedTemplateId,
+        candidateTemplateIds: inspiration?.coverIds?.length
+          ? [...inspiration.coverIds]
+          : matchCommunityTemplates(fallbackQuery, 4).map((template) => template.id),
+        skipped: inspirationSkipped,
+      });
+    }
+    return files;
+  }, [chat, inspirationSkipped, inspireSelection, outline, project, stage, t]);
   const designSystem = normalizeDeckDesignSystem(project.config.designSystem, {
     template: project.config.template,
     style: project.config.style,
@@ -1369,6 +1469,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             showProjectTitle={false}
             initialPath={designFilePath}
             selectionRequestKey={designFileOpenKey}
+            workflowFiles={persistedWorkflowFiles}
             headerPrefix={workspaceTabs}
             onClose={() => setWorkspaceView("deck")}
           />
@@ -1386,9 +1487,19 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             headerPrefix={workspaceTabs}
             headerExtra={projectHeaderActions}
           />
+        ) : stage === "inspire" ? (
+          <InspirationStage
+            requirement={project.config.requirement}
+            outlineTitles={outline.map((page) => page.title).filter(Boolean)}
+            selected={inspireSelection}
+            busy={workspaceBusy}
+            headerPrefix={workspaceTabs}
+            headerExtra={projectHeaderActions}
+            onSelect={(templateId) => setInspireSelection(templateId ?? "")}
+            onSkip={() => void handleInspireGenerate(undefined)}
+            onConfirm={(templateId) => void handleInspireGenerate(templateId)}
+          />
         ) : (
-          // Both "inspire" (pending skeleton deck while picking a style) and
-          // "deck" render the SlideStage; the in-chat card + popup drive the pick.
           <SlideStage
             projectId={projectId}
             aspect={project.config.aspect}
@@ -1398,7 +1509,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             onSlides={(u) => setSlides(u)}
             busy={workspaceBusy}
             setBusy={setBusy}
-            streaming={stage === "inspire" || running || activeRun?.kind === "render"}
+            streaming={running || activeRun?.kind === "render"}
             headerPrefix={workspaceTabs}
             onAskSlide={askAboutSlide}
             onStartMarkRun={startBackgroundMark}

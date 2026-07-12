@@ -241,7 +241,7 @@ export interface ProjectWorkflowQuestion {
   options?: Array<{ value: string; label: string }>;
   placeholder?: string;
   recommended?: string;
-  field?: "pages" | "aspect" | "language" | "style" | "category" | null;
+  field?: "pages" | "aspect" | "resolution" | "language" | "style" | "category" | null;
 }
 
 export interface ClarifyFormState {
@@ -253,12 +253,18 @@ export interface ClarifyFormState {
 export interface ProjectWorkflowState {
   stage: ProjectWorkflowStage;
   updatedAt?: number;
+  /** Explicit mirror of the launcher's deep-research toggle. Keeping this in
+   * the workflow prevents a clarify-stage reload from silently dropping the
+   * research step before the outline request is started. */
+  researchMode?: boolean;
   questions?: ProjectWorkflowQuestion[];
   clarifyForm?: ClarifyFormState;
   clarifyAnswerSummary?: string;
   workspaceMode?: "canvas" | "files";
   selectedDesignFileId?: string;
   inspirationSkipped?: boolean;
+  /** Style highlighted on the full-page inspiration step but not confirmed. */
+  inspirationSelection?: string;
   queuedRequests?: Array<{
     id?: string;
     conversationId?: string;

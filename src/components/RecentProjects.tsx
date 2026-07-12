@@ -16,7 +16,7 @@ interface ProjectSummary {
   total: number;
   rendered: number;
   cover: string | null;
-  workflowStage?: "clarify" | "outlining" | "outline" | "inspire" | "rendering" | "deck";
+  workflowStage?: "clarify" | "research" | "outlining" | "outline" | "inspire" | "rendering" | "deck";
   activeRun?: ProjectRunState;
 }
 
@@ -31,6 +31,22 @@ function relativeTime(value: string, locale: UiLocale) {
   const days = Math.floor(hours / 24);
   if (days < 7) return translate(locale, "time.daysAgo", { count: days });
   return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(new Date(value));
+}
+
+const FALLBACK_PREVIEW_TONE_COUNT = 6;
+
+/** Keep unfinished project covers recognizable and stable across refreshes. */
+function fallbackPreviewTone(project: Pick<ProjectSummary, "id" | "title">) {
+  let hash = 2_166_136_261;
+  for (const character of `${project.id}:${project.title}`) {
+    hash = Math.imul(hash ^ (character.codePointAt(0) ?? 0), 16_777_619);
+  }
+  return (hash >>> 0) % FALLBACK_PREVIEW_TONE_COUNT;
+}
+
+function fallbackPreviewInitial(title: string) {
+  const firstWordCharacter = Array.from(title.trim()).find((character) => /[\p{L}\p{N}]/u.test(character));
+  return (firstWordCharacter ?? "C").toLocaleUpperCase();
 }
 
 /** Persisted decks on disk, surfaced as first-class projects on the launcher. */
@@ -49,6 +65,7 @@ export default function RecentProjects({ embedded = false, query = "" }: { embed
     if (project.activeRun) return project.activeRun.detail || project.activeRun.label;
     switch (project.workflowStage) {
       case "clarify": return t("projects.stageClarify");
+      case "research": return t("projects.stageResearch");
       case "outlining": return t("projects.stageOutlining");
       case "outline": return t("projects.stageOutline");
       case "inspire": return t("projects.stageInspire");
@@ -124,7 +141,9 @@ export default function RecentProjects({ embedded = false, query = "" }: { embed
       ) : visibleProjects.length ? (
         <div className="project-grid" aria-busy={Boolean(openingId)}>
           {visibleProjects.map((project) => {
-            const resumeOnHome = project.workflowStage === "clarify" || project.workflowStage === "outlining";
+            const resumeOnHome = project.workflowStage === "clarify"
+              || project.workflowStage === "research"
+              || project.workflowStage === "outlining";
             // Always cross the dedicated project route. Clarify/outlining
             // projects are redirected server-side to the Home resume entry,
             // which guarantees a fresh mount even though the final pathname is
@@ -137,7 +156,14 @@ export default function RecentProjects({ embedded = false, query = "" }: { embed
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={`/api/files/${project.id}/${project.cover}`} alt="" />
                 ) : (
-                  <span className="project-empty-cover">{t("projects.noPreview")}</span>
+                  <span
+                    aria-label={t("projects.noPreview")}
+                    className="project-empty-cover"
+                    data-tone={fallbackPreviewTone(project)}
+                    role="img"
+                  >
+                    <span aria-hidden="true">{fallbackPreviewInitial(project.title)}</span>
+                  </span>
                 )}
                 <span className="project-open" aria-hidden="true">
                   {openingId === project.id ? <span className="project-open-spinner" /> : "↗"}

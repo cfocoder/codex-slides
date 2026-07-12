@@ -5,6 +5,7 @@ import { Image as ImageIcon } from "@phosphor-icons/react";
 import type { QuestionSpec } from "@/lib/onboard";
 import { uploadContextItems, type ContextItem } from "@/lib/contextItems";
 import type { ClarifyFormState, PptConfig } from "@/lib/types";
+import { semanticOptionLabel } from "@/lib/questionSemantics";
 import { useI18n } from "@/i18n/I18nProvider";
 
 /** Renders the agent-generated clarifying questions as a dynamic form (M2 / step 1).
@@ -167,7 +168,10 @@ export default function OnboardForm({
       if (!asStr && !imgs.length) continue;
       const chosen = (Array.isArray(val) ? val : [val])
         .filter(Boolean)
-        .map((v) => (q.options ?? []).find((o) => o.value === v)?.label ?? String(v));
+        .map((v) => {
+          const option = (q.options ?? []).find((item) => item.value === v);
+          return option ? semanticOptionLabel(q, option) : String(v);
+        });
       const summaryBits = [...chosen];
       if (imgs.length) summaryBits.push(t("onboard.imageCount", { count: imgs.length }));
       if (summaryBits.length) summaryParts.push(`${label}：${summaryBits.join("、")}`);
@@ -179,6 +183,9 @@ export default function OnboardForm({
           break;
         case "aspect":
           patch.aspect = asStr as PptConfig["aspect"];
+          break;
+        case "resolution":
+          patch.resolution = asStr.toUpperCase() as PptConfig["resolution"];
           break;
         case "language":
           patch.language = asStr as PptConfig["language"];
@@ -278,8 +285,8 @@ export default function OnboardForm({
                     className={`onb-opt ${active ? "primary" : "ghost"}`}
                     onClick={() => pickOption(q.id, o.value)}
                   >
-                    {o.label}
-                    {q.recommended === o.value ? " ★" : ""}
+                    {semanticOptionLabel(q, o)}
+                    {q.recommended === o.value ? <span className="onb-recommended" aria-hidden="true">★</span> : null}
                   </button>
                 );
               })}

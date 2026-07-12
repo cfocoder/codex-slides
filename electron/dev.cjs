@@ -311,7 +311,7 @@ function desktopShellFingerprint() {
     path.join(PROJECT_ROOT, "electron", "main.cjs"),
     path.join(PROJECT_ROOT, "electron", "preload.cjs"),
     path.join(PROJECT_ROOT, "electron", "package.json"),
-    path.join(PROJECT_ROOT, "public", "brand", "codex-slides-mark.png"),
+    path.join(PROJECT_ROOT, "public", "brand", "codex-slides-app-icon.png"),
     desktopBuilderConfig,
   ]) {
     hash.update(file);

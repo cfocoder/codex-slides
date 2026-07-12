@@ -17,11 +17,14 @@ let serverLogFd = null;
 let appUrl = "";
 
 function resolveDesktopIconPath() {
-  if (!app.isPackaged) return path.join(__dirname, "..", "public", "brand", "codex-slides-mark.png");
-  const bundledWebIcon = path.join(process.resourcesPath, "next", "public", "brand", "codex-slides-mark.png");
+  const iconName = process.platform === "darwin"
+    ? "codex-slides-app-icon.png"
+    : "codex-slides-mark.png";
+  if (!app.isPackaged) return path.join(__dirname, "..", "public", "brand", iconName);
+  const bundledWebIcon = path.join(process.resourcesPath, "next", "public", "brand", iconName);
   return fs.existsSync(bundledWebIcon)
     ? bundledWebIcon
-    : path.join(process.resourcesPath, "codex-slides-mark.png");
+    : path.join(process.resourcesPath, iconName);
 }
 
 function applyDesktopIdentity() {

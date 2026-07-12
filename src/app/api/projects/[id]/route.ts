@@ -42,12 +42,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     project.workflow = {
       ...(project.workflow ?? { stage: "outline" as const }),
       ...(workflowStages.has(next.stage) ? { stage: next.stage } : {}),
+      ...(typeof next.researchMode === "boolean" ? { researchMode: next.researchMode } : {}),
       ...(Array.isArray(next.questions) ? { questions: next.questions.slice(0, 12) } : {}),
       ...(next.clarifyForm && typeof next.clarifyForm === "object" ? { clarifyForm: next.clarifyForm } : {}),
       ...(typeof next.clarifyAnswerSummary === "string" ? { clarifyAnswerSummary: next.clarifyAnswerSummary } : {}),
       ...(next.workspaceMode === "canvas" || next.workspaceMode === "files" ? { workspaceMode: next.workspaceMode } : {}),
       ...(typeof next.selectedDesignFileId === "string" ? { selectedDesignFileId: next.selectedDesignFileId } : {}),
       ...(typeof next.inspirationSkipped === "boolean" ? { inspirationSkipped: next.inspirationSkipped } : {}),
+      ...(typeof next.inspirationSelection === "string"
+        ? { inspirationSelection: next.inspirationSelection.slice(0, 160) }
+        : {}),
       ...(Array.isArray(next.queuedRequests) ? { queuedRequests: next.queuedRequests.slice(0, 20) } : {}),
     };
   }

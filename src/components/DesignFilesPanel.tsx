@@ -14,6 +14,7 @@ import type { DesignFile } from "@/lib/designFiles";
 import { CATEGORIES, categoryLabel, getTemplate } from "@/lib/templates";
 import { useI18n } from "@/i18n/I18nProvider";
 import { COMMUNITY_GROUP_KEYS } from "@/i18n/community";
+import { semanticOptionLabel } from "@/lib/questionSemantics";
 
 function FileIcon({ kind }: { kind: DesignFile["kind"] }) {
   if (kind === "questions") return <Question size={17} />;
@@ -45,7 +46,7 @@ function QuestionsPreview({ file }: { file: Extract<DesignFile, { kind: "questio
                 <div className="workflow-question-options">
                   {question.options.map((option) => (
                     <small className={option.value === question.recommended ? "recommended" : ""} key={option.value}>
-                      {option.label}{option.value === question.recommended ? ` · ${t("common.recommended")}` : ""}
+                      {semanticOptionLabel(question, option)}{option.value === question.recommended ? ` · ${t("common.recommended")}` : ""}
                     </small>
                   ))}
                 </div>
@@ -156,6 +157,13 @@ function InspirationPreview({ file }: { file: Extract<DesignFile, { kind: "inspi
   );
 }
 
+export function DesignFilePreview({ file }: { file: DesignFile }) {
+  if (file.kind === "questions") return <QuestionsPreview file={file} />;
+  if (file.kind === "outline") return <OutlinePreview file={file} />;
+  if (file.kind === "research") return <ResearchPreview file={file} />;
+  return <InspirationPreview file={file} />;
+}
+
 export default function DesignFilesPanel({
   files,
   selectedId,
@@ -210,10 +218,7 @@ export default function DesignFilesPanel({
                 </span>
               </header>
               <div className="workflow-file-preview-body">
-                {selected.kind === "questions" ? <QuestionsPreview file={selected} /> : null}
-                {selected.kind === "outline" ? <OutlinePreview file={selected} /> : null}
-                {selected.kind === "research" ? <ResearchPreview file={selected} /> : null}
-                {selected.kind === "inspiration" ? <InspirationPreview file={selected} /> : null}
+                <DesignFilePreview file={selected} />
               </div>
             </>
           ) : (

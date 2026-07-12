@@ -36,7 +36,7 @@ extraResources:
     to: next/public
 
 mac:
-  icon: public/brand/codex-slides-mark.png
+  icon: public/brand/codex-slides-app-icon.png
   category: public.app-category.productivity
   target:
     - target: dmg
