@@ -9,7 +9,7 @@ Security fixes are applied to the latest version on the default branch.
 Please do not open a public issue for a suspected vulnerability.
 
 Use GitHub's private vulnerability reporting for
-`nexu-io/ppt-anything`. Include:
+`nexu-io/codex-slides`. Include:
 
 - the affected version or commit;
 - reproduction steps or a proof of concept;
@@ -23,7 +23,7 @@ fix and disclosure when appropriate.
 
 ## Sensitive local files
 
-PPT Anything can access Codex authentication, uploaded materials, project
+Codex Slides can access Codex authentication, uploaded materials, project
 files, and generated slide assets. Never commit or publish:
 
 - `~/.codex/auth.json`;

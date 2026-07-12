@@ -95,7 +95,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       headers: {
         "Cache-Control": "no-store",
         ETag: projectResponseEtag(project),
-        "X-PPT-Anything-Write": "skipped",
+        "X-Codex-Slides-Write": "skipped",
       },
     });
   }
@@ -121,7 +121,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     headers: {
       "Cache-Control": "no-store",
       ETag: projectResponseEtag(project),
-      "X-PPT-Anything-Write": "saved",
+      "X-Codex-Slides-Write": "saved",
     },
   });
 }

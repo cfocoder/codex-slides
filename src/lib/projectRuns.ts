@@ -55,11 +55,11 @@ interface StartRunResult {
 }
 
 const globalRuns = globalThis as typeof globalThis & {
-  __pptAnythingProjectRuns?: Map<string, RunningJob>;
+  __codexSlidesProjectRuns?: Map<string, RunningJob>;
 };
 
-const jobs = globalRuns.__pptAnythingProjectRuns
-  ?? (globalRuns.__pptAnythingProjectRuns = new Map<string, RunningJob>());
+const jobs = globalRuns.__codexSlidesProjectRuns
+  ?? (globalRuns.__codexSlidesProjectRuns = new Map<string, RunningJob>());
 
 function localeOf(value: unknown): UiLocale {
   return isUiLocale(value) ? value : "zh-CN";

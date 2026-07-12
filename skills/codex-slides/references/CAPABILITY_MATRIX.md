@@ -1,4 +1,4 @@
-# PPT Anything capability coverage
+# Codex Slides capability coverage
 
 This is the release checklist for keeping the product UI, Codex in-editor
 Browser, portable Agent Skill CLI, and typed MCP server aligned. A product
@@ -7,7 +7,7 @@ CLI + MCP operation.
 
 | Product capability | Codex Browser entry | Skill CLI | MCP tool |
 |---|---|---|---|
-| Open create or project workspace | `open`, view `workspace` | `open` | `open_ppt_anything` |
+| Open create or project workspace | `open`, view `workspace` | `open` | `open_codex_slides` |
 | Start durable project before clarification | Home composer or `?resume=<id>` | `start-project` | `start_project` |
 | Browse 24 scenarios in 6 groups | `open`, view `scenarios` | `scenarios` | `list_scenarios` |
 | Preselect a scenario and apply its defaults | `scenarioId` deep link | `create` / `outline` with `scenarioId` | `create_deck` / `create_outline` with `scenarioId` |
@@ -30,7 +30,7 @@ CLI + MCP operation.
 | Edit an existing text Design File | Design Files editor | `write-design-file` | `write_design_file` |
 | Upload into Design Files | Design Files upload | `upload-design-file` | `upload_design_file` |
 | Reference Design Files in agent chat | Composer `@` picker | `designFilePaths` on `edit` / `revise-outline` | `designFilePaths` on `edit_deck` / `revise_outline` |
-| Inspect structured tool/todo/file activity | Agent activity cards | `open` | `open_ppt_anything` |
+| Inspect structured tool/todo/file activity | Agent activity cards | `open` | `open_codex_slides` |
 | Inspect the brand design system | `open`, view `brand-system` | `get-brand-system` | `get_brand_design_system` |
 | Merge brand, color, type, effects, spacing, radii | Brand & Design panel | `set-brand-system` | `update_brand_design_system` |
 | Attach persistent logo/product references | Brand assets tray | `upload-material`, then `set-brand-system` | `upload_material`, then `update_brand_design_system` |
@@ -47,8 +47,8 @@ CLI + MCP operation.
 | Upload a reference or finished slide | Material/slide controls | `upload-material` / `upload-slide` | `upload_material` / `upload_slide_image` |
 | Apply a marked-up slide edit | Mark canvas | `mark-edit` | `mark_edit_slide` |
 | Automatically version every rendered-deck AI/manual change; browse immutable versions, inspect prompts, preview/play, restore as a new current version, and export that exact PDF/PPTX | Project Version history dialog | Mutating commands share the same version-aware project APIs | Mutating tools share the same version-aware project APIs |
-| Play from current slide or the beginning | Project Play menu | `open` | `open_ppt_anything` |
-| Dual-window presenter mode with notes and timer | Project Play menu | `open` | `open_ppt_anything` |
+| Play from current slide or the beginning | Project Play menu | `open` | `open_codex_slides` |
+| Dual-window presenter mode with notes and timer | Project Play menu | `open` | `open_codex_slides` |
 | Export PDF or PPTX | Export menu | `export` | `export_deck` |
 | Run the same local-first product as a desktop app | Electron window | `electron:dev` / `electron:dist` from checkout | — packaged product transport |
 

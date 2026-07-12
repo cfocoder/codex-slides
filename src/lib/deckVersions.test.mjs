@@ -32,9 +32,9 @@ function installTypeScriptRequire(t) {
 }
 
 test("deck versions keep independent assets, group multi-step edits, and restore as a new current version", async (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ppt-anything-versions-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-slides-versions-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  process.env.PPT_ANYTHING_DATA_DIR = root;
+  process.env.CODEX_SLIDES_DATA_DIR = root;
   installTypeScriptRequire(t);
 
   const { saveProject, saveSlideImage, loadProject } = require("./store.ts");

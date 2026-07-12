@@ -1,4 +1,4 @@
-# Contributing to PPT Anything
+# Contributing to Codex Slides
 
 Thank you for helping make presentation work more visible, steerable, and
 agent-native.
@@ -7,7 +7,7 @@ agent-native.
 
 - Search existing issues and pull requests.
 - Open an issue before a large architectural or product change.
-- Keep the Browser-first invariant: normal deck creation opens PPT Anything
+- Keep the Browser-first invariant: normal deck creation opens Codex Slides
   before research, outlining, or rendering begins.
 - Never commit private project data, uploaded source files, generated decks, or
   authentication material.
@@ -21,8 +21,8 @@ Requirements:
 - Codex authenticated with `codex login`
 
 ```bash
-git clone https://github.com/nexu-io/ppt-anything.git
-cd ppt-anything
+git clone https://github.com/nexu-io/codex-slides.git
+cd codex-slides
 pnpm install
 pnpm dev:web
 ```
@@ -37,7 +37,7 @@ Open <http://127.0.0.1:4311>.
 | Product copy or locales | `src/i18n/locales/` |
 | Project persistence | `src/lib/store.ts`, `src/lib/types.ts`, project API routes |
 | Generation or editing behavior | `src/lib/pipeline.ts`, prompt and chat modules |
-| Codex workflow | `skills/ppt-anything/`, compatibility Skills |
+| Codex workflow | `skills/codex-slides/`, compatibility Skills |
 | Typed tool surface | `mcp/server.mjs`, `.mcp.json` |
 | Plugin discovery | `.codex-plugin/plugin.json`, `.agents/plugins/marketplace.json` |
 
@@ -48,7 +48,7 @@ update every applicable surface and the capability matrix.
 
 For a normal creation request, Codex must:
 
-1. open the PPT Anything home screen;
+1. open the Codex Slides home screen;
 2. create a durable project;
 3. keep clarification, outline, style, and render checkpoints visible;
 4. inspect the finished result in the Browser.

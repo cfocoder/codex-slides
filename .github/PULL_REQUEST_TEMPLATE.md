@@ -20,7 +20,7 @@ What user problem does this pull request solve?
 
 ## Browser-first and parity checks
 
-- [ ] Normal creation still opens PPT Anything before expensive work
+- [ ] Normal creation still opens Codex Slides before expensive work
 - [ ] Project state persists and resumes correctly
 - [ ] Skill/CLI/MCP/capability matrix updated where relevant
 - [ ] English, Simplified Chinese, and Japanese stay aligned

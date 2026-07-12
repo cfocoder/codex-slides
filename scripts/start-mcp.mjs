@@ -28,7 +28,7 @@ function usablePluginRoot(candidate) {
 // stable source checkout over Codex's versioned cache so app data and builds
 // stay durable across plugin upgrades. Remote/archive installs fall back to
 // their cached root and bootstrap dependencies there once.
-const ROOT = usablePluginRoot(process.env.PPT_ANYTHING_PLUGIN_SOURCE || join(homedir(), "plugins", manifest.name))
+const ROOT = usablePluginRoot(process.env.CODEX_SLIDES_PLUGIN_SOURCE || join(homedir(), "plugins", manifest.name))
   || CACHED_ROOT;
 const REQUIRED = [
   "@modelcontextprotocol/sdk",

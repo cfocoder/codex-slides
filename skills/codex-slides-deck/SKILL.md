@@ -1,18 +1,18 @@
 ---
-name: ppt-anything-deck
-description: Compatibility entry point for scenario-led creation, Design Files, brand systems, inspecting, revising, restyling, and exporting PPT Anything slide decks. Use when a user asks Codex to make a presentation, use project files, edit an existing deck, manage slide structure, apply brand or template rules, or export PDF/PPTX.
+name: codex-slides-deck
+description: Compatibility entry point for scenario-led creation, Design Files, brand systems, inspecting, revising, restyling, and exporting Codex Slides slide decks. Use when a user asks Codex to make a presentation, use project files, edit an existing deck, manage slide structure, apply brand or template rules, or export PDF/PPTX.
 ---
 
-# PPT Anything Deck
+# Codex Slides Deck
 
-The canonical `ppt-anything` sibling skill owns the complete workflow. Use the
-`ppt_anything` MCP tools when available; otherwise run its self-contained CLI
-at `../ppt-anything/scripts/ppt-anything.mjs`. Keep the live workspace available
+The canonical `codex-slides` sibling skill owns the complete workflow. Use the
+`codex_slides` MCP tools when available; otherwise run its self-contained CLI
+at `../codex-slides/scripts/codex-slides.mjs`. Keep the live workspace available
 in the in-editor Browser whenever visual review helps.
 
 ## Choose the flow
 
-- Default to the live Browser workflow: open the PPT Anything home screen,
+- Default to the live Browser workflow: open the Codex Slides home screen,
   submit the request there, then operate the created project through clarify,
   outline confirmation, style selection, rendering, and review. Keep the
   Browser visible throughout.
@@ -55,7 +55,7 @@ in the in-editor Browser whenever visual review helps.
 
 ## Show and verify
 
-Open `open_ppt_anything` / CLI `open` before a new creation and keep the live
+Open `open_codex_slides` / CLI `open` before a new creation and keep the live
 workspace visible. After a programmatic mutation, navigate or reload its
 resource link and inspect the changed slide or flow; do not make the user open
 the URL manually.

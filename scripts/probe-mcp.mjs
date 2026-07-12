@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(readFileSync(join(root, ".codex-plugin", "plugin.json"), "utf8"));
-const sourceCandidate = process.env.PPT_ANYTHING_PLUGIN_SOURCE || join(homedir(), "plugins", manifest.name);
+const sourceCandidate = process.env.CODEX_SLIDES_PLUGIN_SOURCE || join(homedir(), "plugins", manifest.name);
 const runtimeRoot = (() => {
   try {
     const candidate = realpathSync(resolve(sourceCandidate));
@@ -25,7 +25,7 @@ const { StdioClientTransport } = await import(pathToFileURL(join(sdkRoot, "stdio
 const live = process.argv.includes("--live");
 const expected = [
   "get_capabilities",
-  "open_ppt_anything",
+  "open_codex_slides",
   "start_project",
   "get_onboarding_questions",
   "deep_research",
@@ -66,11 +66,11 @@ const transport = new StdioClientTransport({
   cwd: root,
   env: {
     ...process.env,
-    ...(live ? {} : { PPT_ANYTHING_NO_AUTO_START: "1" }),
+    ...(live ? {} : { CODEX_SLIDES_NO_AUTO_START: "1" }),
   },
   stderr: "pipe",
 });
-const client = new Client({ name: "ppt-anything-probe", version: "1.0.0" });
+const client = new Client({ name: "codex-slides-probe", version: "1.0.0" });
 
 try {
   await client.connect(transport);
@@ -82,8 +82,8 @@ try {
   assert.ok(createDeck?.inputSchema?.properties?.materialContexts, "create_deck must expose materialContexts");
   assert.ok(createDeck?.inputSchema?.properties?.designSystem, "create_deck must expose designSystem");
   assert.ok(createDeck?.inputSchema?.properties?.projectTemplateId, "create_deck must expose projectTemplateId");
-  const openTool = listed.tools.find((tool) => tool.name === "open_ppt_anything");
-  assert.ok(openTool?.inputSchema?.properties?.view, "open_ppt_anything must expose Browser views");
+  const openTool = listed.tools.find((tool) => tool.name === "open_codex_slides");
+  assert.ok(openTool?.inputSchema?.properties?.view, "open_codex_slides must expose Browser views");
   const startProject = listed.tools.find((tool) => tool.name === "start_project");
   assert.ok(startProject?.inputSchema?.properties?.topic, "start_project must expose topic");
   assert.match(startProject?.description || "", /does not research|does not.*render/i, "start_project must remain a project-shell operation");
@@ -105,7 +105,7 @@ try {
     assert.equal(scenarios.structuredContent?.groups?.length, 6);
     assert.equal(scenarios.structuredContent?.scenarios?.length, 24);
     const opened = await client.callTool({
-      name: "open_ppt_anything",
+      name: "open_codex_slides",
       arguments: { view: "scenarios", scenarioId: "new-deck" },
     });
     assert.ok(opened.content.some((item) => item.type === "resource_link"));

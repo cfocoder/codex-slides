@@ -175,7 +175,7 @@ export default function PlayMode({
   useEffect(() => {
     if (!presenterWindow || presenterWindow.closed) return;
     presenterWindow.postMessage({
-      type: "ppt-anything:presenter-state",
+      type: "codex-slides:presenter-state",
       channelId: channelId.current,
       projectId,
       position: i,
@@ -196,24 +196,24 @@ export default function PlayMode({
         note?: string;
       } | null;
       if (!message || message.channelId !== channelId.current || message.projectId !== projectId) return;
-      if (message.type === "ppt-anything:presenter-go" && typeof message.position === "number") {
+      if (message.type === "codex-slides:presenter-go" && typeof message.position === "number") {
         setI(Math.max(0, Math.min(slides.length - 1, Math.floor(message.position))));
-      } else if (message.type === "ppt-anything:presenter-close") {
+      } else if (message.type === "codex-slides:presenter-close") {
         void close();
       } else if (
-        message.type === "ppt-anything:presenter-notes-save"
+        message.type === "codex-slides:presenter-notes-save"
         && typeof message.index === "number"
         && typeof message.note === "string"
       ) {
         Promise.resolve(onSpeakerNotesChange?.(message.index, message.note))
           .then(() => presenterWindow.postMessage({
-            type: "ppt-anything:presenter-notes-status",
+            type: "codex-slides:presenter-notes-status",
             channelId: channelId.current,
             projectId,
             ok: true,
           }, "*"))
           .catch(() => presenterWindow.postMessage({
-            type: "ppt-anything:presenter-notes-status",
+            type: "codex-slides:presenter-notes-status",
             channelId: channelId.current,
             projectId,
             ok: false,

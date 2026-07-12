@@ -189,7 +189,7 @@ export async function createProjectCheckpoint(config: PptConfig): Promise<Projec
   throw lastError instanceof Error ? lastError : new Error("Could not create project checkpoint");
 }
 
-const CHECKPOINT_CACHE_PREFIX = "ppt-anything:project-checkpoint:v1:";
+const CHECKPOINT_CACHE_PREFIX = "codex-slides:project-checkpoint:v1:";
 
 export interface ProjectCheckpointPatch {
   config?: PptConfig;

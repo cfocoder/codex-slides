@@ -35,9 +35,9 @@ test("presenter window contains synchronized stage, filmstrip, timer, and notes 
   assert.match(html, /id="previous-section"/);
   assert.match(html, /id="next-section"/);
   assert.match(html, /id="notes-body"/);
-  assert.match(html, /ppt-anything:presenter-go/);
-  assert.match(html, /ppt-anything:presenter-notes-save/);
-  assert.match(html, /ppt-anything:presenter-state/);
+  assert.match(html, /codex-slides:presenter-go/);
+  assert.match(html, /codex-slides:presenter-notes-save/);
+  assert.match(html, /codex-slides:presenter-state/);
 });
 
 test("presenter data cannot terminate its JSON script block", () => {

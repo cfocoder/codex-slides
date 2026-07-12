@@ -1,4 +1,0 @@
-interface:
-  display_name: "PPT Anything Deck"
-  short_description: "Create and edit scenario- and brand-aware decks"
-  default_prompt: "Use $ppt-anything:ppt-anything-deck to create or edit my deck, then show the result in the Codex Browser."

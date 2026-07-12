@@ -7,7 +7,7 @@ export { LOCALES, LOCALE_LABEL, RTL_LOCALES } from "./types";
 export type { Dict, Locale, MessageKey, MessageValues, UiLocale } from "./types";
 
 export const DEFAULT_UI_LOCALE: UiLocale = "zh-CN";
-export const UI_LOCALE_STORAGE_KEY = "ppt-anything-ui-locale";
+export const UI_LOCALE_STORAGE_KEY = "codex-slides-ui-locale";
 
 /** Locale registry. New dictionaries are added here and nowhere in UI components. */
 export const DICTS: Record<Locale, Dict> = {

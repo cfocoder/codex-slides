@@ -510,7 +510,7 @@ export default function SlideStage({
     if (presenter) {
       presenterWindow = window.open(
         "",
-        `ppt-anything-presenter-${projectId}-${Date.now()}`,
+        `codex-slides-presenter-${projectId}-${Date.now()}`,
         "popup,width=1320,height=820,minWidth=720,minHeight=620",
       );
       if (!presenterWindow) {

@@ -242,7 +242,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   }, {
     headers: {
       "Cache-Control": "no-store",
-      "X-PPT-Anything-Write": changed ? "saved" : "skipped",
+      "X-Codex-Slides-Write": changed ? "saved" : "skipped",
     },
   });
 }

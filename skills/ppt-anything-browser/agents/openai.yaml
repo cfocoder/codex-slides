@@ -1,4 +1,0 @@
-interface:
-  display_name: "PPT Anything Browser"
-  short_description: "Open decks, scenarios, files, and brand UI in Browser"
-  default_prompt: "Use $ppt-anything:ppt-anything-browser to open PPT Anything in the in-editor Browser and operate it for me."

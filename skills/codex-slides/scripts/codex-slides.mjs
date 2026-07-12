@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Portable Agent Skill CLI for PPT Anything. It intentionally uses only Node
+// Portable Agent Skill CLI for Codex Slides. It intentionally uses only Node
 // built-ins and the app's HTTP API, so the skill works with or without MCP.
 
 import { spawn, spawnSync } from "node:child_process";
@@ -11,8 +11,8 @@ import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-const BASE = (process.env.PPT_ANYTHING_URL || "http://127.0.0.1:4311").replace(/\/$/, "");
-const LOG_PATH = process.env.PPT_ANYTHING_LOG || join(tmpdir(), "ppt-anything-server.log");
+const BASE = (process.env.CODEX_SLIDES_URL || "http://127.0.0.1:4311").replace(/\/$/, "");
+const LOG_PATH = process.env.CODEX_SLIDES_LOG || join(tmpdir(), "codex-slides-server.log");
 
 const COMMANDS = [
   "capabilities", "open", "start-project", "onboard", "research", "create", "outline",
@@ -91,7 +91,7 @@ function usableAppRoot(candidate) {
   try {
     const root = realpathSync(resolve(candidate));
     const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-    return pkg.name === "ppt-anything-web" && existsSync(join(root, "src", "app")) ? root : null;
+    return pkg.name === "codex-slides-web" && existsSync(join(root, "src", "app")) ? root : null;
   } catch {
     return null;
   }
@@ -99,8 +99,8 @@ function usableAppRoot(candidate) {
 
 function findAppRoot() {
   const candidates = [
-    process.env.PPT_ANYTHING_HOME,
-    join(homedir(), "plugins", "ppt-anything"),
+    process.env.CODEX_SLIDES_HOME,
+    join(homedir(), "plugins", "codex-slides"),
     resolve(SCRIPT_DIR, "../../.."),
     process.cwd(),
   ].filter(Boolean);
@@ -108,7 +108,7 @@ function findAppRoot() {
     const root = usableAppRoot(candidate);
     if (root) return root;
   }
-  throw new Error("PPT Anything source was not found. Set PPT_ANYTHING_HOME or install it at ~/plugins/ppt-anything.");
+  throw new Error("Codex Slides source was not found. Set CODEX_SLIDES_HOME or install it at ~/plugins/codex-slides.");
 }
 
 async function reachable() {
@@ -159,7 +159,7 @@ async function ensureServer() {
     await sleep(1000);
     if (await reachable()) return;
   }
-  throw new Error(`PPT Anything did not start at ${BASE}. See ${LOG_PATH}.`);
+  throw new Error(`Codex Slides did not start at ${BASE}. See ${LOG_PATH}.`);
 }
 
 async function apiFetch(path, init = {}) {
@@ -310,7 +310,7 @@ async function parseInput(args) {
 
 async function run(command, input) {
   if (command === "help") {
-    return { commands: COMMANDS, usage: "ppt-anything.mjs <command> --json '<object>'" };
+    return { commands: COMMANDS, usage: "codex-slides.mjs <command> --json '<object>'" };
   }
   if (command === "capabilities") {
     return { baseUrl: BASE, commands: COMMANDS, capabilities: CAPABILITIES.map(([capability, action, surface]) => ({ capability, action, surface })) };

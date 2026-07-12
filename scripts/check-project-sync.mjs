@@ -24,17 +24,17 @@ assert.match(runRoute, /activeRun: project\.activeRun \?\? null/);
 assert.match(runRoute, /status: 304/);
 
 const projectRuns = read("src/lib/projectRuns.ts");
-assert.match(projectRuns, /__pptAnythingProjectRuns/);
+assert.match(projectRuns, /__codexSlidesProjectRuns/);
 assert.match(projectRuns, /project\.activeRun = run/);
 assert.match(projectRuns, /saveProject\(project\)/);
 
 const live = process.argv.includes("--live");
 if (live) {
-  const base = (process.env.PPT_ANYTHING_URL || "http://127.0.0.1:4311").replace(/\/$/, "");
+  const base = (process.env.CODEX_SLIDES_URL || "http://127.0.0.1:4311").replace(/\/$/, "");
   const projectsResponse = await fetch(`${base}/api/projects`);
   assert.equal(projectsResponse.ok, true, `Project list returned HTTP ${projectsResponse.status}`);
   const projects = (await projectsResponse.json()).projects ?? [];
-  const requestedProjectId = process.env.PPT_ANYTHING_PROJECT_ID;
+  const requestedProjectId = process.env.CODEX_SLIDES_PROJECT_ID;
   const candidate = requestedProjectId
     ? projects.find((project) => project.id === requestedProjectId)
     : projects.find((project) => project.rendered > 0);

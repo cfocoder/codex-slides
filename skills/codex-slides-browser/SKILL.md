@@ -1,15 +1,15 @@
 ---
-name: ppt-anything-browser
-description: Compatibility entry point for opening and operating PPT Anything in Codex's in-editor Browser, including scenario selection, Design Files, brand systems, decks, and Play mode. Use when the user asks to open, launch, preview, view, play, inspect, or directly manipulate PPT Anything or a deck without leaving Codex.
+name: codex-slides-browser
+description: Compatibility entry point for opening and operating Codex Slides in Codex's in-editor Browser, including scenario selection, Design Files, brand systems, decks, and Play mode. Use when the user asks to open, launch, preview, view, play, inspect, or directly manipulate Codex Slides or a deck without leaving Codex.
 ---
 
-# PPT Anything Browser
+# Codex Slides Browser
 
 This specialized skill remains for compatibility. The canonical
-`ppt-anything` sibling skill owns the full workflow and portable CLI.
+`codex-slides` sibling skill owns the full workflow and portable CLI.
 
-1. Call `open_ppt_anything` when the MCP tool is available. Otherwise run
-   `node ../ppt-anything/scripts/ppt-anything.mjs open --json '<input>'` from
+1. Call `open_codex_slides` when the MCP tool is available. Otherwise run
+   `node ../codex-slides/scripts/codex-slides.mjs open --json '<input>'` from
    this skill directory. Pass `projectId` when the user named a deck;
    otherwise omit it for the create workspace.
    Use `view:"scenarios"` for the 24-workflow catalog,

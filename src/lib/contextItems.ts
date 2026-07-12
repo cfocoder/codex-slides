@@ -116,7 +116,7 @@ export async function archiveContextItems(
   const references = Array.isArray(data.references) ? data.references : [];
   if (!references.length) throw new Error("The uploaded files were not added to Design Files.");
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("ppt-anything:design-files-changed", {
+    window.dispatchEvent(new CustomEvent("codex-slides:design-files-changed", {
       detail: { projectId },
     }));
   }

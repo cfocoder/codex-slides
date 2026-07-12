@@ -1,4 +1,4 @@
-# PPT Anything — Plan & Spec (living doc)
+# Codex Slides — Plan & Spec (living doc)
 
 > This is the source of truth for the `/loop` build. Each iteration: (1) refresh
 > this doc, (2) check every requirement **end-to-end** against the code (build +
@@ -63,12 +63,12 @@ Legend: ✅ done & verified · 🟡 partial · ❌ missing
 | **R1.4** | **Project system**: input → create project → enter project | ✅ | `/api/projects` (list), `/project/[id]` workspace (`app/project/[id]/page.tsx` + `components/DeckView.tsx`), recent-projects strip + "Open workspace" link on home; persistence `lib/store.ts`. Verified iter-1. |
 | **R1.5** | In-project: **preview / conversational edit / play / upload materials to tune** | ✅ | ✅ preview + per-slide regen + mark; ✅ **chat edit** (`lib/chat.ts` + `/api/projects/[id]/chat` + `ChatEditPanel`); ✅ **Play** fullscreen (`PlayMode`); ✅ **re-tune in workspace** (iter-9): `TemplatePicker` + `MaterialTray` + `PATCH /api/projects/[id]` + "Apply & regenerate all". Verified: chat "第2页更暖"→[2] / "restyle whole deck"→[1,2]; template switch Swiss→Editorial-Ink visibly transformed a slide. |
 | **R2.1** | Codex **daemon** detects codex & integrates (not only standalone web) | ✅ | `mcp/server.mjs` `ensureServer()` auto-builds when needed and auto-boots `next start` (port 4311) if unreachable. `scripts/probe-mcp.mjs` verifies the tool contract. |
-| **R2.2** | Open in Codex **in-editor browser** | ✅ | `open_ppt_anything` returns typed HTML resource links for the normal workspace plus scenario catalog, Design Files, and brand-system deep links; the bundled `ppt-anything-browser` skill requires Codex to navigate them instead of merely printing a URL. |
-| **R2.3** | Operate via Codex directly (MCP tools + skills), fully inside Codex | ✅ | Repo-root plugin structure exposes both a self-contained Agent Skill (`skills/ppt-anything/`, portable CLI, no MCP dependency) and 28 MCP tools. The default contract is Browser-first: open the product, create a durable project shell, then keep clarification, research, outline confirmation, inspiration, render, editing, preview, and export visible and steerable. Headless one-call generation remains opt-in. See `skills/ppt-anything/references/CAPABILITY_MATRIX.md`. |
+| **R2.2** | Open in Codex **in-editor browser** | ✅ | `open_codex_slides` returns typed HTML resource links for the normal workspace plus scenario catalog, Design Files, and brand-system deep links; the bundled `codex-slides-browser` skill requires Codex to navigate them instead of merely printing a URL. |
+| **R2.3** | Operate via Codex directly (MCP tools + skills), fully inside Codex | ✅ | Repo-root plugin structure exposes both a self-contained Agent Skill (`skills/codex-slides/`, portable CLI, no MCP dependency) and 28 MCP tools. The default contract is Browser-first: open the product, create a durable project shell, then keep clarification, research, outline confirmation, inspiration, render, editing, preview, and export visible and steerable. Headless one-call generation remains opt-in. See `skills/codex-slides/references/CAPABILITY_MATRIX.md`. |
 | **R4.1** | **Deep-research mode** toggle | ✅ | home checkbox → `ResearchPanel`; `PptConfig.mode`. |
 | **R4.2** | Research → **markdown editor** doc → outline | ✅ | `ResearchPanel` editable markdown brief; `buildOutlinePrompt` takes `researchDoc` as `<research_document>` context; `Project.researchDoc` stored. |
 | **R4.3** | Search via **DuckDuckGo** or codex built-in search | ✅ | **Codex built-in `web_search`** (primary, zero-config) — verified 19 real source URLs. DDG HTML/Lite bot-block servers (HTTP 202); `ddgSearch()` kept as documented fallback. |
-| **R4.4** | Deep research shipped as an **out-of-the-box skill** | ✅ | `skills/ppt-anything-research/SKILL.md` (source-backed research → reviewed brief → outline → render → Browser verification). |
+| **R4.4** | Deep research shipped as an **out-of-the-box skill** | ✅ | `skills/codex-slides-research/SKILL.md` (source-backed research → reviewed brief → outline → render → Browser verification). |
 
 ## 3. Target architecture
 
@@ -88,10 +88,10 @@ repo root (Next.js + Codex plugin)
   lib/ (codex-*, agents, prompts, pipeline, store, assemble) [done] + research.ts, onboard.ts, materials.ts
 
 .codex-plugin/plugin.json        installable plugin manifest
-.mcp.json                        registers the ppt-anything MCP server
+.mcp.json                        registers the codex-slides MCP server
 mcp/server.mjs                   complete 20-tool web-app bridge + daemon
-skills/ppt-anything/             canonical Agent Skill + portable CLI/reference
-skills/ppt-anything-*/SKILL.md   compatibility browser + deck + research entries
+skills/codex-slides/             canonical Agent Skill + portable CLI/reference
+skills/codex-slides-*/SKILL.md   compatibility browser + deck + research entries
 scripts/start-mcp.mjs            repairs cached dependencies, then starts MCP
 scripts/probe-mcp.mjs            contract and live integration probe
 ```
@@ -114,7 +114,7 @@ Data model (extends current `Project`): add `materials: {id,name,path,role}[]`, 
   fullscreen play mode.
   *Accept*: "make slide 2 warmer" edits only slide 2; Play cycles slides fullscreen.
 - **M5 — Deep research skill**: `research.ts` (DuckDuckGo HTML fetch + codex synthesis loop) → markdown doc in a
-  markdown editor → outline; toggle on home; also a `skills/ppt-anything-research/SKILL.md`.
+  markdown editor → outline; toggle on home; also a `skills/codex-slides-research/SKILL.md`.
   *Accept*: toggle research on a topic → citations-backed markdown → outline derived from it.
 - **M6 — Codex plugin / daemon / in-editor**: repo-root `.codex-plugin/plugin.json`, `.mcp.json`,
   MCP server + skills; the web app opens in codex in-editor browser; codex can drive the full flow via tools.
@@ -150,7 +150,7 @@ The product is feature-complete per this spec. Remaining loop ticks = **polish +
 research loop (query → search → read → synthesize → gap-check → repeat) into a **markdown research doc**, show it
 in a lightweight markdown editor the user can tweak, then derive the outline FROM that doc (feed it to
 `buildOutlinePrompt` as context). Search: DuckDuckGo HTML endpoint (`https://html.duckduckgo.com/html/?q=`) with a
-Codex-synthesis fallback (no key). Ship it **out-of-the-box as a skill**: `skills/ppt-anything-research/SKILL.md`
+Codex-synthesis fallback (no key). Ship it **out-of-the-box as a skill**: `skills/codex-slides-research/SKILL.md`
 (so Codex can run the same research flow natively — ties into M6). Files: `lib/research.ts` (search + loop + doc),
 `/api/research` (SSE progress), `components/ResearchPanel.tsx` + a small markdown editor, `PptConfig.mode:
 "direct"|"research"` + `Project.researchDoc`. Acceptance: toggle research on a topic → citations-backed markdown →
@@ -220,7 +220,7 @@ outline derived from it. Ref patterns: dzhng/deep-research, Alibaba-NLP/DeepRese
 - iter-5 (2026-07-10): **M5 done & verified** (deep research; R4.1-4.4 all ✅). `lib/research.ts` (Codex built-in
   `web_search` loop, 2 rounds, gap-fill), `/api/research` (SSE), `components/ResearchPanel.tsx` (editable brief) +
   home "🔍 Deep research mode" toggle; `buildOutlinePrompt` grounds on `researchDoc`; `PptConfig.mode/researchDoc`,
-  `Project.researchDoc`; `skills/ppt-anything-research/SKILL.md`. Live test: humanoid-robot topic → 14.9KB brief with
+  `Project.researchDoc`; `skills/codex-slides-research/SKILL.md`. Live test: humanoid-robot topic → 14.9KB brief with
   19 real source URLs (GrandView/IDC/UBS/NVIDIA/Agility). Discovery: DDG HTML/Lite bot-block servers (202) → pivoted
   to codex web_search (zero-config, real citations). Build clean. Next: **M6** (codex plugin/daemon) = last capability;
   when it lands the template gate (M7) unlocks.
@@ -256,7 +256,7 @@ outline derived from it. Ref patterns: dzhng/deep-research, Alibaba-NLP/DeepRese
 - iter-6 (2026-07-10): **M6 done & verified** (R2.1-2.3 all ✅) — **all capabilities M1-M6 complete**. Built
   `web/codex-plugin/`: `.codex-plugin/plugin.json`, `.mcp.json`, `mcp/server.mjs` (McpServer + stdio; 6 tools:
   create_deck/deep_research/list_projects/open_preview/regenerate_slide/export_deck; `ensureServer()` daemon
-  auto-boots `next start`), `skills/{ppt-anything-deck,ppt-anything-research}`. Added `@modelcontextprotocol/sdk` +
-  `zod`. Verified via MCP stdio probe: initialize (server ppt-anything 0.1.0) + tools/list (6 tools) + tools/call
+  auto-boots `next start`), `skills/{codex-slides-deck,codex-slides-research}`. Added `@modelcontextprotocol/sdk` +
+  `zod`. Verified via MCP stdio probe: initialize (server codex-slides 0.1.0) + tools/list (6 tools) + tools/call
   list_projects (real decks + preview URLs). **Template gate (M7) UNLOCKED** → next: template loop builds the full
   catalog + pipeline wiring; capability loop switches to verification/polish sweeps.

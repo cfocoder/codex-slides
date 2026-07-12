@@ -21,7 +21,7 @@ const QUEUE_STORAGE_VERSION = 1;
 export const MAX_QUEUED_CHAT_REQUESTS = 100;
 
 export function chatQueueStorageKey(projectId: string): string {
-  return `ppt-anything:chat-queue:${projectId}:v${QUEUE_STORAGE_VERSION}`;
+  return `codex-slides:chat-queue:${projectId}:v${QUEUE_STORAGE_VERSION}`;
 }
 
 function requestId(): string {

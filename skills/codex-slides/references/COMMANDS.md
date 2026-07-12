@@ -1,9 +1,9 @@
-# PPT Anything command reference
+# Codex Slides command reference
 
 The portable CLI is:
 
 ```bash
-node <skill-dir>/scripts/ppt-anything.mjs <command> --json '<object>'
+node <skill-dir>/scripts/codex-slides.mjs <command> --json '<object>'
 ```
 
 Use `--json -` to read JSON from stdin, `--input-file input.json` for a file,
@@ -16,7 +16,7 @@ object. Success responses contain `"ok": true`; failures contain
 | CLI command | MCP tool | Important input |
 |---|---|---|
 | `capabilities` | `get_capabilities` | none |
-| `open` | `open_ppt_anything` | optional `projectId`, `view`, `filePath`, `scenarioId` |
+| `open` | `open_codex_slides` | optional `projectId`, `view`, `filePath`, `scenarioId` |
 | `start-project` | `start_project` | `topic`; optional deck configuration including `projectTemplateId`; creates only a durable project shell and Browser continuation URL |
 | `onboard` | `get_onboarding_questions` | `topic`; optional `scenarioId`, `uiLocale` |
 | `research` | `deep_research` | `topic`, optional `rounds`, `scenarioId` |
@@ -51,7 +51,7 @@ object. Success responses contain `"ok": true`; failures contain
 Open the product before starting a normal interactive workflow:
 
 ```bash
-node <skill-dir>/scripts/ppt-anything.mjs open
+node <skill-dir>/scripts/codex-slides.mjs open
 ```
 
 Navigate the returned URL in the Codex Browser, submit the request in the home
@@ -60,7 +60,7 @@ selection, and rendering there. If UI submission needs a deterministic
 fallback, create only the project shell and immediately navigate its URL:
 
 ```bash
-node <skill-dir>/scripts/ppt-anything.mjs start-project --json '{
+node <skill-dir>/scripts/codex-slides.mjs start-project --json '{
   "topic": "2026 humanoid robot market",
   "pages": 6,
   "language": "zh"
@@ -73,13 +73,13 @@ default Codex user experience.
 Discover scenarios, stage required files, and create with semantic roles:
 
 ```bash
-node <skill-dir>/scripts/ppt-anything.mjs scenarios \
+node <skill-dir>/scripts/codex-slides.mjs scenarios \
   --json '{"query":"data insights"}'
 
-node <skill-dir>/scripts/ppt-anything.mjs upload-material \
+node <skill-dir>/scripts/codex-slides.mjs upload-material \
   --json '{"filePath":"./metrics.xlsx"}'
 
-node <skill-dir>/scripts/ppt-anything.mjs outline --json '{
+node <skill-dir>/scripts/codex-slides.mjs outline --json '{
   "topic": "Explain this quarter performance",
   "scenarioId": "data-insights",
   "materialIds": ["MATERIAL_ID"],
@@ -92,7 +92,7 @@ node <skill-dir>/scripts/ppt-anything.mjs outline --json '{
 Create a researched six-slide deck without interactive checkpoints:
 
 ```bash
-node <skill-dir>/scripts/ppt-anything.mjs create --json '{
+node <skill-dir>/scripts/codex-slides.mjs create --json '{
   "topic": "2026 humanoid robot market",
   "pages": 6,
   "research": true,
@@ -103,13 +103,13 @@ node <skill-dir>/scripts/ppt-anything.mjs create --json '{
 Save a visual system and consume it in a new project:
 
 ```bash
-node <skill-dir>/scripts/ppt-anything.mjs project-templates --json '{
+node <skill-dir>/scripts/codex-slides.mjs project-templates --json '{
   "action":"save",
   "projectId":"SOURCE_PROJECT_ID",
   "name":"Executive launch system"
 }'
 
-node <skill-dir>/scripts/ppt-anything.mjs start-project --json '{
+node <skill-dir>/scripts/codex-slides.mjs start-project --json '{
   "topic":"Create the next launch deck",
   "projectTemplateId":"PROJECT_TEMPLATE_ID"
 }'
@@ -118,25 +118,25 @@ node <skill-dir>/scripts/ppt-anything.mjs start-project --json '{
 Create and review an outline before rendering:
 
 ```bash
-node <skill-dir>/scripts/ppt-anything.mjs outline --json '{
+node <skill-dir>/scripts/codex-slides.mjs outline --json '{
   "topic": "Product launch plan",
   "pages": 8,
   "aspect": "16:9"
 }'
 
-node <skill-dir>/scripts/ppt-anything.mjs revise-outline --json '{
+node <skill-dir>/scripts/codex-slides.mjs revise-outline --json '{
   "projectId": "PROJECT_ID",
   "instruction": "Move the market proof before the product roadmap"
 }'
 
-node <skill-dir>/scripts/ppt-anything.mjs render \
+node <skill-dir>/scripts/codex-slides.mjs render \
   --json '{"projectId":"PROJECT_ID"}'
 ```
 
 Open the project in the in-editor Browser:
 
 ```bash
-node <skill-dir>/scripts/ppt-anything.mjs open \
+node <skill-dir>/scripts/codex-slides.mjs open \
   --json '{"projectId":"PROJECT_ID"}'
 ```
 
@@ -147,29 +147,29 @@ the Codex in-app Browser capability performs that final navigation.
 Deep-link to new Browser surfaces:
 
 ```bash
-node <skill-dir>/scripts/ppt-anything.mjs open \
+node <skill-dir>/scripts/codex-slides.mjs open \
   --json '{"view":"scenarios","scenarioId":"market-research"}'
 
-node <skill-dir>/scripts/ppt-anything.mjs open \
+node <skill-dir>/scripts/codex-slides.mjs open \
   --json '{"projectId":"PROJECT_ID","view":"design-files","filePath":"generated/outline.md"}'
 
-node <skill-dir>/scripts/ppt-anything.mjs open \
+node <skill-dir>/scripts/codex-slides.mjs open \
   --json '{"projectId":"PROJECT_ID","view":"brand-system"}'
 ```
 
 Read a Design File, use it in an edit, then merge brand rules:
 
 ```bash
-node <skill-dir>/scripts/ppt-anything.mjs read-design-file \
+node <skill-dir>/scripts/codex-slides.mjs read-design-file \
   --json '{"projectId":"PROJECT_ID","filePath":"uploaded/brief.md"}'
 
-node <skill-dir>/scripts/ppt-anything.mjs edit --json '{
+node <skill-dir>/scripts/codex-slides.mjs edit --json '{
   "projectId":"PROJECT_ID",
   "instruction":"Use the referenced brief to tighten the recommendation",
   "designFilePaths":["uploaded/brief.md"]
 }'
 
-node <skill-dir>/scripts/ppt-anything.mjs set-brand-system --json '{
+node <skill-dir>/scripts/codex-slides.mjs set-brand-system --json '{
   "projectId":"PROJECT_ID",
   "designSystem":{
     "brand":{"name":"Acme","voice":"Direct, expert, optimistic"},
@@ -182,39 +182,39 @@ node <skill-dir>/scripts/ppt-anything.mjs set-brand-system --json '{
 Edit, mark-edit, then export:
 
 ```bash
-node <skill-dir>/scripts/ppt-anything.mjs edit --json '{
+node <skill-dir>/scripts/codex-slides.mjs edit --json '{
   "projectId": "PROJECT_ID",
   "instruction": "Make slide 2 warmer and simplify its comparison chart",
   "slideIndex": 2
 }'
 
-node <skill-dir>/scripts/ppt-anything.mjs mark-edit --json '{
+node <skill-dir>/scripts/codex-slides.mjs mark-edit --json '{
   "projectId": "PROJECT_ID",
   "index": 2,
   "annotatedImagePath": "/absolute/path/slide-2-marked.png",
   "note": "Follow the red annotations"
 }'
 
-node <skill-dir>/scripts/ppt-anything.mjs export \
+node <skill-dir>/scripts/codex-slides.mjs export \
   --json '{"projectId":"PROJECT_ID","format":"pptx"}'
 ```
 
 Read, author, or generate presenter notes without redrawing slides:
 
 ```bash
-node <skill-dir>/scripts/ppt-anything.mjs speaker-notes --json '{
+node <skill-dir>/scripts/codex-slides.mjs speaker-notes --json '{
   "projectId":"PROJECT_ID",
   "action":"get"
 }'
 
-node <skill-dir>/scripts/ppt-anything.mjs speaker-notes --json '{
+node <skill-dir>/scripts/codex-slides.mjs speaker-notes --json '{
   "projectId":"PROJECT_ID",
   "action":"set",
   "index":2,
   "note":"Open with the customer problem, then connect it to the metric on screen."
 }'
 
-node <skill-dir>/scripts/ppt-anything.mjs speaker-notes --json '{
+node <skill-dir>/scripts/codex-slides.mjs speaker-notes --json '{
   "projectId":"PROJECT_ID",
   "action":"generate",
   "instruction":"Write a concise 12-minute executive talk track"
@@ -223,12 +223,12 @@ node <skill-dir>/scripts/ppt-anything.mjs speaker-notes --json '{
 
 ## Environment
 
-- `PPT_ANYTHING_URL`: API and Browser base URL; default
+- `CODEX_SLIDES_URL`: API and Browser base URL; default
   `http://127.0.0.1:4311`.
-- `PPT_ANYTHING_HOME`: source checkout. Resolution also checks
-  `~/plugins/ppt-anything`, the skill's containing repo, and the current
+- `CODEX_SLIDES_HOME`: source checkout. Resolution also checks
+  `~/plugins/codex-slides`, the skill's containing repo, and the current
   directory.
-- `PPT_ANYTHING_LOG`: auto-start log; default is the operating system temp
+- `CODEX_SLIDES_LOG`: auto-start log; default is the operating system temp
   directory.
 
 The CLI uses only Node built-ins plus platform `fetch`, `FormData`, and `Blob`.

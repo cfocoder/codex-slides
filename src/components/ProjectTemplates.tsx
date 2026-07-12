@@ -36,7 +36,7 @@ export default function ProjectTemplates({
       const response = await fetch(`/api/templates/${encodeURIComponent(template.id)}`, { method: "DELETE" });
       if (!response.ok) throw new Error("delete failed");
       onDeleted(template.id);
-      window.dispatchEvent(new CustomEvent("ppt-anything:templates-changed"));
+      window.dispatchEvent(new CustomEvent("codex-slides:templates-changed"));
     } catch {
       window.alert(t("projectTemplates.deleteFailed"));
     } finally {

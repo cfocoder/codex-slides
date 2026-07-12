@@ -218,10 +218,10 @@ export default function Home({ searchParams }: { searchParams?: HomeSearchParams
         });
     };
     refresh();
-    window.addEventListener("ppt-anything:templates-changed", refresh);
+    window.addEventListener("codex-slides:templates-changed", refresh);
     return () => {
       disposed = true;
-      window.removeEventListener("ppt-anything:templates-changed", refresh);
+      window.removeEventListener("codex-slides:templates-changed", refresh);
     };
   }, []);
 

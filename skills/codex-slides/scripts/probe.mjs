@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-const CLI = join(SCRIPT_DIR, "ppt-anything.mjs");
+const CLI = join(SCRIPT_DIR, "codex-slides.mjs");
 const live = process.argv.includes("--live");
 
 function call(command, input = {}) {

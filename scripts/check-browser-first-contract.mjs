@@ -8,9 +8,9 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (path) => readFileSync(join(root, path), "utf8");
 
-const skill = read("skills/ppt-anything/SKILL.md");
+const skill = read("skills/codex-slides/SKILL.md");
 assert.match(skill, /## Browser-first default/);
-assert.match(skill, /Call `open_ppt_anything` \/ CLI `open` \*\*without\*\* a project id/);
+assert.match(skill, /Call `open_codex_slides` \/ CLI `open` \*\*without\*\* a project id/);
 assert.match(skill, /Do not call `deep_research`[\s\S]*before opening the Browser/);
 assert.match(skill, /Do not default to `create_deck`/);
 
@@ -20,7 +20,7 @@ assert.match(mcp, /postJson\("\/api\/projects"/);
 assert.match(mcp, /interactionMode: "browser-guided"/);
 assert.match(mcp, /Use create_deck only when the user explicitly asks/);
 
-const cli = read("skills/ppt-anything/scripts/ppt-anything.mjs");
+const cli = read("skills/codex-slides/scripts/codex-slides.mjs");
 assert.match(cli, /"start-project"/);
 assert.match(cli, /interactionMode: "browser-guided"/);
 

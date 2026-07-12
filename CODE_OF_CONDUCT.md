@@ -1,6 +1,6 @@
 # Code of Conduct
 
-PPT Anything is an open, collaborative project. Contributors and maintainers
+Codex Slides is an open, collaborative project. Contributors and maintainers
 are expected to make participation respectful, safe, and productive.
 
 ## Expected behavior

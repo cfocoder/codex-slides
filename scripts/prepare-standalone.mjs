@@ -7,7 +7,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const distDir = process.env.PPT_ANYTHING_DIST_DIR || ".next-desktop";
+const distDir = process.env.CODEX_SLIDES_DIST_DIR || ".next-desktop";
 const standalone = join(root, distDir, "standalone");
 const server = join(standalone, "server.js");
 if (!existsSync(server)) throw new Error("Next standalone server was not produced.");

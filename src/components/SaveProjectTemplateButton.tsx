@@ -60,7 +60,7 @@ export default function SaveProjectTemplateButton({
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || t("projectTemplates.saveFailed"));
       setSaved(true);
-      window.dispatchEvent(new CustomEvent("ppt-anything:templates-changed", { detail: { template: data.template } }));
+      window.dispatchEvent(new CustomEvent("codex-slides:templates-changed", { detail: { template: data.template } }));
       window.setTimeout(close, 700);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));

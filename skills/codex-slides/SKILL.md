@@ -1,11 +1,11 @@
 ---
-name: ppt-anything
-description: Create, research, revise, restyle, present, inspect, and export PPT Anything slide decks from Codex, including scenario workflows, project Design Files, and always-on brand design systems. Use when the user asks for a presentation, PPT/PPTX, slide deck, research brief converted into slides, an existing deck edit, a marked-up slide revision, brand/style controls, project files, or to open and operate PPT Anything in the Codex in-editor Browser.
+name: codex-slides
+description: Create, research, revise, restyle, present, inspect, and export Codex Slides slide decks from Codex, including scenario workflows, project Design Files, and always-on brand design systems. Use when the user asks for a presentation, PPT/PPTX, slide deck, research brief converted into slides, an existing deck edit, a marked-up slide revision, brand/style controls, project files, or to open and operate Codex Slides in the Codex in-editor Browser.
 ---
 
-# PPT Anything
+# Codex Slides
 
-Run PPT Anything as an interactive product inside Codex. The live Browser
+Run Codex Slides as an interactive product inside Codex. The live Browser
 workspace is the primary experience; MCP and the bundled CLI are transports
 for opening the workspace and performing deterministic operations, not a reason
 to hide the presentation workflow in a long-running Codex turn.
@@ -15,15 +15,15 @@ to hide the presentation workflow in a long-running Codex turn.
 For every new deck request, unless the user explicitly asks for a headless,
 unattended, one-call, or CLI-only run:
 
-1. Call `open_ppt_anything` / CLI `open` **without** a project id, immediately
+1. Call `open_codex_slides` / CLI `open` **without** a project id, immediately
    navigate the returned URL in Codex's in-editor Browser, and verify that the
-   PPT Anything home/create screen is visible.
+   Codex Slides home/create screen is visible.
 2. Keep the Browser open. Enter the user's request in the home composer, attach
    or assign source files in the UI, and submit it there. This creates a durable
    project before clarification starts. If UI submission is not reliable, use
    `start_project` / CLI `start-project` only as a deterministic fallback, then
    navigate its returned project URL immediately.
-3. Continue in the live project workspace. Let PPT Anything show and own each
+3. Continue in the live project workspace. Let Codex Slides show and own each
    checkpoint: requirements/clarifying questions, research progress, editable
    outline confirmation, visual-inspiration or style selection, and rendering.
    Answer or manipulate each step in the Browser; when a choice materially
@@ -45,9 +45,9 @@ in the background without checkpoints.
 
 ## Choose a transport
 
-1. Use the `ppt_anything` MCP tools when they are exposed in the current
+1. Use the `codex_slides` MCP tools when they are exposed in the current
    session and a structured tool call is convenient.
-2. Otherwise run `scripts/ppt-anything.mjs`. Pass inputs with `--json`,
+2. Otherwise run `scripts/codex-slides.mjs`. Pass inputs with `--json`,
    `--input-file`, or command flags. It installs, builds, and starts the local
    app when necessary.
 3. Do not treat MCP as a prerequisite. Both transports use the same API and
@@ -56,7 +56,7 @@ in the background without checkpoints.
 Run this to discover the portable command surface:
 
 ```bash
-node <skill-dir>/scripts/ppt-anything.mjs capabilities
+node <skill-dir>/scripts/codex-slides.mjs capabilities
 ```
 
 Read [references/COMMANDS.md](references/COMMANDS.md) when selecting commands,
@@ -186,4 +186,4 @@ available for follow-up edits.
 ## Runtime
 
 Use Node.js 20 or newer. Override the default app URL with
-`PPT_ANYTHING_URL`; override the source checkout with `PPT_ANYTHING_HOME`.
+`CODEX_SLIDES_URL`; override the source checkout with `CODEX_SLIDES_HOME`.

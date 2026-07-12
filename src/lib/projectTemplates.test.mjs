@@ -28,7 +28,7 @@ test("Electron data can be redirected outside the packaged application", () => {
   const dataPaths = read("./dataPaths.ts");
   const store = read("./store.ts");
   const materials = read("./materials.ts");
-  assert.match(dataPaths, /PPT_ANYTHING_DATA_DIR/);
+  assert.match(dataPaths, /CODEX_SLIDES_DATA_DIR/);
   assert.match(store, /path\.join\(DATA_ROOT, "projects"\)/);
   assert.match(materials, /path\.join\(DATA_ROOT, "materials-staging"\)/);
 });

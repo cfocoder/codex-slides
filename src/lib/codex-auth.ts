@@ -1,6 +1,6 @@
 // Zero-config Codex credentials.
 //
-// The premise of ppt-anything: if you can run `codex`, you can generate a deck —
+// The premise of codex-slides: if you can run `codex`, you can generate a deck —
 // no API key, no .env. We reuse the ChatGPT OAuth access token the Codex CLI
 // already stored after `codex login`.
 //
@@ -24,7 +24,7 @@ export function authPath(): string {
 /** Read the ChatGPT OAuth access token the Codex CLI stored on disk. */
 export function getCodexAccessToken(): string {
   const override =
-    process.env.PPT_ANYTHING_CODEX_TOKEN || process.env.CODEX_ACCESS_TOKEN;
+    process.env.CODEX_SLIDES_CODEX_TOKEN || process.env.CODEX_ACCESS_TOKEN;
   if (override) return override.trim();
 
   const p = authPath();

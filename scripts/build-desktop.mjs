@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
 const env = {
   ...process.env,
   NODE_ENV: "production",
-  PPT_ANYTHING_DIST_DIR: ".next-desktop",
+  CODEX_SLIDES_DIST_DIR: ".next-desktop",
 };
 
 function run(command, args) {

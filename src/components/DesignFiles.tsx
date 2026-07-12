@@ -446,8 +446,8 @@ export default function DesignFiles({
       if (changedProjectId && changedProjectId !== projectId) return;
       void refresh(undefined, { showSkeleton: false });
     }
-    window.addEventListener("ppt-anything:design-files-changed", handleDesignFilesChanged);
-    return () => window.removeEventListener("ppt-anything:design-files-changed", handleDesignFilesChanged);
+    window.addEventListener("codex-slides:design-files-changed", handleDesignFilesChanged);
+    return () => window.removeEventListener("codex-slides:design-files-changed", handleDesignFilesChanged);
   }, [projectId, refresh]);
 
   useEffect(() => {
@@ -631,8 +631,8 @@ export default function DesignFiles({
     let copied = false;
     try {
       const desktop = (window as typeof window & {
-        pptAnythingDesktop?: { copyText?: (value: string) => Promise<boolean> };
-      }).pptAnythingDesktop;
+        codexSlidesDesktop?: { copyText?: (value: string) => Promise<boolean> };
+      }).codexSlidesDesktop;
       if (desktop?.copyText) {
         copied = await desktop.copyText(selected.absolutePath);
       } else {

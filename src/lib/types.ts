@@ -1,4 +1,4 @@
-// Shared domain types for ppt-anything.
+// Shared domain types for codex-slides.
 
 export type Aspect = "16:9" | "4:3" | "1:1" | "9:16" | "3:4";
 export type Language = "zh" | "en" | "ja" | "auto";

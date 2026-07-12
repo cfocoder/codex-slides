@@ -31,7 +31,7 @@ function applyDesktopIdentity() {
   if (process.platform === "darwin" && app.dock) app.dock.setIcon(resolveDesktopIconPath());
 }
 
-ipcMain.handle("ppt-anything:copy-text", (event, value) => {
+ipcMain.handle("codex-slides:copy-text", (event, value) => {
   if (typeof value !== "string" || !value || value.length > 32_768) return false;
   try {
     const senderOrigin = new URL(event.senderFrame.url).origin;
@@ -89,7 +89,7 @@ async function startPackagedServer() {
   const entry = path.join(serverRoot, "server.js");
   if (!fs.existsSync(entry)) throw new Error(`Packaged Next.js server is missing: ${entry}`);
   const port = await freePort(4311);
-  const logPath = path.join(app.getPath("userData"), "ppt-anything-server.log");
+  const logPath = path.join(app.getPath("userData"), "codex-slides-server.log");
   serverLogFd = fs.openSync(logPath, "a");
   serverProcess = spawn(process.execPath, [entry], {
     cwd: serverRoot,
@@ -100,7 +100,7 @@ async function startPackagedServer() {
       HOSTNAME: "127.0.0.1",
       PORT: String(port),
       NEXT_TELEMETRY_DISABLED: "1",
-      PPT_ANYTHING_DATA_DIR: path.join(app.getPath("userData"), "data"),
+      CODEX_SLIDES_DATA_DIR: path.join(app.getPath("userData"), "data"),
     },
     stdio: ["ignore", serverLogFd, serverLogFd],
     windowsHide: true,
@@ -186,7 +186,7 @@ else {
 app.whenReady().then(async () => {
   try {
     applyDesktopIdentity();
-    appUrl = process.env.PPT_ANYTHING_URL?.replace(/\/$/, "")
+    appUrl = process.env.CODEX_SLIDES_URL?.replace(/\/$/, "")
       || (app.isPackaged ? await startPackagedServer() : "http://127.0.0.1:4311");
     createWindow();
   } catch (error) {

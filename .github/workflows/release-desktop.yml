@@ -67,7 +67,7 @@ jobs:
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ppt-anything-${{ matrix.platform }}
+          name: codex-slides-${{ matrix.platform }}
           if-no-files-found: error
           path: ${{ matrix.artifacts }}
 

@@ -1,7 +1,7 @@
-// PPT Anything — Codex MCP integration.
+// Codex Slides — Codex MCP integration.
 //
 // The web app remains the visual source of truth. These tools expose the same
-// workflows to Codex, while open_ppt_anything returns a first-class resource
+// workflows to Codex, while open_codex_slides returns a first-class resource
 // link that the bundled skill opens in the in-editor Browser.
 
 import { spawn } from "node:child_process";
@@ -17,15 +17,15 @@ import { z } from "zod";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = resolve(__dirname, "..");
-const APP_DIR = resolve(process.env.PPT_ANYTHING_APP_DIR || PLUGIN_ROOT);
-const BASE = (process.env.PPT_ANYTHING_URL || "http://127.0.0.1:4311").replace(/\/$/, "");
-const SERVER_LOG = process.env.PPT_ANYTHING_LOG || join(tmpdir(), "ppt-anything-server.log");
+const APP_DIR = resolve(process.env.CODEX_SLIDES_APP_DIR || PLUGIN_ROOT);
+const BASE = (process.env.CODEX_SLIDES_URL || "http://127.0.0.1:4311").replace(/\/$/, "");
+const SERVER_LOG = process.env.CODEX_SLIDES_LOG || join(tmpdir(), "codex-slides-server.log");
 const manifest = JSON.parse(
   await readFile(join(PLUGIN_ROOT, ".codex-plugin", "plugin.json"), "utf8"),
 );
 
 const CAPABILITIES = [
-  ["Open and operate the full workspace", "open_ppt_anything", "Browser"],
+  ["Open and operate the full workspace", "open_codex_slides", "Browser"],
   ["Start a durable guided project before generation", "start_project", "MCP + Browser"],
   ["Discover every Codex-callable workflow", "get_capabilities", "MCP"],
   ["Generate topic-specific onboarding questions", "get_onboarding_questions", "MCP"],
@@ -59,17 +59,17 @@ const CAPABILITIES = [
   ["Replace a slide with a local PNG", "upload_slide_image", "MCP"],
   ["Apply an annotated-PNG edit", "mark_edit_slide", "MCP + Browser"],
   ["Download PDF or PPTX", "export_deck", "MCP + Browser"],
-  ["Play, navigate, and inspect the deck visually", "open_ppt_anything", "Browser UI"],
-  ["Inspect structured agent tool activity and reopen referenced files", "open_ppt_anything", "Browser UI"],
+  ["Play, navigate, and inspect the deck visually", "open_codex_slides", "Browser UI"],
+  ["Inspect structured agent tool activity and reopen referenced files", "open_codex_slides", "Browser UI"],
 ];
 
 const server = new McpServer(
   { name: manifest.name, version: manifest.version },
   {
     instructions: [
-      "PPT Anything is a Codex-native presentation workspace backed by a local web app.",
-      "For every normal new-deck request, call open_ppt_anything without a project id first, immediately navigate the returned resource link in the Codex in-editor Browser, verify the home/create screen, and keep that Browser visible for the entire workflow.",
-      "Submit the topic and sources through the Browser UI so PPT Anything creates a durable project and owns the clarify, outline, inspiration, render, and review checkpoints. If UI submission is unreliable, use start_project only as a deterministic fallback and immediately navigate its returned project link.",
+      "Codex Slides is a Codex-native presentation workspace backed by a local web app.",
+      "For every normal new-deck request, call open_codex_slides without a project id first, immediately navigate the returned resource link in the Codex in-editor Browser, verify the home/create screen, and keep that Browser visible for the entire workflow.",
+      "Submit the topic and sources through the Browser UI so Codex Slides creates a durable project and owns the clarify, outline, inspiration, render, and review checkpoints. If UI submission is unreliable, use start_project only as a deterministic fallback and immediately navigate its returned project link.",
       "Do not run research, outline generation, inspiration ranking, rendering, or complete-deck creation invisibly before opening the Browser. Do not leave the user watching only a Codex working message while a hidden end-to-end call runs.",
       "Use MCP tools for deterministic recovery and deck mutations while keeping the Browser project open for progress, confirmation, direct manipulation, presentation mode, and verification.",
       "Use create_deck only when the user explicitly asks for a headless, unattended, one-call result or the current Codex surface has no Browser.",
@@ -130,8 +130,8 @@ async function runCommand(command, args, timeoutMs) {
 
 async function ensureServer() {
   if (await reachable()) return;
-  if (process.env.PPT_ANYTHING_NO_AUTO_START === "1") {
-    throw new Error(`PPT Anything is not reachable at ${BASE}.`);
+  if (process.env.CODEX_SLIDES_NO_AUTO_START === "1") {
+    throw new Error(`Codex Slides is not reachable at ${BASE}.`);
   }
   if (!booting) {
     booting = (async () => {
@@ -155,7 +155,7 @@ async function ensureServer() {
         await sleep(1000);
         if (await reachable()) return;
       }
-      throw new Error(`PPT Anything did not start at ${BASE}. See ${SERVER_LOG}.`);
+      throw new Error(`Codex Slides did not start at ${BASE}. See ${SERVER_LOG}.`);
     })().finally(() => {
       booting = null;
     });
@@ -200,7 +200,7 @@ function failed(error) {
   const message = error instanceof Error ? error.message : String(error);
   return {
     isError: true,
-    content: [{ type: "text", text: `PPT Anything error: ${message}` }],
+    content: [{ type: "text", text: `Codex Slides error: ${message}` }],
     structuredContent: { error: message },
   };
 }
@@ -291,7 +291,7 @@ function projectLink(projectId, label = "Open deck in Codex Browser", options = 
   return {
     uri: browserUrl(projectId, options),
     name: label,
-    description: "Open the live PPT Anything workspace in the Codex in-editor Browser.",
+    description: "Open the live Codex Slides workspace in the Codex in-editor Browser.",
   };
 }
 
@@ -335,23 +335,23 @@ async function fileForm(filePath, field = "file", maxBytes = 30 * 1024 * 1024) {
 register(
   "get_capabilities",
   {
-    title: "Get PPT Anything capabilities",
-    description: "Discover every MCP and in-editor Browser workflow exposed by PPT Anything.",
+    title: "Get Codex Slides capabilities",
+    description: "Discover every MCP and in-editor Browser workflow exposed by Codex Slides.",
     inputSchema: {},
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   async () => ok(
-    `PPT Anything exposes ${CAPABILITIES.length} callable workflow surfaces. Use open_ppt_anything for the live visual workspace.`,
+    `Codex Slides exposes ${CAPABILITIES.length} callable workflow surfaces. Use open_codex_slides for the live visual workspace.`,
     { baseUrl: BASE, capabilities: CAPABILITIES.map(([capability, tool, surface]) => ({ capability, tool, surface })) },
-    [{ uri: BASE, name: "Open PPT Anything", description: "Open the full workspace in the Codex Browser." }],
+    [{ uri: BASE, name: "Open Codex Slides", description: "Open the full workspace in the Codex Browser." }],
   ),
 );
 
 register(
-  "open_ppt_anything",
+  "open_codex_slides",
   {
-    title: "Open PPT Anything in the Codex Browser",
-    description: "Start PPT Anything if needed and return the home or project workspace. After this tool returns, navigate its resource link in the in-editor Browser; do not only print the URL.",
+    title: "Open Codex Slides in the Codex Browser",
+    description: "Start Codex Slides if needed and return the home or project workspace. After this tool returns, navigate its resource link in the in-editor Browser; do not only print the URL.",
     inputSchema: {
       projectId: z.string().optional().describe("Existing project id. Omit to open the home/create workspace."),
       view: z.enum(["workspace", "scenarios", "design-files", "brand-system"]).optional()
@@ -369,9 +369,9 @@ register(
     const targetProjectId = view === "scenarios" ? undefined : projectId;
     const uri = browserUrl(targetProjectId, { view, filePath, scenarioId });
     return ok(
-      `PPT Anything is ready at ${uri}. Open this resource now in the Codex in-editor Browser and keep it visible for interaction.`,
+      `Codex Slides is ready at ${uri}. Open this resource now in the Codex in-editor Browser and keep it visible for interaction.`,
       { url: uri, projectId: targetProjectId || null, view, browserAction: "navigate" },
-      [{ uri, name: targetProjectId ? "Open deck workspace" : "Open PPT Anything", description: "Live Codex-controllable presentation workspace." }],
+      [{ uri, name: targetProjectId ? "Open deck workspace" : "Open Codex Slides", description: "Live Codex-controllable presentation workspace." }],
     );
   },
 );
@@ -515,8 +515,8 @@ function deckRequest(args, researchDoc) {
 register(
   "start_project",
   {
-    title: "Start an interactive PPT Anything project",
-    description: "Create only the durable project shell at the clarification stage and return its live Browser workspace. This is the deterministic fallback after opening the PPT Anything home screen; it does not research, outline, choose a style, or render slides.",
+    title: "Start an interactive Codex Slides project",
+    description: "Create only the durable project shell at the clarification stage and return its live Browser workspace. This is the deterministic fallback after opening the Codex Slides home screen; it does not research, outline, choose a style, or render slides.",
     inputSchema: {
       ...deckConfigShape,
       title: z.string().optional().describe("Optional project title; defaults to the first line of the topic."),
@@ -541,7 +541,7 @@ register(
       },
       [{
         uri,
-        name: "Continue project in PPT Anything",
+        name: "Continue project in Codex Slides",
         description: "Open the live clarification workspace and continue the guided deck workflow.",
       }],
     );
@@ -651,7 +651,7 @@ register(
   "rank_inspiration",
   {
     title: "Rank visual inspiration",
-    description: "Rank PPT Anything's community visual directions against a topic and outline.",
+    description: "Rank Codex Slides's community visual directions against a topic and outline.",
     inputSchema: {
       topic: z.string().optional(),
       outlineTitles: z.array(z.string()).optional(),
@@ -691,7 +691,7 @@ register(
 register(
   "list_projects",
   {
-    title: "List PPT Anything decks",
+    title: "List Codex Slides decks",
     description: "List existing decks with render state and Browser resource links.",
     inputSchema: {},
     annotations: { readOnlyHint: true, openWorldHint: false },
@@ -701,7 +701,7 @@ register(
     const projects = (data.projects || []).map((project) => ({ ...project, previewUrl: browserUrl(project.id) }));
     const lines = projects.map((project) => `- ${project.title} — ${project.rendered}/${project.total} slides — ${project.id}`);
     return ok(
-      lines.join("\n") || "No PPT Anything decks yet.",
+      lines.join("\n") || "No Codex Slides decks yet.",
       { projects },
       projects.slice(0, 10).map((project) => projectLink(project.id, project.title)),
     );
@@ -711,7 +711,7 @@ register(
 register(
   "get_project",
   {
-    title: "Get a PPT Anything deck",
+    title: "Get a Codex Slides deck",
     description: "Read project configuration, outline, slide state, materials, and optional saved chat.",
     inputSchema: {
       projectId: z.string(),
@@ -822,7 +822,7 @@ register(
 register(
   "list_templates",
   {
-    title: "Search PPT Anything visual styles",
+    title: "Search Codex Slides visual styles",
     description: "List curated deck templates and attributed community styles for create_deck, inspiration ranking, or restyle_deck.",
     inputSchema: {
       categoryId: z.string().optional(),
@@ -867,7 +867,7 @@ register(
 register(
   "list_project_templates",
   {
-    title: "List reusable PPT Anything project templates",
+    title: "List reusable Codex Slides project templates",
     description: "List visual systems saved from existing projects. Pass one returned id as projectTemplateId when starting or creating another deck.",
     inputSchema: {},
     annotations: { readOnlyHint: true, openWorldHint: false },
@@ -878,7 +878,7 @@ register(
     return ok(
       templates.map((template) => `- ${template.id} — ${template.name} (${template.referenceCount} visual references)`).join("\n") || "No reusable project templates yet.",
       { projectTemplates: templates, browserUrl: BASE },
-      [{ uri: BASE, name: "Open project template library", description: "Open the PPT Anything home library in the Codex Browser." }],
+      [{ uri: BASE, name: "Open project template library", description: "Open the Codex Slides home library in the Codex Browser." }],
     );
   },
 );
@@ -925,7 +925,7 @@ register(
 register(
   "list_scenarios",
   {
-    title: "List PPT Anything scenarios",
+    title: "List Codex Slides scenarios",
     description: "Discover the product-owned presentation workflow catalog, defaults, and required or optional source-file slots before creating a deck.",
     inputSchema: {
       group: z.enum(["create", "transform", "data", "research", "optimize", "delivery"]).optional(),
@@ -950,7 +950,7 @@ register(
     return ok(
       scenarios.map((scenario) => `- ${scenario.id} — ${label(scenario.name)}: ${label(scenario.description)}`).join("\n") || "No scenarios matched.",
       { groups: data.groups, scenarios, featuredIds: data.featuredIds, browserUrl: uri },
-      [{ uri, name: "Open scenario catalog", description: "Browse and select a PPT Anything workflow in the Codex Browser." }],
+      [{ uri, name: "Open scenario catalog", description: "Browse and select a Codex Slides workflow in the Codex Browser." }],
     );
   },
 );
@@ -1404,7 +1404,7 @@ register(
 register(
   "export_deck",
   {
-    title: "Export a PPT Anything deck",
+    title: "Export a Codex Slides deck",
     description: "Return a downloadable PDF or PPTX resource link for a rendered deck.",
     inputSchema: {
       projectId: z.string(),

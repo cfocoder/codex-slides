@@ -1,11 +1,11 @@
 name: Bug report
-description: Report a reproducible PPT Anything problem
+description: Report a reproducible Codex Slides problem
 title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
-      value: Thanks for helping improve PPT Anything. Do not attach private source files or credentials.
+      value: Thanks for helping improve Codex Slides. Do not attach private source files or credentials.
   - type: textarea
     id: summary
     attributes:

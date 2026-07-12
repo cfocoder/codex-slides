@@ -185,7 +185,7 @@ export function buildPresenterWindowHtml(options: {
             didSave = true;
             slide.speakerNotes = textarea.value;
             editing = false;
-            send('ppt-anything:presenter-notes-save', { index: slide.index, note: textarea.value });
+            send('codex-slides:presenter-notes-save', { index: slide.index, note: textarea.value });
             renderNotes();
           }
           save.onclick = saveAndClose;
@@ -222,9 +222,9 @@ export function buildPresenterWindowHtml(options: {
         var target = Math.max(0, Math.min(slides.length - 1, next));
         if (target === index) { if (fromHost) renderNotes(); return; }
         index = target; editing = false; render();
-        if (!fromHost) send('ppt-anything:presenter-go', { position: index });
+        if (!fromHost) send('codex-slides:presenter-go', { position: index });
       }
-      function close(){ send('ppt-anything:presenter-close', {}); try { window.close(); } catch (_) {} }
+      function close(){ send('codex-slides:presenter-close', {}); try { window.close(); } catch (_) {} }
       els.pause.textContent = labels.pause || 'Pause'; els.reset.textContent = labels.reset || 'Reset';
       els.previousLabel.textContent = labels.previous || 'Previous'; els.nextLabel.textContent = labels.next || 'Next'; els.notesTitle.textContent = labels.notesTitle || 'Speaker notes';
       els.pause.onclick = function(){
@@ -246,10 +246,10 @@ export function buildPresenterWindowHtml(options: {
       window.addEventListener('message', function(event){
         var message = event.data || {};
         if (message.channelId !== data.channelId || message.projectId !== data.projectId) return;
-        if (message.type === 'ppt-anything:presenter-state') {
+        if (message.type === 'codex-slides:presenter-state') {
           if (Array.isArray(message.slides)) slides = message.slides.slice();
           if (typeof message.position === 'number') go(message.position, true); else render();
-        } else if (message.type === 'ppt-anything:presenter-notes-status') {
+        } else if (message.type === 'codex-slides:presenter-notes-status') {
           showStatus(message.ok ? (labels.saved || 'Saved') : (labels.saveFailed || 'Save failed'), !message.ok);
         }
       });

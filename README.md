@@ -360,28 +360,28 @@ Play mode, then export PPTX and PDF.
 
 Codex Slides exposes two equivalent automation transports:
 
-- `skills/ppt-anything/scripts/ppt-anything.mjs` — portable Node CLI using only built-in web
+- `skills/codex-slides/scripts/codex-slides.mjs` — portable Node CLI using only built-in web
   APIs and the local HTTP service;
 - `mcp/server.mjs` — 34 typed MCP tools for Codex.
 
 Discover the CLI surface:
 
 ```bash
-node skills/ppt-anything/scripts/ppt-anything.mjs capabilities
+node skills/codex-slides/scripts/codex-slides.mjs capabilities
 ```
 
 Browser-first interactive entry points:
 
 ```bash
-node skills/ppt-anything/scripts/ppt-anything.mjs open
-node skills/ppt-anything/scripts/ppt-anything.mjs start-project \
+node skills/codex-slides/scripts/codex-slides.mjs open
+node skills/codex-slides/scripts/codex-slides.mjs start-project \
   --json '{"topic":"2026 humanoid robotics market","pages":6,"language":"en"}'
 ```
 
 Explicit unattended path:
 
 ```bash
-node skills/ppt-anything/scripts/ppt-anything.mjs create \
+node skills/codex-slides/scripts/codex-slides.mjs create \
   --json '{"topic":"2026 humanoid robotics market","pages":6,"research":true}'
 ```
 
@@ -389,7 +389,7 @@ Important tool groups:
 
 | Area | MCP tools |
 |---|---|
-| Open and discover | `open_ppt_anything`, `start_project`, `get_capabilities`, `list_projects`, `get_project` |
+| Open and discover | `open_codex_slides`, `start_project`, `get_capabilities`, `list_projects`, `get_project` |
 | Scenarios and sources | `list_scenarios`, `upload_material`, `list_design_files`, `read_design_file`, `write_design_file`, `upload_design_file` |
 | Reusable templates | `list_templates`, `list_project_templates`, `save_project_as_template`, `delete_project_template` |
 | Research and planning | `get_onboarding_questions`, `deep_research`, `create_outline`, `revise_outline`, `rank_inspiration` |
@@ -398,7 +398,7 @@ Important tool groups:
 | Visual input and output | `upload_slide_image`, `mark_edit_slide`, `export_deck` |
 
 The full Browser/CLI/MCP parity contract lives in
-[CAPABILITY_MATRIX.md](skills/ppt-anything/references/CAPABILITY_MATRIX.md).
+[CAPABILITY_MATRIX.md](skills/codex-slides/references/CAPABILITY_MATRIX.md).
 
 ## Local development
 
@@ -431,12 +431,12 @@ Environment variables:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PPT_ANYTHING_URL` | `http://127.0.0.1:4311` | Browser and local API base URL |
-| `PPT_ANYTHING_HOME` | auto-detected | Source checkout used by the portable Skill |
-| `PPT_ANYTHING_APP_DIR` | plugin root | Source checkout used by the MCP server |
-| `PPT_ANYTHING_LOG` | OS temp directory | Auto-start server log |
-| `PPT_ANYTHING_NO_AUTO_START` | unset | Set to `1` to disable MCP auto-start |
-| `PPT_ANYTHING_DATA_DIR` | `<repo>/data` | Project/template data root; desktop builds set this to the OS user-data directory |
+| `CODEX_SLIDES_URL` | `http://127.0.0.1:4311` | Browser and local API base URL |
+| `CODEX_SLIDES_HOME` | auto-detected | Source checkout used by the portable Skill |
+| `CODEX_SLIDES_APP_DIR` | plugin root | Source checkout used by the MCP server |
+| `CODEX_SLIDES_LOG` | OS temp directory | Auto-start server log |
+| `CODEX_SLIDES_NO_AUTO_START` | unset | Set to `1` to disable MCP auto-start |
+| `CODEX_SLIDES_DATA_DIR` | `<repo>/data` | Project/template data root; desktop builds set this to the OS user-data directory |
 
 Project data is stored under:
 
@@ -472,7 +472,7 @@ durable data in the operating system's app data directory.
 | `pnpm electron:dist` | Build installers for the current platform |
 
 The Desktop entry resolves its service dependency first: it attaches to a healthy
-`PPT_ANYTHING_URL` when one already exists, otherwise it starts `dev:web`, waits for
+`CODEX_SLIDES_URL` when one already exists, otherwise it starts `dev:web`, waits for
 `/api/agents`, then opens the Electron window. Closing or interrupting the combined command
 stops only the Web process that command owns, so a separately launched Web session is kept.
 
@@ -619,7 +619,7 @@ pnpm build
 pnpm start
 ```
 
-Inspect the log at `PPT_ANYTHING_LOG` or the operating system temp directory.
+Inspect the log at `CODEX_SLIDES_LOG` or the operating system temp directory.
 
 ### One browser tab shows stale slides
 

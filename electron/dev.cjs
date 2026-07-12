@@ -32,7 +32,7 @@ Commands:
   pnpm dev:desktop          Start Desktop and its Web dependency
 
 Options:
-  --web-port <port>         Override the port from PPT_ANYTHING_URL
+  --web-port <port>         Override the port from CODEX_SLIDES_URL
   -h, --help                Show this help
 `);
 }
@@ -79,15 +79,15 @@ function parseArgs(argv) {
 function resolveAppUrl(webPort) {
   let appUrl;
   try {
-    appUrl = new URL(process.env.PPT_ANYTHING_URL || DEFAULT_URL);
+    appUrl = new URL(process.env.CODEX_SLIDES_URL || DEFAULT_URL);
   } catch {
-    throw new Error("PPT_ANYTHING_URL must be a valid absolute URL");
+    throw new Error("CODEX_SLIDES_URL must be a valid absolute URL");
   }
   if (appUrl.protocol !== "http:") {
-    throw new Error("The development runner requires an http:// PPT_ANYTHING_URL");
+    throw new Error("The development runner requires an http:// CODEX_SLIDES_URL");
   }
   if (appUrl.username || appUrl.password) {
-    throw new Error("PPT_ANYTHING_URL must not contain credentials");
+    throw new Error("CODEX_SLIDES_URL must not contain credentials");
   }
   if (webPort != null) appUrl.port = String(webPort);
   return appUrl;
@@ -101,7 +101,7 @@ function healthUrl(appUrl) {
   return new URL("/api/agents", appUrl);
 }
 
-function isPptAnythingHealthPayload(value) {
+function isCodexSlidesHealthPayload(value) {
   return Boolean(value && typeof value === "object" && Array.isArray(value.agents));
 }
 
@@ -129,7 +129,7 @@ function probeDevServer(appUrl, timeoutMs = 1_500) {
           return;
         }
         try {
-          finish(isPptAnythingHealthPayload(JSON.parse(body)));
+          finish(isCodexSlidesHealthPayload(JSON.parse(body)));
         } catch {
           finish(false);
         }
@@ -222,7 +222,7 @@ function localBindHost(appUrl) {
     return appUrl.hostname.replaceAll("[", "").replaceAll("]", "");
   }
   throw new Error(
-    `No reusable Web service found at ${displayUrl(appUrl)}. Automatic startup requires a loopback PPT_ANYTHING_URL.`,
+    `No reusable Web service found at ${displayUrl(appUrl)}. Automatic startup requires a loopback CODEX_SLIDES_URL.`,
   );
 }
 
@@ -231,7 +231,7 @@ function effectivePort(appUrl) {
 }
 
 function devDistDir(appUrl) {
-  const configured = process.env.PPT_ANYTHING_DIST_DIR?.trim();
+  const configured = process.env.CODEX_SLIDES_DIST_DIR?.trim();
   if (configured) return configured;
   return `.next-dev/port-${effectivePort(appUrl)}`;
 }
@@ -268,9 +268,9 @@ async function startWebService(appUrl) {
     stdio: "inherit",
     env: {
       ...process.env,
-      PPT_ANYTHING_URL: displayUrl(appUrl),
-      PPT_ANYTHING_DIST_DIR: distDir,
-      PPT_ANYTHING_TSCONFIG_PATH: tsConfigPath,
+      CODEX_SLIDES_URL: displayUrl(appUrl),
+      CODEX_SLIDES_DIST_DIR: distDir,
+      CODEX_SLIDES_TSCONFIG_PATH: tsConfigPath,
     },
   });
   web.once("error", (error) => {
@@ -298,7 +298,7 @@ async function ensureWebServer(appUrl) {
 }
 
 function desktopEnvironment(appUrl) {
-  const env = { ...process.env, PPT_ANYTHING_URL: displayUrl(appUrl) };
+  const env = { ...process.env, CODEX_SLIDES_URL: displayUrl(appUrl) };
   for (const key of Object.keys(env)) {
     if (key.toUpperCase() === "ELECTRON_RUN_AS_NODE") delete env[key];
   }
