@@ -1,0 +1,24 @@
+appId: io.nexu.codex-slides.dev
+productName: Codex Slides
+asar: true
+
+directories:
+  app: electron
+  output: .tmp/electron-dev-build
+
+files:
+  - main.cjs
+  - preload.cjs
+  - package.json
+  - "!node_modules{,/**/*}"
+
+npmRebuild: false
+
+extraResources:
+  - from: public/brand/codex-slides-mark.png
+    to: codex-slides-mark.png
+
+mac:
+  icon: public/brand/codex-slides-mark.png
+  category: public.app-category.productivity
+  target: dir

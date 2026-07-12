@@ -1,14 +1,16 @@
 const { spawn, spawnSync } = require("node:child_process");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const electronBinary = require("electron");
 
 const PRODUCT_NAME = "Codex Slides";
-const APP_ID = "io.nexu.codex-slides";
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const DEFAULT_URL = "http://127.0.0.1:4311";
 const TARGETS = new Set(["all", "web", "desktop"]);
+const desktopBuilderConfig = path.join(PROJECT_ROOT, "electron-builder.dev.yml");
+const electronBuilderCli = require.resolve("electron-builder/cli.js");
 const nextBinary = require.resolve("next/dist/bin/next");
 
 let web = null;
@@ -16,6 +18,7 @@ let desktop = null;
 let ownsWeb = false;
 let closing = false;
 let shutdownPromise = null;
+let generatedTsConfigPath = null;
 
 function printHelp() {
   process.stdout.write(`${PRODUCT_NAME} development runner
@@ -189,20 +192,25 @@ function shutdown(code = 0) {
   const exits = children.map(waitForChild);
 
   shutdownPromise = (async () => {
-    for (const child of children) stopChild(child);
-    if (children.length === 0) return;
+    try {
+      for (const child of children) stopChild(child);
+      if (children.length === 0) return;
 
-    let forceTimer;
-    await Promise.race([
-      Promise.all(exits),
-      new Promise((resolve) => {
-        forceTimer = setTimeout(() => {
-          for (const child of children) stopChild(child, "SIGKILL");
-          resolve();
-        }, 3_000);
-      }),
-    ]);
-    if (forceTimer) clearTimeout(forceTimer);
+      let forceTimer;
+      await Promise.race([
+        Promise.all(exits),
+        new Promise((resolve) => {
+          forceTimer = setTimeout(() => {
+            for (const child of children) stopChild(child, "SIGKILL");
+            resolve();
+          }, 3_000);
+        }),
+      ]);
+      if (forceTimer) clearTimeout(forceTimer);
+    } finally {
+      if (generatedTsConfigPath) fs.rmSync(generatedTsConfigPath, { force: true });
+      generatedTsConfigPath = null;
+    }
   })();
 
   return shutdownPromise;
@@ -222,9 +230,31 @@ function effectivePort(appUrl) {
   return appUrl.port || "80";
 }
 
+function devDistDir(appUrl) {
+  const configured = process.env.PPT_ANYTHING_DIST_DIR?.trim();
+  if (configured) return configured;
+  return `.next-dev/port-${effectivePort(appUrl)}`;
+}
+
+function prepareDevTsConfig(appUrl, distDir) {
+  const fileName = `tsconfig.next-dev-${effectivePort(appUrl)}.json`;
+  const base = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "tsconfig.json"), "utf8"));
+  const include = Array.isArray(base.include) ? base.include : ["next-env.d.ts", "**/*.ts", "**/*.tsx"];
+  const nextTypes = `${distDir}/types/**/*.ts`;
+  const config = {
+    ...base,
+    include: [...new Set([...include, nextTypes])],
+  };
+  generatedTsConfigPath = path.join(PROJECT_ROOT, fileName);
+  fs.writeFileSync(generatedTsConfigPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  return fileName;
+}
+
 async function startWebService(appUrl) {
   const host = localBindHost(appUrl);
   const port = effectivePort(appUrl);
+  const distDir = devDistDir(appUrl);
+  const tsConfigPath = prepareDevTsConfig(appUrl, distDir);
   let startupSettled = false;
   let rejectStartup;
   const startupFailure = new Promise((_, reject) => {
@@ -236,7 +266,12 @@ async function startWebService(appUrl) {
   web = spawn(process.execPath, [nextBinary, "dev", "-H", host, "-p", port], {
     detached: process.platform !== "win32",
     stdio: "inherit",
-    env: { ...process.env, PPT_ANYTHING_URL: displayUrl(appUrl) },
+    env: {
+      ...process.env,
+      PPT_ANYTHING_URL: displayUrl(appUrl),
+      PPT_ANYTHING_DIST_DIR: distDir,
+      PPT_ANYTHING_TSCONFIG_PATH: tsConfigPath,
+    },
   });
   web.once("error", (error) => {
     if (!startupSettled) rejectStartup(new Error(`Web service failed: ${error.message}`));
@@ -270,61 +305,66 @@ function desktopEnvironment(appUrl) {
   return env;
 }
 
-function replacePlistString(plistPath, key, value) {
-  const result = spawnSync("/usr/bin/plutil", ["-replace", key, "-string", value, plistPath], {
-    encoding: "utf8",
-  });
-  if (result.status !== 0) {
-    throw new Error(`Could not prepare branded macOS desktop shell: ${result.stderr || result.stdout}`);
+function desktopShellFingerprint() {
+  const hash = crypto.createHash("sha256");
+  for (const file of [
+    path.join(PROJECT_ROOT, "electron", "main.cjs"),
+    path.join(PROJECT_ROOT, "electron", "preload.cjs"),
+    path.join(PROJECT_ROOT, "electron", "package.json"),
+    path.join(PROJECT_ROOT, "public", "brand", "codex-slides-mark.png"),
+    desktopBuilderConfig,
+  ]) {
+    hash.update(file);
+    hash.update(fs.readFileSync(file));
   }
+  hash.update(electronBinary);
+  return hash.digest("hex");
+}
+
+function findMacDesktopBinary(outputRoot) {
+  for (const directory of ["mac-arm64", "mac", "mac-x64"]) {
+    const executable = path.join(outputRoot, directory, `${PRODUCT_NAME}.app`, "Contents", "MacOS", PRODUCT_NAME);
+    if (fs.existsSync(executable)) return executable;
+  }
+  return null;
 }
 
 function ensureMacDesktopBinary() {
   if (process.platform !== "darwin") return electronBinary;
 
-  const sourceContents = path.resolve(path.dirname(electronBinary), "..");
-  const sourceInfo = fs.statSync(electronBinary);
-  const bundleRoot = path.join(PROJECT_ROOT, ".tmp", "electron-dev", `${PRODUCT_NAME}.app`);
-  const contents = path.join(bundleRoot, "Contents");
-  const executable = path.join(contents, "MacOS", PRODUCT_NAME);
-  const markerPath = path.join(path.dirname(bundleRoot), "codex-slides-dev-shell.json");
-  const marker = JSON.stringify({
-    appId: `${APP_ID}.dev`,
-    electronBinary,
-    electronMtimeMs: sourceInfo.mtimeMs,
-    productName: PRODUCT_NAME,
-  });
-
-  if (fs.existsSync(executable) && fs.existsSync(markerPath)) {
+  const outputRoot = path.join(PROJECT_ROOT, ".tmp", "electron-dev-build");
+  const markerPath = path.join(outputRoot, "codex-slides-dev-shell.json");
+  const fingerprint = desktopShellFingerprint();
+  const existing = findMacDesktopBinary(outputRoot);
+  if (existing && fs.existsSync(markerPath)) {
     try {
-      const verified = spawnSync("/usr/bin/codesign", ["--verify", bundleRoot]);
-      if (fs.readFileSync(markerPath, "utf8") === marker && verified.status === 0) return executable;
+      if (fs.readFileSync(markerPath, "utf8") === fingerprint) return existing;
     } catch {
-      // Recreate the generated shell below.
+      // Rebuild the generated shell below.
     }
   }
 
-  fs.rmSync(bundleRoot, { force: true, recursive: true });
-  fs.mkdirSync(path.join(contents, "MacOS"), { recursive: true });
-  fs.copyFileSync(path.join(sourceContents, "Info.plist"), path.join(contents, "Info.plist"));
-  fs.copyFileSync(path.join(sourceContents, "PkgInfo"), path.join(contents, "PkgInfo"));
-  fs.copyFileSync(electronBinary, executable);
-  fs.chmodSync(executable, 0o755);
-  fs.symlinkSync(path.join(sourceContents, "Frameworks"), path.join(contents, "Frameworks"), "dir");
-  fs.symlinkSync(path.join(sourceContents, "Resources"), path.join(contents, "Resources"), "dir");
-
-  const plistPath = path.join(contents, "Info.plist");
-  replacePlistString(plistPath, "CFBundleDisplayName", PRODUCT_NAME);
-  replacePlistString(plistPath, "CFBundleExecutable", PRODUCT_NAME);
-  replacePlistString(plistPath, "CFBundleIdentifier", `${APP_ID}.dev`);
-  replacePlistString(plistPath, "CFBundleName", PRODUCT_NAME);
-  replacePlistString(plistPath, "LSApplicationCategoryType", "public.app-category.productivity");
-  fs.writeFileSync(markerPath, marker, "utf8");
-
-  const signed = spawnSync("/usr/bin/codesign", ["--force", "--sign", "-", bundleRoot], { encoding: "utf8" });
-  if (signed.status !== 0) {
-    throw new Error(`Could not sign branded macOS desktop shell: ${signed.stderr || signed.stdout}`);
+  process.stdout.write("[codex-slides] Preparing branded macOS Desktop shell\n");
+  const built = spawnSync(process.execPath, [
+    electronBuilderCli,
+    "--mac",
+    "--dir",
+    "--config",
+    desktopBuilderConfig,
+    "--publish",
+    "never",
+  ], {
+    cwd: PROJECT_ROOT,
+    env: { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: "false" },
+    stdio: "inherit",
+  });
+  if (built.status !== 0) {
+    throw new Error(`Could not build branded macOS desktop shell (exit ${built.status ?? "unknown"})`);
   }
+
+  const executable = findMacDesktopBinary(outputRoot);
+  if (!executable) throw new Error(`Branded macOS desktop shell was not produced in ${outputRoot}`);
+  fs.writeFileSync(markerPath, fingerprint, "utf8");
   return executable;
 }
 

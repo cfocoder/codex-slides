@@ -17,9 +17,11 @@ let serverLogFd = null;
 let appUrl = "";
 
 function resolveDesktopIconPath() {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, "next", "public", "brand", "codex-slides-mark.png")
-    : path.join(__dirname, "..", "public", "brand", "codex-slides-mark.png");
+  if (!app.isPackaged) return path.join(__dirname, "..", "public", "brand", "codex-slides-mark.png");
+  const bundledWebIcon = path.join(process.resourcesPath, "next", "public", "brand", "codex-slides-mark.png");
+  return fs.existsSync(bundledWebIcon)
+    ? bundledWebIcon
+    : path.join(process.resourcesPath, "codex-slides-mark.png");
 }
 
 function applyDesktopIdentity() {

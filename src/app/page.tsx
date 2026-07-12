@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ClockCounterClockwise } from "@phosphor-icons/react";
 import ChatColumn, { type ChatMsg } from "@/components/ChatColumn";
 import Composer from "@/components/Composer";
 import Community from "@/components/Community";
 import CodexTutorial from "@/components/CodexTutorial";
 import DesignFilesPanel from "@/components/DesignFilesPanel";
+import DeckVersionDialog from "@/components/DeckVersionDialog";
 import HomeLibrary from "@/components/HomeLibrary";
 import OnboardForm from "@/components/OnboardForm";
 import OutlineBoard from "@/components/OutlineBoard";
@@ -164,6 +166,7 @@ export default function Home() {
   const [inspireMsgId, setInspireMsgId] = useState<string | null>(null);
   const [inspirationSkipped, setInspirationSkipped] = useState(false);
   const [scenarioOpenRequestKey, setScenarioOpenRequestKey] = useState(0);
+  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const checkpointTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestCheckpointRef = useRef<{ patch: ProjectCheckpointPatch; signature: string } | null>(null);
@@ -1391,6 +1394,20 @@ export default function Home() {
     const workspaceTabs = (
       <WorkspaceModeTabs mode={workspaceMode} fileCount={designFiles.length} onChange={setWorkspaceMode} />
     );
+    const versionHistoryAction = projectId && stage === "deck" ? (
+      <div className="deck-header-extras">
+        <button
+          type="button"
+          className={`iconbtn version-history-trigger${versionHistoryOpen ? " active" : ""}`}
+          disabled={running || busy || clarifyBusy}
+          onClick={() => setVersionHistoryOpen(true)}
+          title={t("versions.title")}
+        >
+          <ClockCounterClockwise size={18} weight="regular" aria-hidden="true" />
+          <span className="stage-action-label">{t("versions.entry")}</span>
+        </button>
+      </div>
+    ) : undefined;
     const placeholder =
       stage === "clarify"
         ? t("flow.placeholderClarify")
@@ -1537,6 +1554,7 @@ export default function Home() {
             onMarkAgentEvent={mirrorMarkToChat}
             focusSlideIndex={focusSlideIndex}
             focusSlideKey={focusSlideKey}
+            headerExtra={versionHistoryAction}
           />
         )}
         {inspireOpen && (
@@ -1550,6 +1568,31 @@ export default function Home() {
             onSubmit={(id) => handleInspireGenerate(id)}
           />
         )}
+        {versionHistoryOpen && projectId ? (
+          <DeckVersionDialog
+            projectId={projectId}
+            onClose={() => setVersionHistoryOpen(false)}
+            onRestored={(restored) => {
+              setConfig(restored.config);
+              setTitle(restored.title);
+              setOutline(restored.outline.map((page) => ({ title: page.title, points: [...page.points] })));
+              setSlides(restored.pages.map((page) => ({
+                index: page.index,
+                title: page.title,
+                status: page.status,
+                image: page.image,
+                error: page.error,
+                bust: page.imageUpdatedAt,
+                transition: page.transition,
+                speakerNotes: page.speakerNotes,
+              })));
+              setMaterials(checkpointMaterials(restored));
+              setResearchDoc(restored.researchDoc ?? "");
+              setResearchProgress(restored.research);
+              setStage("deck");
+            }}
+          />
+        ) : null}
       </div>
     );
   }

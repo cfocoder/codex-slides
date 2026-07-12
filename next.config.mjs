@@ -11,6 +11,12 @@ const nextConfig = {
   // the dev route manifests and leaves the live server returning Next's 404.
   distDir: process.env.PPT_ANYTHING_DIST_DIR
     || (process.env.NODE_ENV === "development" ? ".next-dev" : ".next"),
+  typescript: {
+    // The development runner isolates build output by port and supplies an
+    // ignored per-port config so concurrent Web/Desktop sessions never rewrite
+    // the checked-in tsconfig.json.
+    tsconfigPath: process.env.PPT_ANYTHING_TSCONFIG_PATH || "tsconfig.json",
+  },
   // The app spawns local agent CLIs and reads ~/.codex/auth.json on the server.
   // pptxgenjs / pdf-lib pull in Node built-ins; keep them external to the bundle.
   experimental: {

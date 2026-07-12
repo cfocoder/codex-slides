@@ -18,12 +18,14 @@ export default function ResearchPanel({
   const [doc, setDoc] = useState("");
   const [running, setRunning] = useState(false);
   const started = useRef(false);
+  const draftRound = useRef(0);
   const logRef = useRef<HTMLDivElement>(null);
 
   async function run() {
     setRunning(true);
     setLog([]);
     setDoc("");
+    draftRound.current = 0;
     try {
       const resp = await fetch("/api/research", {
         method: "POST",
@@ -48,8 +50,17 @@ export default function ResearchPanel({
           if (ev.type === "queries") setLog((l) => [...l, t("research.round", { round: ev.round, queries: ev.queries.join(" · ") })]);
           else if (ev.type === "search" && ev.query && ev.state === "complete") setLog((l) => [...l, `  ${t("research.results", { query: ev.query, count: ev.count })}`]);
           else if (ev.type === "synth") setLog((l) => [...l, `  ${t("research.synthesizing", { round: ev.round })}`]);
-          else if (ev.type === "delta") setDoc((current) => ev.round === 1 || current ? `${current}${ev.delta}` : ev.delta);
-          else if (ev.type === "doc") setDoc(ev.markdown);
+          else if (ev.type === "delta") setDoc((current) => {
+            if (draftRound.current !== ev.round) {
+              draftRound.current = ev.round;
+              return ev.delta;
+            }
+            return `${current}${ev.delta}`;
+          });
+          else if (ev.type === "doc") {
+            draftRound.current = ev.round;
+            setDoc(ev.markdown);
+          }
           else if (ev.type === "error") setLog((l) => [...l, `✗ ${ev.error}`]);
           else if (ev.type === "done") setLog((l) => [...l, t("research.complete")]);
         }

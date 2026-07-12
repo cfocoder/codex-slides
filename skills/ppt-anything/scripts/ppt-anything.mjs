@@ -601,6 +601,8 @@ async function run(command, input) {
     if (input.clear !== true && !input.designSystem && !input.template && !input.style && !input.materialIds?.length && input.brandAssetMaterialIds === undefined) {
       throw new Error("Provide designSystem, template, style, materialIds, brandAssetMaterialIds, or clear:true.");
     }
+    const versionGroupId = globalThis.crypto.randomUUID();
+    const versionPrompt = input.style || input.designSystem?.style?.direction || "Update the brand design system";
     const data = await apiJson(`/api/projects/${encodeURIComponent(input.projectId)}/design-system`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -611,13 +613,19 @@ async function run(command, input) {
         materialIds: input.materialIds || [],
         brandAssetMaterialIds: input.brandAssetMaterialIds,
         clear: input.clear === true,
+        versionPrompt,
+        versionGroupId,
       }),
     });
     const changed = [];
     if (input.redraw === true && !input.clear) {
       for (const page of data.project?.pages || []) {
         try {
-          const generated = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/regenerate`, { index: page.index });
+          const generated = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/regenerate`, {
+            index: page.index,
+            versionPrompt,
+            versionGroupId,
+          });
           changed.push(slideSummary(generated.page));
         } catch (error) {
           changed.push({ index: page.index, status: "error", error: error instanceof Error ? error.message : String(error) });
@@ -643,15 +651,34 @@ async function run(command, input) {
       designFilePaths: input.designFilePaths || [],
     });
     const changed = [];
+    const versionGroupId = globalThis.crypto.randomUUID();
     if (plan.action === "add") {
       const afterIndex = Number.isInteger(plan.afterIndex) ? plan.afterIndex : project.pages.length;
-      const added = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/slides`, { action: "add", afterIndex, title: plan.title });
+      const added = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/slides`, {
+        action: "add",
+        afterIndex,
+        title: plan.title,
+        versionPrompt: input.instruction,
+        versionGroupId,
+      });
       const index = Math.min(Math.max(afterIndex + 1, 1), added.pages.length);
-      const generated = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/regenerate`, { index, instruction: plan.instruction || input.instruction, title: plan.title });
+      const generated = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/regenerate`, {
+        index,
+        instruction: plan.instruction || input.instruction,
+        title: plan.title,
+        versionPrompt: input.instruction,
+        versionGroupId,
+      });
       changed.push(slideSummary(generated.page));
     } else if (plan.action === "edit") {
       for (const index of plan.targets || []) {
-        const generated = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/regenerate`, { index, instruction: plan.instruction || input.instruction, title: plan.targets?.length === 1 ? plan.title : undefined });
+        const generated = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/regenerate`, {
+          index,
+          instruction: plan.instruction || input.instruction,
+          title: plan.targets?.length === 1 ? plan.title : undefined,
+          versionPrompt: input.instruction,
+          versionGroupId,
+        });
         changed.push(slideSummary(generated.page));
       }
     }
@@ -659,16 +686,28 @@ async function run(command, input) {
   }
   if (command === "restyle") {
     if (!input.projectId) throw new Error("projectId is required.");
+    const versionGroupId = globalThis.crypto.randomUUID();
+    const versionPrompt = input.style || `Apply template ${input.template || "default"}`;
     const updated = await apiJson(`/api/projects/${encodeURIComponent(input.projectId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ template: input.template, style: input.style, materialIds: input.materialIds || [] }),
+      body: JSON.stringify({
+        template: input.template,
+        style: input.style,
+        materialIds: input.materialIds || [],
+        versionPrompt,
+        versionGroupId,
+      }),
     });
     const changed = [];
     if (input.redraw !== false) {
       for (const page of updated.pages || []) {
         try {
-          const generated = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/regenerate`, { index: page.index });
+          const generated = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/regenerate`, {
+            index: page.index,
+            versionPrompt,
+            versionGroupId,
+          });
           changed.push(slideSummary(generated.page));
         } catch (error) {
           changed.push({ index: page.index, status: "error", error: error instanceof Error ? error.message : String(error) });

@@ -151,6 +151,11 @@ auditing a newly added product feature or changing the Browser/CLI/MCP contract.
   `action:generate` / `generate_speaker_notes` to ask the project's selected
   agent for one slide or a coherent full-deck talk track. Notes stay off-canvas,
   appear in presenter mode, and export as native PowerPoint speaker notes.
+- In the Browser, use the project header's Version entry to inspect immutable
+  deck snapshots and their originating prompts. Each version owns its slide
+  images, transitions, and notes, so preview, Play, and PDF/PPTX export use that
+  exact snapshot. Restoring never overwrites history; it creates a new current
+  version linked to the selected source version.
 
 Keep durable edits scoped to the project the user named. If no project was
 named and multiple projects exist, inspect the recent list before choosing.

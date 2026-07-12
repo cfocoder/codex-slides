@@ -6,6 +6,7 @@
 /data
 /.tmp
 *.tsbuildinfo
+tsconfig.next-dev-*.json
 next-env.d.ts
 .DS_Store
 

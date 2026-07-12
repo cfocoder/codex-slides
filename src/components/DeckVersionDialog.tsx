@@ -131,6 +131,7 @@ export default function DeckVersionDialog({
     const cached = cacheRef.current.get(selectedId);
     if (cached) {
       setDetail(cached);
+      setLoadingDetail(false);
       return;
     }
     let cancelled = false;
@@ -164,7 +165,7 @@ export default function DeckVersionDialog({
   }, [confirmRestore, onClose, playing, promptOpen]);
 
   const versionSlides = useMemo(() => {
-    if (!detail || !selectedVersion) return [];
+    if (!detail || !selectedVersion || detail.version.id !== selectedVersion.id) return [];
     return detail.project.pages
       .filter((page) => page.image)
       .map((page) => ({
@@ -434,4 +435,3 @@ export default function DeckVersionDialog({
 
   return createPortal(modal, document.body);
 }
-

@@ -46,7 +46,7 @@ function mimeTypeFor(name: string): string {
 function kindFor(name: string): ProjectFileRecord["kind"] {
   const ext = path.extname(name).toLowerCase();
   if (IMAGE_EXTENSIONS.has(ext)) return "image";
-  // HTML is a presentation-native source format in PPT Anything. Keep it with
+  // HTML is a presentation-native source format in Codex Slides. Keep it with
   // decks/documents in Design Files instead of presenting it as source code.
   if ([".md", ".txt", ".html", ".pdf", ".doc", ".docx", ".ppt", ".pptx"].includes(ext)) return "document";
   if ([".json", ".csv", ".tsv", ".yaml", ".yml", ".xml"].includes(ext)) return "data";

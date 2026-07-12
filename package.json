@@ -3,6 +3,7 @@
   "productName": "Codex Slides",
   "version": "0.4.0",
   "private": true,
+  "type": "module",
   "main": "electron/main.cjs",
   "description": "Codex Slides — the open-source AI slide studio inside Codex, with durable projects, image-native decks, visual editing, and PDF/PPTX export.",
   "license": "MIT",
@@ -45,14 +46,14 @@
     "check:project-sync": "node scripts/check-project-sync.mjs",
     "check:project-sync:live": "node scripts/check-project-sync.mjs --live",
     "check:browser-first": "node scripts/check-browser-first-contract.mjs",
-    "check:skill": "node --check skills/ppt-anything/scripts/ppt-anything.mjs && node --check skills/ppt-anything/scripts/probe.mjs && node skills/ppt-anything/scripts/probe.mjs && npm run check:browser-first",
+    "check:skill": "node --check skills/ppt-anything/scripts/ppt-anything.mjs && node --check skills/ppt-anything/scripts/probe.mjs && node skills/ppt-anything/scripts/probe.mjs && node scripts/check-browser-first-contract.mjs",
     "check:skill:live": "node skills/ppt-anything/scripts/probe.mjs --live",
     "check:mcp": "node --check scripts/start-mcp.mjs && node --check mcp/server.mjs && node scripts/probe-mcp.mjs",
     "check:mcp:live": "node scripts/probe-mcp.mjs --live",
     "electron:dev": "node electron/dev.cjs desktop",
     "electron:check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/dev.cjs && node scripts/check-electron.mjs",
-    "electron:pack": "npm run build:desktop && electron-builder --dir",
-    "electron:dist": "npm run build:desktop && electron-builder"
+    "electron:pack": "node scripts/build-desktop.mjs && electron-builder --dir",
+    "electron:dist": "node scripts/build-desktop.mjs && electron-builder"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

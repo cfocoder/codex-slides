@@ -50,7 +50,7 @@ if (missing.length) {
   const args = process.platform === "win32"
     ? ["/d", "/s", "/c", "npm", "install", "--no-audit", "--no-fund"]
     : ["install", "--no-audit", "--no-fund"];
-  process.stderr.write(`Preparing PPT Anything MCP dependencies (${missing.join(", ")})…\n`);
+  process.stderr.write(`Preparing Codex Slides MCP dependencies (${missing.join(", ")})…\n`);
   const result = spawnSync(command, args, {
     cwd: ROOT,
     env: { ...process.env, FORCE_COLOR: "0" },
@@ -61,7 +61,7 @@ if (missing.length) {
   if (result.stderr) process.stderr.write(result.stderr);
   if (result.error) throw result.error;
   if (result.status !== 0) {
-    throw new Error(`npm install failed while preparing PPT Anything MCP (exit ${result.status}).`);
+    throw new Error(`npm install failed while preparing Codex Slides MCP (exit ${result.status}).`);
   }
 }
 
