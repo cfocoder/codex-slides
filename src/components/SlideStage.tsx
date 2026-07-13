@@ -665,38 +665,52 @@ export default function SlideStage({
           <div className="slide-toolbar" role="toolbar" aria-label={t("slide.tools", { index: current.index })}>
             <span className="slide-toolbar-page">{t("chat.slide", { index: current.index })}</span>
             <span className="slide-toolbar-sep" aria-hidden="true" />
-            <button type="button" onClick={() => askAgent(current.index)} disabled={!canEdit} title={t("slide.askAiHelp")}>
+            <button
+              type="button"
+              className="slide-toolbar-tooltip"
+              onClick={() => askAgent(current.index)}
+              disabled={!canEdit}
+              aria-label={t("slide.askAiHelp")}
+              data-tooltip={t("slide.askAiHelp")}
+            >
               <Sparkle size={16} />
               <span>{t("slide.askAi")}</span>
             </button>
-            <button type="button" onClick={() => startMark(current.index)} disabled={!canEdit || !current.image} title={t("slide.markHelp")}>
+            <button
+              type="button"
+              className="slide-toolbar-tooltip"
+              onClick={() => startMark(current.index)}
+              disabled={!canEdit || !current.image}
+              aria-label={t("slide.markHelp")}
+              data-tooltip={t("slide.markHelp")}
+            >
               <PencilSimple size={16} />
               <span>{t("slide.mark")}</span>
             </button>
-            <button type="button" className="icon-only" onClick={() => openTransition(current.index)} disabled={!canEdit} title={t("slide.transitionHelp")} aria-label={t("slide.transition")}>
+            <button type="button" className="icon-only slide-toolbar-tooltip" onClick={() => openTransition(current.index)} disabled={!canEdit} data-tooltip={t("slide.transitionHelp")} aria-label={t("slide.transitionHelp")}>
               <FilmStrip size={16} />
             </button>
             <button
               type="button"
-              className="icon-only"
+              className="icon-only slide-toolbar-tooltip"
               onClick={() => chooseUpload(current.index)}
               disabled={!canEdit}
-              title={current.image ? t("slide.replaceHelp") : t("slide.uploadHelp")}
-              aria-label={current.image ? t("slide.replace") : t("slide.upload")}
+              data-tooltip={current.image ? t("slide.replaceHelp") : t("slide.uploadHelp")}
+              aria-label={current.image ? t("slide.replaceHelp") : t("slide.uploadHelp")}
             >
               <Image size={16} />
             </button>
-            <button type="button" className="icon-only" onClick={() => void reorderPage(current.index, -1)} disabled={!canEdit || current.index <= 1} title={t("slide.moveLeftHelp")} aria-label={t("slide.moveLeft")}>
+            <button type="button" className="icon-only slide-toolbar-tooltip" onClick={() => void reorderPage(current.index, -1)} disabled={!canEdit || current.index <= 1} data-tooltip={t("slide.moveLeftHelp")} aria-label={t("slide.moveLeftHelp")}>
               <ArrowLeft size={16} />
             </button>
-            <button type="button" className="icon-only" onClick={() => void reorderPage(current.index, 1)} disabled={!canEdit || current.index >= slides.length} title={t("slide.moveRightHelp")} aria-label={t("slide.moveRight")}>
+            <button type="button" className="icon-only slide-toolbar-tooltip" onClick={() => void reorderPage(current.index, 1)} disabled={!canEdit || current.index >= slides.length} data-tooltip={t("slide.moveRightHelp")} aria-label={t("slide.moveRightHelp")}>
               <ArrowRight size={16} />
             </button>
-            <button type="button" className="icon-only" onClick={() => duplicatePage(current.index)} disabled={!canEdit} title={t("slide.duplicateHelp")} aria-label={t("slide.duplicate")}>
+            <button type="button" className="icon-only slide-toolbar-tooltip" onClick={() => duplicatePage(current.index)} disabled={!canEdit} data-tooltip={t("slide.duplicateHelp")} aria-label={t("slide.duplicateHelp")}>
               <Copy size={16} />
             </button>
             <span className="slide-toolbar-sep" aria-hidden="true" />
-            <button type="button" className="danger icon-only" onClick={() => deletePage(current.index)} disabled={!canEdit} title={t("slide.deleteHelp")} aria-label={t("slide.delete")}>
+            <button type="button" className="danger icon-only slide-toolbar-tooltip" onClick={() => deletePage(current.index)} disabled={!canEdit} data-tooltip={t("slide.deleteHelp")} aria-label={t("slide.deleteHelp")}>
               <Trash size={16} />
             </button>
           </div>

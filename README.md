@@ -68,6 +68,11 @@ watch it happen live.
 > Like what you see? **[Give it a ⭐](#star-codex-slides)** — one click is the fastest way to
 > help the next developer find Codex Slides.
 
+> **Writing about Codex Slides?** Everything a creator or reporter needs — boilerplate, stats,
+> comparisons, an FAQ, ready-to-post copy in English / 中文 / 日本語, a video script, and an asset
+> manifest — is in the **[Media & creator kit](docs/MEDIA_KIT.md)**. Paste it into your agent and
+> it can write the video or article for you.
+
 ## Contents
 
 - [Why Codex Slides](#why-codex-slides)
@@ -87,6 +92,7 @@ watch it happen live.
 - [Architecture and data](#architecture-and-data)
 - [Verification](#verification)
 - [Troubleshooting](#troubleshooting)
+- [Media & creator kit](#media--creator-kit)
 - [Star Codex Slides](#star-codex-slides)
 - [Contributing](#contributing)
 - [License](#license)
@@ -194,15 +200,15 @@ through questions, research, outline, generation, editing, presenting, and expor
     <td><strong>8 · Generate progressively or in parallel</strong> — watch completed slides land in the canvas while remaining pages stay visible and resumable. Fast mode fans pages out in parallel and queues overflow.</td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/assets/readme/08-editor.png" alt="English slide editor with canvas, editing toolbar, speaker notes, and thumbnails" /></td>
-    <td width="50%"><img src="docs/assets/readme/09-presenter-mode.png" alt="Audience playback and Presenter Mode menu in English" /></td>
+    <td width="50%"><img src="docs/assets/readme/08-editor.png" alt="English slide editor with the complete 16:9 canvas contained in view, editing toolbar, speaker notes, and thumbnails" /></td>
+    <td width="50%"><img src="docs/assets/readme/09-presenter-mode.png" alt="Audience playback and Presenter Mode menu with the complete slide visible behind it" /></td>
   </tr>
   <tr>
-    <td><strong>9 · Edit in place</strong> — ask AI, mark a region, rewrite or redraw a page, add and reorder slides, set transitions, replace images, and prepare speaker notes.</td>
+    <td><strong>9 · Edit in place</strong> — keep the complete slide in frame while you ask AI, mark a region, rewrite or redraw a page, add and reorder slides, set transitions, replace images, and prepare speaker notes.</td>
     <td><strong>10 · Present</strong> — start audience playback from any slide, or use Presenter Mode with a synchronized audience window, notes, navigation, and timer.</td>
   </tr>
   <tr>
-    <td colspan="2"><img src="docs/assets/readme/10-export.png" alt="English PDF and PowerPoint export menu" /></td>
+    <td colspan="2"><img src="docs/assets/readme/10-export.png" alt="English PDF and PowerPoint export menu above a fully contained 16:9 slide" /></td>
   </tr>
   <tr>
     <td colspan="2"><strong>11 · Export</strong> — download a production-ready PowerPoint file or a print-ready PDF, with the project's speaker notes preserved.</td>
@@ -528,6 +534,25 @@ you only need one surface:
 | `pnpm dev:web` | Web only | Serves <http://127.0.0.1:4311> |
 | `pnpm dev:desktop` | Desktop | Reuses a healthy Web service or starts and waits for one automatically |
 
+### Background lifecycle (start / restart / stop)
+
+`pnpm dev` runs in the foreground and streams logs (Ctrl+C stops it). To run the same Web +
+Desktop stack **in the background** and manage it from any shell, use the lifecycle commands.
+Each accepts an optional target — `all` (default), `web`, or `desktop`:
+
+| Command | Purpose |
+|---|---|
+| `pnpm dev:start [all\|web\|desktop]` | Start in the background (daemon); waits for the Web service to become healthy, then returns |
+| `pnpm dev:stop [all\|web\|desktop]` | Stop background services (`all` stops Desktop, then Web) |
+| `pnpm dev:restart [all\|web\|desktop]` | Restart background services (stop then start) |
+| `pnpm dev:status [all\|web\|desktop]` | Show what is running: PID, URL, uptime, and Web health (`--json` for machine-readable output) |
+| `pnpm dev:logs [all\|web\|desktop]` | Tail the last 200 log lines; add `-f` / `--follow` to stream new output |
+
+Background output and process state live under `.tmp/dev-runtime/` (`web.log`, `desktop.log`,
+and `<target>.json`). `pnpm dev:start desktop` starts its Web dependency automatically, and
+`dev:start` reuses an already-healthy Web service instead of starting a second one. Override the
+Web port with `--web-port <port>` on `dev:start` / `dev:restart`.
+
 Production build:
 
 ```bash
@@ -755,6 +780,21 @@ image for visual fidelity. Editable-shape export is on the [roadmap](#roadmap).
 
 Recommended repository title, description, categories, topics, social-preview copy, and
 release naming are documented in [docs/GITHUB_METADATA.md](docs/GITHUB_METADATA.md).
+
+## Media & creator kit
+
+Covering Codex Slides — a video, a thread, a newsletter, a review? You don't have to learn the
+product first. [**docs/MEDIA_KIT.md**](docs/MEDIA_KIT.md) is a press kit written to be handed to
+an AI agent: paste it in and ask for the piece you want.
+
+It includes:
+
+- Boilerplate, one-liners, and elevator pitches at multiple lengths — in **English, 简体中文, and 日本語**.
+- A **by-the-numbers** table, **story angles**, and **audience personas** to build a piece around.
+- A category **comparison**, an **FAQ**, and **ready-to-post** tweets, threads, and LinkedIn copy.
+- **30- and 60-second video scripts** with a shot list, plus an **asset manifest** mapping every screenshot.
+- Two guardrail sections — **✅ Safe to claim** and **⚠️ Do not claim** — so generated promo stays
+  accurate and never invents features, benchmarks, or an OpenAI affiliation.
 
 ## Star Codex Slides
 

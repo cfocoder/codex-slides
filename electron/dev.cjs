@@ -9,6 +9,8 @@ const PRODUCT_NAME = "Codex Slides";
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const DEFAULT_URL = "http://127.0.0.1:4311";
 const TARGETS = new Set(["all", "web", "desktop"]);
+const COMMANDS = new Set(["run", "start", "stop", "restart", "status", "logs"]);
+const RUNTIME_DIR = path.join(PROJECT_ROOT, ".tmp", "dev-runtime");
 const desktopBuilderConfig = path.join(PROJECT_ROOT, "electron-builder.dev.yml");
 const electronBuilderCli = require.resolve("electron-builder/cli.js");
 const nextBinary = require.resolve("next/dist/bin/next");
@@ -20,20 +22,42 @@ let closing = false;
 let shutdownPromise = null;
 let generatedTsConfigPath = null;
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function printHelp() {
   process.stdout.write(`${PRODUCT_NAME} development runner
 
 Usage:
-  pnpm dev [all|web|desktop] [--web-port <port>]
+  pnpm dev [command] [all|web|desktop] [options]
 
 Commands:
-  pnpm dev                  Start Web + Desktop (default)
-  pnpm dev:web              Start Web only
-  pnpm dev:desktop          Start Desktop and its Web dependency
+  run [target]        Start in the foreground and stream logs (default)
+  start [target]      Start in the background (daemon); logs go to .tmp/dev-runtime
+  stop [target]       Stop background services
+  restart [target]    Restart background services (stop then start)
+  status [target]     Show background service status
+  logs [target]       Tail background service logs
+
+Targets:
+  all                 Web + Desktop (default)
+  web                 Web service only
+  desktop             Desktop and its Web dependency
 
 Options:
-  --web-port <port>         Override the port from CODEX_SLIDES_URL
-  -h, --help                Show this help
+  --web-port <port>   Override the port from CODEX_SLIDES_URL
+  --json              Machine-readable output (status)
+  -f, --follow        Follow log output (logs)
+  -h, --help          Show this help
+
+Examples:
+  pnpm dev                     Foreground Web + Desktop
+  pnpm dev:web                 Foreground Web only
+  pnpm dev:start               Background Web + Desktop
+  pnpm dev:start web           Background Web only
+  pnpm dev:status              Show what is running
+  pnpm dev:logs web -f         Follow the Web daemon log
+  pnpm dev:restart             Restart everything
+  pnpm dev:stop                Stop everything
 `);
 }
 
@@ -46,14 +70,27 @@ function parsePort(value) {
 }
 
 function parseArgs(argv) {
-  let target = "all";
-  let targetSet = false;
+  let command = "run";
+  let commandSet = false;
+  let target = null;
   let webPort = null;
+  let json = false;
+  let follow = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--") continue;
-    if (arg === "-h" || arg === "--help") return { help: true, target, webPort };
+    if (arg === "-h" || arg === "--help") {
+      return { help: true, command, target: target ?? "all", webPort, json, follow };
+    }
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+    if (arg === "-f" || arg === "--follow") {
+      follow = true;
+      continue;
+    }
     if (arg === "--web-port") {
       const value = argv[index + 1];
       if (value == null) throw new Error("--web-port requires a value");
@@ -65,15 +102,19 @@ function parseArgs(argv) {
       webPort = parsePort(arg.slice("--web-port=".length));
       continue;
     }
-    if (!arg.startsWith("-") && TARGETS.has(arg) && !targetSet) {
+    if (!arg.startsWith("-") && !commandSet && COMMANDS.has(arg)) {
+      command = arg;
+      commandSet = true;
+      continue;
+    }
+    if (!arg.startsWith("-") && target == null && TARGETS.has(arg)) {
       target = arg;
-      targetSet = true;
       continue;
     }
     throw new Error(`Unknown development runner argument: ${arg}`);
   }
 
-  return { help: false, target, webPort };
+  return { help: false, command, target: target ?? "all", webPort, json, follow };
 }
 
 function resolveAppUrl(webPort) {
@@ -148,7 +189,7 @@ async function waitForDevServer(appUrl, timeoutMs = 60_000) {
   const deadline = Date.now() + timeoutMs;
   while (!closing && Date.now() < deadline) {
     if (await probeDevServer(appUrl)) return;
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await sleep(300);
   }
   if (closing) throw new Error("Web service stopped before becoming ready");
   throw new Error(`Web service did not start at ${displayUrl(appUrl)}`);
@@ -245,16 +286,17 @@ function prepareDevTsConfig(appUrl, distDir) {
     ...base,
     include: [...new Set([...include, nextTypes])],
   };
-  generatedTsConfigPath = path.join(PROJECT_ROOT, fileName);
-  fs.writeFileSync(generatedTsConfigPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
-  return fileName;
+  const fullPath = path.join(PROJECT_ROOT, fileName);
+  fs.writeFileSync(fullPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  return { fileName, fullPath };
 }
 
 async function startWebService(appUrl) {
   const host = localBindHost(appUrl);
   const port = effectivePort(appUrl);
   const distDir = devDistDir(appUrl);
-  const tsConfigPath = prepareDevTsConfig(appUrl, distDir);
+  const { fileName: tsConfigPath, fullPath } = prepareDevTsConfig(appUrl, distDir);
+  generatedTsConfigPath = fullPath;
   let startupSettled = false;
   let rejectStartup;
   const startupFailure = new Promise((_, reject) => {
@@ -384,8 +426,382 @@ function startDesktop(appUrl) {
   });
 }
 
-process.on("SIGINT", () => void shutdown());
-process.on("SIGTERM", () => void shutdown());
+// --- Background daemon lifecycle -------------------------------------------
+
+function ensureRuntimeDir() {
+  fs.mkdirSync(RUNTIME_DIR, { recursive: true });
+}
+
+function stateFile(target) {
+  return path.join(RUNTIME_DIR, `${target}.json`);
+}
+
+function logFile(target) {
+  return path.join(RUNTIME_DIR, `${target}.log`);
+}
+
+function readState(target) {
+  try {
+    const state = JSON.parse(fs.readFileSync(stateFile(target), "utf8"));
+    return state && typeof state === "object" ? state : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeState(target, state) {
+  ensureRuntimeDir();
+  fs.writeFileSync(stateFile(target), `${JSON.stringify(state, null, 2)}\n`, "utf8");
+}
+
+function clearState(target) {
+  fs.rmSync(stateFile(target), { force: true });
+}
+
+function label(target) {
+  return target === "web" ? "Web daemon" : "Desktop daemon";
+}
+
+function isPidAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === "EPERM";
+  }
+}
+
+function killPidGroup(pid, signal = "SIGTERM") {
+  if (!Number.isInteger(pid) || pid <= 0) return;
+  if (process.platform === "win32") {
+    const killer = spawn("taskkill", ["/pid", String(pid), "/T", "/F"], {
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    killer.unref();
+    return;
+  }
+  try {
+    process.kill(-pid, signal);
+  } catch {
+    try {
+      process.kill(pid, signal);
+    } catch {
+      // Process already gone.
+    }
+  }
+}
+
+async function waitForPidExit(pid, timeoutMs = 3_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!isPidAlive(pid)) return true;
+    await sleep(120);
+  }
+  return !isPidAlive(pid);
+}
+
+function spawnDaemon(command, argv, { env, logPath }) {
+  ensureRuntimeDir();
+  const fd = fs.openSync(logPath, "a");
+  try {
+    const child = spawn(command, argv, {
+      cwd: PROJECT_ROOT,
+      detached: process.platform !== "win32",
+      stdio: ["ignore", fd, fd],
+      env,
+      windowsHide: true,
+    });
+    child.unref();
+    return { pid: child.pid, pgid: child.pid };
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+async function waitForDaemonHealth(appUrl, pid, target, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!isPidAlive(pid)) {
+      throw new Error(`Web service exited before becoming ready (see ${logFile(target)})`);
+    }
+    if (await probeDevServer(appUrl)) return;
+    await sleep(300);
+  }
+  throw new Error(`Web service did not start at ${displayUrl(appUrl)} (see ${logFile(target)})`);
+}
+
+async function startWebDaemon(appUrl) {
+  const existing = readState("web");
+  if (existing && isPidAlive(existing.pid)) {
+    process.stdout.write(`[codex-slides] Web daemon already running (pid ${existing.pid}) at ${existing.url}\n`);
+    return;
+  }
+  if (await probeDevServer(appUrl, 700)) {
+    process.stdout.write(`[codex-slides] Reusing Web service at ${displayUrl(appUrl)}\n`);
+    return;
+  }
+
+  const host = localBindHost(appUrl);
+  const port = effectivePort(appUrl);
+  const distDir = devDistDir(appUrl);
+  const { fileName: tsConfigPath, fullPath: tsConfigFullPath } = prepareDevTsConfig(appUrl, distDir);
+  const logPath = logFile("web");
+
+  process.stdout.write(`[codex-slides] Starting Web daemon at ${displayUrl(appUrl)}\n`);
+  const { pid, pgid } = spawnDaemon(process.execPath, [nextBinary, "dev", "-H", host, "-p", port], {
+    env: {
+      ...process.env,
+      CODEX_SLIDES_URL: displayUrl(appUrl),
+      CODEX_SLIDES_DIST_DIR: distDir,
+      CODEX_SLIDES_TSCONFIG_PATH: tsConfigPath,
+    },
+    logPath,
+  });
+  writeState("web", {
+    target: "web",
+    pid,
+    pgid,
+    port,
+    url: displayUrl(appUrl),
+    mode: "web",
+    startedAt: Date.now(),
+    logPath,
+    tsConfigPath: tsConfigFullPath,
+    distDir,
+  });
+
+  try {
+    await waitForDaemonHealth(appUrl, pid, "web");
+  } catch (error) {
+    killPidGroup(pgid, "SIGTERM");
+    fs.rmSync(tsConfigFullPath, { force: true });
+    clearState("web");
+    throw error;
+  }
+  process.stdout.write(`[codex-slides] Web daemon ready at ${displayUrl(appUrl)} (pid ${pid}, logs: ${logPath})\n`);
+}
+
+async function startDesktopDaemon(appUrl) {
+  const existing = readState("desktop");
+  if (existing && isPidAlive(existing.pid)) {
+    process.stdout.write(`[codex-slides] Desktop daemon already running (pid ${existing.pid})\n`);
+    return;
+  }
+
+  // Desktop depends on a healthy Web service: reuse an external one or start our own daemon.
+  await startWebDaemon(appUrl);
+
+  const logPath = logFile("desktop");
+  const binary = ensureMacDesktopBinary();
+  process.stdout.write(`[codex-slides] Starting Desktop daemon against ${displayUrl(appUrl)}\n`);
+  const { pid, pgid } = spawnDaemon(binary, [PROJECT_ROOT], {
+    env: desktopEnvironment(appUrl),
+    logPath,
+  });
+  writeState("desktop", {
+    target: "desktop",
+    pid,
+    pgid,
+    port: effectivePort(appUrl),
+    url: displayUrl(appUrl),
+    mode: "desktop",
+    startedAt: Date.now(),
+    logPath,
+  });
+  process.stdout.write(`[codex-slides] Desktop daemon started (pid ${pid}, logs: ${logPath})\n`);
+}
+
+function clearDaemonArtifacts(state) {
+  if (state?.tsConfigPath) fs.rmSync(state.tsConfigPath, { force: true });
+  if (state?.target) clearState(state.target);
+}
+
+function startTargets(target) {
+  return target === "all" ? ["web", "desktop"] : [target];
+}
+
+function stopTargets(target) {
+  return target === "all" ? ["desktop", "web"] : [target];
+}
+
+async function stopDaemon(target) {
+  const state = readState(target);
+  if (!state || !isPidAlive(state.pid)) {
+    if (state) clearDaemonArtifacts(state);
+    process.stdout.write(`[codex-slides] ${label(target)} is not running\n`);
+    return;
+  }
+
+  const groupPid = state.pgid ?? state.pid;
+  process.stdout.write(`[codex-slides] Stopping ${label(target)} (pid ${state.pid})\n`);
+  killPidGroup(groupPid, "SIGTERM");
+  const exited = await waitForPidExit(groupPid, 3_000);
+  if (!exited) killPidGroup(groupPid, "SIGKILL");
+  clearDaemonArtifacts(state);
+  process.stdout.write(`[codex-slides] ${label(target)} stopped\n`);
+}
+
+async function statusOf(target) {
+  const state = readState(target);
+  if (!state) return { target, state: "not-running" };
+  if (!isPidAlive(state.pid)) {
+    clearDaemonArtifacts(state);
+    return { target, state: "stale", pid: state.pid };
+  }
+  let healthy = null;
+  if (target === "web" && state.url) {
+    try {
+      healthy = await probeDevServer(new URL(state.url), 700);
+    } catch {
+      healthy = false;
+    }
+  }
+  return {
+    target,
+    state: "running",
+    pid: state.pid,
+    url: state.url,
+    port: state.port,
+    uptimeMs: typeof state.startedAt === "number" ? Date.now() - state.startedAt : null,
+    healthy,
+    logPath: state.logPath,
+  };
+}
+
+function formatUptime(ms) {
+  if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) return "-";
+  const totalSeconds = Math.floor(ms / 1_000);
+  const hours = Math.floor(totalSeconds / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours) return `${hours}h${minutes}m`;
+  if (minutes) return `${minutes}m${seconds}s`;
+  return `${seconds}s`;
+}
+
+function tailLog(target, lines, prefix) {
+  const file = logFile(target);
+  let content;
+  try {
+    content = fs.readFileSync(file, "utf8");
+  } catch {
+    process.stdout.write(`${prefix}(no log yet at ${file})\n`);
+    return;
+  }
+  const tail = content.split("\n").slice(-lines - 1).join("\n");
+  process.stdout.write(prefix ? tail.replace(/^/gm, prefix) : tail);
+  if (!tail.endsWith("\n")) process.stdout.write("\n");
+}
+
+function followLogs(targets) {
+  const multi = targets.length > 1;
+  const offsets = new Map();
+  for (const target of targets) {
+    const file = logFile(target);
+    let size = 0;
+    try {
+      size = fs.statSync(file).size;
+    } catch {
+      size = 0;
+    }
+    offsets.set(target, size);
+    fs.watchFile(file, { interval: 300 }, () => {
+      let current;
+      try {
+        current = fs.statSync(file).size;
+      } catch {
+        return;
+      }
+      let from = offsets.get(target) ?? 0;
+      if (current < from) from = 0; // truncated or rotated
+      if (current <= from) {
+        offsets.set(target, current);
+        return;
+      }
+      const fd = fs.openSync(file, "r");
+      const buffer = Buffer.alloc(current - from);
+      fs.readSync(fd, buffer, 0, buffer.length, from);
+      fs.closeSync(fd);
+      offsets.set(target, current);
+      const text = buffer.toString("utf8");
+      process.stdout.write(multi ? text.replace(/^/gm, `[${target}] `) : text);
+    });
+  }
+  process.stdout.write(`[codex-slides] Following logs (Ctrl+C to stop)\n`);
+  const stop = () => {
+    for (const target of targets) fs.unwatchFile(logFile(target));
+    process.exit(0);
+  };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
+  return new Promise(() => {});
+}
+
+// --- Command handlers ------------------------------------------------------
+
+async function cmdRun(options) {
+  process.on("SIGINT", () => void shutdown());
+  process.on("SIGTERM", () => void shutdown());
+  const appUrl = resolveAppUrl(options.webPort);
+  await ensureWebServer(appUrl);
+  if (options.target === "web" || closing) return;
+  startDesktop(appUrl);
+}
+
+async function cmdStart(options) {
+  const appUrl = resolveAppUrl(options.webPort);
+  for (const target of startTargets(options.target)) {
+    if (target === "web") await startWebDaemon(appUrl);
+    else await startDesktopDaemon(appUrl);
+  }
+}
+
+async function cmdStop(options) {
+  for (const target of stopTargets(options.target)) {
+    await stopDaemon(target);
+  }
+}
+
+async function cmdRestart(options) {
+  await cmdStop(options);
+  await cmdStart(options);
+}
+
+async function cmdStatus(options) {
+  const report = [];
+  for (const target of startTargets(options.target)) {
+    report.push(await statusOf(target));
+  }
+  if (options.json) {
+    process.stdout.write(`${JSON.stringify({ targets: report }, null, 2)}\n`);
+    return;
+  }
+  for (const entry of report) {
+    if (entry.state === "running") {
+      const health = entry.healthy == null ? "" : entry.healthy ? "  healthy" : "  unhealthy";
+      const where = entry.url ? `  ${entry.url}` : "";
+      process.stdout.write(
+        `[codex-slides] ${label(entry.target)}: running  pid ${entry.pid}${where}  up ${formatUptime(entry.uptimeMs)}${health}\n`,
+      );
+    } else if (entry.state === "stale") {
+      process.stdout.write(`[codex-slides] ${label(entry.target)}: stale (pid ${entry.pid} not alive, cleaned)\n`);
+    } else {
+      process.stdout.write(`[codex-slides] ${label(entry.target)}: not running\n`);
+    }
+  }
+}
+
+async function cmdLogs(options) {
+  const targets = startTargets(options.target);
+  const multi = targets.length > 1;
+  for (const target of targets) {
+    if (multi) process.stdout.write(`===== ${label(target)} (${logFile(target)}) =====\n`);
+    tailLog(target, 200, "");
+  }
+  if (options.follow) await followLogs(targets);
+}
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
@@ -394,10 +810,22 @@ async function main() {
     return;
   }
 
-  const appUrl = resolveAppUrl(options.webPort);
-  await ensureWebServer(appUrl);
-  if (options.target === "web" || closing) return;
-  startDesktop(appUrl);
+  switch (options.command) {
+    case "run":
+      return cmdRun(options);
+    case "start":
+      return cmdStart(options);
+    case "stop":
+      return cmdStop(options);
+    case "restart":
+      return cmdRestart(options);
+    case "status":
+      return cmdStatus(options);
+    case "logs":
+      return cmdLogs(options);
+    default:
+      throw new Error(`Unknown development runner command: ${options.command}`);
+  }
 }
 
 void main().catch(async (error) => {

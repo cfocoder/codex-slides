@@ -6719,11 +6719,7 @@ button.doc-card:focus-visible {
   border-radius: 11px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 7px 22px -15px rgba(16, 20, 32, 0.48);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.slide-toolbar::-webkit-scrollbar {
-  display: none;
+  overflow: visible;
 }
 .slide-toolbar-page {
   flex: 0 0 auto;
@@ -6772,8 +6768,8 @@ button.doc-card:focus-visible {
   opacity: 0.38;
   cursor: not-allowed;
 }
-/* Icon-only actions: the label lives in the native hover tooltip + aria-label,
-   so only Ask AI and Mark keep visible text. Keeps the toolbar compact. */
+/* Icon-only actions keep their label in the localized hover tooltip and
+   aria-label, while Ask AI and Mark retain visible text. */
 .slide-toolbar button.icon-only {
   width: 32px;
   padding: 0;
@@ -6786,10 +6782,62 @@ button.doc-card:focus-visible {
   color: var(--err);
   background: color-mix(in srgb, var(--err) 8%, #fff);
 }
+.slide-toolbar-tooltip {
+  position: relative;
+}
+.slide-toolbar-tooltip::before,
+.slide-toolbar-tooltip::after {
+  position: absolute;
+  left: 50%;
+  z-index: var(--z-tooltip);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+.slide-toolbar-tooltip::before {
+  top: calc(100% + 4px);
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  background: rgba(25, 29, 36, 0.96);
+  content: "";
+  transform: translate(-50%, -3px) rotate(45deg);
+}
+.slide-toolbar-tooltip::after {
+  top: calc(100% + 7px);
+  width: max-content;
+  max-width: 220px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  color: #fff;
+  background: rgba(25, 29, 36, 0.96);
+  box-shadow: var(--shadow-pop);
+  content: attr(data-tooltip);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  white-space: normal;
+  transform: translate(-50%, -3px);
+}
+.slide-toolbar-tooltip:hover::before,
+.slide-toolbar-tooltip:hover::after,
+.slide-toolbar-tooltip:focus-visible::before,
+.slide-toolbar-tooltip:focus-visible::after {
+  opacity: 1;
+}
+.slide-toolbar-tooltip:hover::before,
+.slide-toolbar-tooltip:focus-visible::before {
+  transform: translate(-50%, 0) rotate(45deg);
+}
+.slide-toolbar-tooltip:hover::after,
+.slide-toolbar-tooltip:focus-visible::after {
+  transform: translate(-50%, 0);
+}
 /* When the stage gets too narrow to hold the labelled menu, collapse the
-   actions to icon-only (titles still surface on hover) instead of silently
-   clipping the trailing buttons off the scroll edge. Threshold ~= the labelled
-   toolbar's intrinsic width, measured against the stage-main content box. */
+   actions to icon-only (localized tooltips still surface on hover) instead of
+   clipping the trailing actions. Threshold ~= the labelled toolbar's intrinsic
+   width, measured against the stage-main content box. */
 @container stagemain (max-width: 780px) {
   .slide-toolbar-page,
   .slide-toolbar-sep:first-of-type {
@@ -11838,8 +11886,18 @@ body:has(.project-ws) .global-settings {
   align-items: center;
   justify-content: center;
   padding: 0 14px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0;
   background: #fff;
+}
+/* The project header is one continuous plane. Its three independently sized
+   columns used to draw separate bottom borders, which produced redundant,
+   slightly offset line segments around the chat/canvas/settings boundaries. */
+.project-ws > .chatcol > .chatcol-head,
+.project-ws .stage-head {
+  border-bottom: 0;
+}
+.project-ws .stage-head {
+  padding-block: 10px;
 }
 body:has(.project-ws) .global-settings-trigger {
   width: 34px;

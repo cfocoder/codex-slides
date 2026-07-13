@@ -5,11 +5,6 @@ import { Sparkle } from "@phosphor-icons/react";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { UiSlide } from "@/lib/deckEdit";
 
-interface PendingNote {
-  index: number;
-  value: string;
-}
-
 /** Every slide owns an always-editable note field. Writes are debounced and
  * serialized per page so switching quickly can never discard an intermediate
  * slide's note or let an older request overwrite newer typing. */
@@ -37,12 +32,20 @@ export default function SpeakerNotesPanel({
   const draftRef = useRef(note);
   const savedValuesRef = useRef(new Map<number, string>(slide ? [[slide.index, note]] : []));
   const pendingRef = useRef(new Map<number, string>());
+  const writingRef = useRef(new Map<number, string>());
   const saveTaskRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
 
   function queueSave(index: number, value: string) {
-    if (savedValuesRef.current.get(index) === value) return saveTaskRef.current ?? Promise.resolve();
+    const pendingValue = pendingRef.current.get(index);
+    const writingValue = writingRef.current.get(index);
+    if (pendingValue === value || (writingValue === value && pendingValue === undefined)) {
+      return saveTaskRef.current ?? Promise.resolve();
+    }
+    if (savedValuesRef.current.get(index) === value && pendingValue === undefined && writingValue === undefined) {
+      return saveTaskRef.current ?? Promise.resolve();
+    }
     pendingRef.current.set(index, value);
     if (!saveTaskRef.current) {
       saveTaskRef.current = (async () => {
@@ -52,6 +55,7 @@ export default function SpeakerNotesPanel({
           if (!pending) break;
           const [pendingIndex, pendingValue] = pending;
           pendingRef.current.delete(pendingIndex);
+          writingRef.current.set(pendingIndex, pendingValue);
           try {
             const saved = await onSaveRef.current(pendingIndex, pendingValue);
             savedValuesRef.current.set(pendingIndex, saved);
@@ -66,6 +70,8 @@ export default function SpeakerNotesPanel({
               setStatus("error");
               setError(reason instanceof Error ? reason.message : String(reason));
             }
+          } finally {
+            if (writingRef.current.get(pendingIndex) === pendingValue) writingRef.current.delete(pendingIndex);
           }
         }
       })().finally(() => {

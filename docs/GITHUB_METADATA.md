@@ -86,7 +86,7 @@ If regenerating:
 - Headline: **Make slides with your coding agent.**
 - Supporting line: **Codex Slides — the open-source AI slide studio inside Codex.**
 - Show the **Codex desktop app driving its in-app Browser** on the Codex Slides workspace (an agent chat column beside a live browser panel rendering finished slides) — **not** a CLI/terminal. The product is operated visually in the browser inside Codex, not by typing commands.
-- Optional proof pills: `45 templates`, `73 styles`, `24 scenarios`, `Fast mode → PPTX/PDF`.
+- Optional proof pills: `45 templates`, `73 styles`, `24 scenarios`, `~5 min · 10+ slides`.
 - Include `Open source` and `Runs in Codex` pills.
 - Use the Codex Slides mark and the product's blue-violet accent (`#6D5EF8`).
 - Avoid tiny UI screenshots or more than two lines of text.
