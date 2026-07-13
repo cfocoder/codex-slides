@@ -47,11 +47,13 @@ const destinationNext = realpathSync(join(standalone, "node_modules", "next"));
 // Next 14.2's file tracer misses this statically-required metadata helper in
 // standalone mode. Copy the small runtime family so packaged servers do not
 // depend on the source checkout or fail only after Electron starts.
+rmSync(join(destinationNext, "dist", "lib", "metadata"), { recursive: true, force: true });
 cpSync(
   join(sourceNext, "dist", "lib", "metadata"),
   join(destinationNext, "dist", "lib", "metadata"),
   { recursive: true },
 );
+rmSync(join(destinationNext, "dist", "shared"), { recursive: true, force: true });
 cpSync(
   join(sourceNext, "dist", "shared"),
   join(destinationNext, "dist", "shared"),
