@@ -75,8 +75,8 @@ jobs:
     steps:
       - name: Generate SHA-256 checksums
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" \
-            --jq '.assets[] | select(.digest != null) | "\(.digest | sub("^sha256:"; ""))  \(.name)"' \
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[] | select(.name != "SHA256SUMS.txt" and .digest != null) | "\(.digest | sub("^sha256:"; ""))  \(.name)"' \
             | sort > SHA256SUMS.txt
           test "$(wc -l < SHA256SUMS.txt)" -eq 7
           gh release upload "$GITHUB_REF_NAME" SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
