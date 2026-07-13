@@ -21,12 +21,15 @@ function lum(hex: string): number {
 const FORYOU_GROUP = "For you";
 
 // Curated "For you" picks (finished visual directions), previewed with real
-// generated slides from existing projects. Merged into the Community gallery.
-const FORYOU_PREVIEWS: Record<string, { project: string; image: string }> = {
-  "pitch-clean-daylight": { project: "20260710035532-agent-native-design-zora", image: "01.png" },
-  "craft-editorial-ink": { project: "20260709203131-urban-mobility-report-fcv1", image: "01.png" },
-  "data-answer-first": { project: "20260709213727-state-of-ev-charging-infrastructure-in-2-jp1b", image: "01.png" },
-  "pitch-midnight-traction": { project: "20260709180111-our-company-hvlz", image: "01.png" },
+// generated slides. The previews ship as static assets in public/community —
+// they must never point at /api/files/<project>, which only resolves on the
+// machine that generated those projects (fresh web and desktop installs have
+// an empty data dir, so every card would render broken).
+const FORYOU_PREVIEWS: Record<string, string> = {
+  "pitch-clean-daylight": "/community/foryou-pitch-clean-daylight.jpg",
+  "craft-editorial-ink": "/community/foryou-craft-editorial-ink.jpg",
+  "data-answer-first": "/community/foryou-data-answer-first.jpg",
+  "pitch-midnight-traction": "/community/foryou-pitch-midnight-traction.jpg",
 };
 interface GalleryItem {
   id: string;
@@ -40,7 +43,7 @@ interface GalleryItem {
 }
 
 const FORYOU_ITEMS: GalleryItem[] = Object.entries(FORYOU_PREVIEWS)
-  .map(([id, p]): GalleryItem | null => {
+  .map(([id, img]): GalleryItem | null => {
     const t = getTemplate(id);
     if (!t) return null;
     return {
@@ -49,7 +52,7 @@ const FORYOU_ITEMS: GalleryItem[] = Object.entries(FORYOU_PREVIEWS)
       group: FORYOU_GROUP,
       sub: t.categoryId,
       categoryId: t.categoryId,
-      img: `/api/files/${p.project}/${p.image}`,
+      img,
       palette: t.palette,
       desc: t.description,
     };
