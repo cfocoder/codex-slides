@@ -71,6 +71,10 @@ assert.match(main, /CODEX_SLIDES_DATA_DIR/);
 assert.match(main, /utilityProcess\.fork/);
 assert.doesNotMatch(main, /ELECTRON_RUN_AS_NODE/);
 assert.match(main, /server exited during startup/);
+// Dev shells must not share the production profile: same userData means the
+// same single-instance lock, and the dev watchdog then kills installed apps.
+assert.match(main, /CODEX_SLIDES_USER_DATA_DIR/);
+assert.match(dev, /CODEX_SLIDES_USER_DATA_DIR:\s*path\.join\(RUNTIME_DIR, "desktop-user-data"\)/);
 assert.match(main, /app\.setName\(PRODUCT_NAME\)/);
 assert.match(main, /app\.dock\.setIcon\(resolveDesktopIconPath\(\)\)/);
 assert.match(main, /codex-slides-app-icon\.png/);

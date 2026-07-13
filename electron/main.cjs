@@ -9,12 +9,31 @@ const PRODUCT_NAME = "Codex Slides";
 const APP_ID = "io.nexu.codex-slides";
 
 app.setName(PRODUCT_NAME);
+// The dev runner points this at .tmp/dev-runtime so a development shell never
+// shares a profile — and therefore never trades the single-instance lock —
+// with an installed production app. Must be set before the lock is requested.
+if (process.env.CODEX_SLIDES_USER_DATA_DIR) {
+  app.setPath("userData", process.env.CODEX_SLIDES_USER_DATA_DIR);
+}
 if (process.platform === "win32") app.setAppUserModelId(APP_ID);
 
 let mainWindow = null;
 let serverProcess = null;
 let serverLogStream = null;
 let appUrl = "";
+
+// Lifecycle breadcrumbs for "the app closed/never appeared" reports. One line
+// per event in userData, next to the server log.
+function logLifecycle(event) {
+  try {
+    fs.appendFileSync(
+      path.join(app.getPath("userData"), "codex-slides-desktop.log"),
+      `${new Date().toISOString()} [${process.pid}] ${event}\n`,
+    );
+  } catch {
+    // Logging must never break the shell.
+  }
+}
 
 function resolveDesktopIconPath() {
   const iconName = process.platform === "darwin"
@@ -205,13 +224,19 @@ function createWindow() {
     if (/^https?:/i.test(url)) void shell.openExternal(url);
   });
   void mainWindow.loadURL(appUrl);
-  mainWindow.on("closed", () => { mainWindow = null; });
+  mainWindow.on("closed", () => {
+    logLifecycle("main window closed");
+    mainWindow = null;
+  });
 }
 
 const singleInstance = app.requestSingleInstanceLock();
-if (!singleInstance) app.quit();
-else {
+if (!singleInstance) {
+  logLifecycle("quit: another instance holds the single-instance lock");
+  app.quit();
+} else {
   app.on("second-instance", () => {
+    logLifecycle("second-instance signalled");
     if (!mainWindow) return;
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
@@ -220,11 +245,14 @@ else {
 
 app.whenReady().then(async () => {
   try {
+    logLifecycle(`ready (packaged=${app.isPackaged})`);
     applyDesktopIdentity();
     appUrl = process.env.CODEX_SLIDES_URL?.replace(/\/$/, "")
       || (app.isPackaged ? await startPackagedServer() : "http://127.0.0.1:4311");
+    logLifecycle(`server attached at ${appUrl}`);
     createWindow();
   } catch (error) {
+    logLifecycle(`startup failed: ${error instanceof Error ? error.message : String(error)}`);
     dialog.showErrorBox(`${PRODUCT_NAME} could not start`, error instanceof Error ? error.message : String(error));
     app.quit();
   }
@@ -233,7 +261,12 @@ app.whenReady().then(async () => {
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0 && appUrl) createWindow();
 });
-app.on("before-quit", () => { app.isQuitting = true; stopServer(); });
+app.on("before-quit", () => {
+  logLifecycle("before-quit");
+  app.isQuitting = true;
+  stopServer();
+});
 app.on("window-all-closed", () => {
+  logLifecycle("window-all-closed");
   if (process.platform !== "darwin") app.quit();
 });

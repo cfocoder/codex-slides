@@ -603,6 +603,9 @@ durable data in the operating system's app data directory.
 | `pnpm electron:dev` | Alias of `pnpm dev:desktop` |
 | `pnpm electron:pack` | Build an unpacked app for the current platform |
 | `pnpm electron:dist` | Build installers for the current platform |
+| `pnpm smoke:standalone` | Boot the built standalone server and require 200s from core routes |
+| `pnpm smoke:packaged` | Boot the server from every unpacked app in `dist/` and probe it |
+| `pnpm release <version>` | Bump versions, run gates, tag, and push — the tag ships the release |
 
 The Desktop entry resolves its service dependency first: it attaches to a healthy
 `CODEX_SLIDES_URL` when one already exists, otherwise it starts `dev:web`, waits for
@@ -612,11 +615,19 @@ stops only the Web process that command owns, so a separately launched Web sessi
 Desktop builds use an isolated `.next-desktop` output so a concurrent web/dev build cannot
 overwrite the runtime being packaged.
 
-Pushing a `v*` tag runs
-[`release-desktop.yml`](.github/workflows/release-desktop.yml), builds signed-off artifacts on
-native macOS, Windows, and Linux runners, and publishes the `.dmg`, `.zip`, `.exe`,
-`.AppImage`, and `.deb` files to a GitHub Release. Code signing can be added through the
-standard electron-builder secrets without changing the workflow shape.
+Releases are one command: `pnpm release 0.2.0` bumps versions, runs the local gates, and
+pushes a `v0.2.0` tag. The tag runs
+[`release-desktop.yml`](.github/workflows/release-desktop.yml), which creates a draft GitHub
+Release, builds on native macOS, Windows, and Linux runners, **boots the packaged server on
+every platform and requires HTTP 200 from core routes**, uploads the `.dmg`, `.zip`, `.exe`,
+`.AppImage`, and `.deb` files plus `SHA256SUMS.txt`, and only then publishes the release. The
+full maintainer guide, including recovery steps, lives in
+[`docs/RELEASING.md`](docs/RELEASING.md).
+
+Downloaded builds are not yet notarized: on macOS, right-click the app and choose **Open** on
+first launch (or approve it under System Settings → Privacy & Security), and on Windows use
+SmartScreen's **More info → Run anyway**. Desktop logs live in the OS app-data directory
+(`codex-slides-desktop.log` for the shell, `codex-slides-server.log` for the bundled server).
 
 ## Roadmap
 

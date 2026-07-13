@@ -340,7 +340,15 @@ async function ensureWebServer(appUrl) {
 }
 
 function desktopEnvironment(appUrl) {
-  const env = { ...process.env, CODEX_SLIDES_URL: displayUrl(appUrl) };
+  const env = {
+    ...process.env,
+    CODEX_SLIDES_URL: displayUrl(appUrl),
+    // Isolate the dev shell's profile. It otherwise shares the production
+    // app's userData directory, so the two fight over the same
+    // single-instance lock and dev sessions kill an installed Codex Slides
+    // (or the other way round).
+    CODEX_SLIDES_USER_DATA_DIR: path.join(RUNTIME_DIR, "desktop-user-data"),
+  };
   for (const key of Object.keys(env)) {
     if (key.toUpperCase() === "ELECTRON_RUN_AS_NODE") delete env[key];
   }

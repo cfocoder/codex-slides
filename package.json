@@ -57,7 +57,10 @@
     "electron:dev": "node electron/dev.cjs desktop",
     "electron:check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/dev.cjs && node scripts/check-electron.mjs",
     "electron:pack": "node scripts/build-desktop.mjs && electron-builder --dir",
-    "electron:dist": "node scripts/build-desktop.mjs && electron-builder"
+    "electron:dist": "node scripts/build-desktop.mjs && electron-builder",
+    "smoke:standalone": "node scripts/smoke-server.mjs",
+    "smoke:packaged": "node scripts/smoke-server.mjs --packaged",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
