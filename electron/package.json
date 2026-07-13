@@ -1,7 +1,7 @@
 {
   "name": "codex-slides-desktop",
   "productName": "Codex Slides",
-  "version": "0.4.1",
+  "version": "0.1.0",
   "private": true,
   "description": "Desktop shell for the bundled Codex Slides standalone web app.",
   "author": "Nexu and Codex Slides contributors",

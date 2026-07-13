@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
+import { rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,5 +19,9 @@ function run(command, args) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
+// A prior standalone install can contain pnpm project-store symlinks that point
+// back into the generated output. Remove the build tree without following those
+// links before Next performs its own recursive cleanup.
+rmSync(join(root, ".next-desktop"), { recursive: true, force: true });
 run(process.execPath, [require.resolve("next/dist/bin/next"), "build"]);
 run(process.execPath, [join(root, "scripts", "prepare-standalone.mjs")]);

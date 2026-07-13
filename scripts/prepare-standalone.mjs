@@ -27,15 +27,15 @@ delete standalonePackage.devDependencies;
 writeFileSync(standalonePackageFile, `${JSON.stringify(standalonePackage, null, 2)}\n`, "utf8");
 
 // Next 14's pnpm trace can contain package files without the corresponding
-// pnpm links. Reinstall only the already-downloaded production runtime into the
-// generated directory: no network, lifecycle scripts, workspace, or lockfile.
+// pnpm links. Prefer the already-downloaded production runtime, while allowing
+// pnpm to fetch a missing store tarball on clean or partially-pruned builders.
 rmSync(join(standalone, "node_modules"), { recursive: true, force: true });
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const install = spawnSync(pnpm, [
   "install",
   "--dir", standalone,
   "--prod",
-  "--offline",
+  "--prefer-offline",
   "--ignore-scripts",
   "--ignore-workspace",
   "--no-lockfile",

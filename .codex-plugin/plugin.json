@@ -1,6 +1,6 @@
 {
   "name": "codex-slides",
-  "version": "0.4.1+codex.20260712",
+  "version": "0.1.0+codex.20260713",
   "description": "Run a guided, Browser-first slide workflow in Codex, with durable projects, reusable project templates, Design Files, brand systems, desktop apps, editing, and export.",
   "author": {
     "name": "Codex Slides"

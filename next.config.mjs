@@ -28,7 +28,8 @@ const nextConfig = {
       "*": [
         "./data/**/*",
         "./dist/**/*",
-        "./.next-dev/**/*",
+        "./.next*/**/*",
+        "./.pnpm-store/**/*",
         "./.claude/**/*",
       ],
     },
