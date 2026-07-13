@@ -1,3 +1,16 @@
+import { readdirSync } from "node:fs";
+
+const activeDistDir = process.env.CODEX_SLIDES_DIST_DIR
+  || (process.env.NODE_ENV === "development" ? ".next-dev" : ".next");
+
+// Exclude every other .next* build directory from output file tracing, but
+// never the active one: the standalone server's own webpack-runtime.js and
+// chunks live inside it, and excluding them ships a server that cannot load
+// any route (a bug that only appears in packaged desktop builds).
+const staleBuildDirExcludes = readdirSync(new URL(".", import.meta.url), { withFileTypes: true })
+  .filter((entry) => entry.isDirectory() && entry.name.startsWith(".next") && entry.name !== activeDistDir)
+  .map((entry) => `./${entry.name}/**/*`);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Local and packaged builds serve project/community imagery directly. This
@@ -9,8 +22,7 @@ const nextConfig = {
   // Keep a live dev server isolated from `next build`. Both commands default to
   // `.next`; running a production build while dev is open otherwise overwrites
   // the dev route manifests and leaves the live server returning Next's 404.
-  distDir: process.env.CODEX_SLIDES_DIST_DIR
-    || (process.env.NODE_ENV === "development" ? ".next-dev" : ".next"),
+  distDir: activeDistDir,
   typescript: {
     // The development runner isolates build output by port and supplies an
     // ignored per-port config so concurrent Web/Desktop sessions never rewrite
@@ -28,9 +40,13 @@ const nextConfig = {
       "*": [
         "./data/**/*",
         "./dist/**/*",
-        "./.next*/**/*",
+        ...staleBuildDirExcludes,
         "./.pnpm-store/**/*",
         "./.claude/**/*",
+        "./.claude-sessions/**/*",
+        "./.qa/**/*",
+        "./.tmp/**/*",
+        "./tmp/**/*",
       ],
     },
   },

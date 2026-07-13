@@ -1,3 +1,14 @@
+# Release pipeline (see docs/RELEASING.md for the maintainer guide).
+#
+# Trigger: push a tag like v0.2.0 (usually via `pnpm release 0.2.0`), or run
+# manually via workflow_dispatch to rehearse builds without publishing.
+#
+# Shape: draft-first, publish-last. A draft GitHub Release is created before
+# any build starts, the three platform jobs upload assets into that draft, and
+# only after every asset and the checksum file are in place is the release
+# flipped to published. A failed run therefore never leaves a public,
+# half-uploaded release — just a draft that the next attempt reuses (uploads
+# use --clobber, so re-running failed jobs is always safe).
 name: Release desktop apps
 
 on:
@@ -10,8 +21,39 @@ permissions:
   contents: write
 
 jobs:
+  draft:
+    name: Prepare draft release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          if [ "v${version}" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version ${version}. Bump the version (pnpm release) before tagging." >&2
+            exit 1
+          fi
+
+      - name: Ensure draft release exists
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; reusing it."
+            exit 0
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$GITHUB_REF_NAME" --jq .body > changelog.md
+          cat .github/release-notes-header.md changelog.md > notes.md
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft \
+            --title "Codex Slides ${GITHUB_REF_NAME#v}" --notes-file notes.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build:
     name: Build ${{ matrix.platform }}
+    needs: draft
     strategy:
       fail-fast: false
       matrix:
@@ -50,7 +92,7 @@ jobs:
       - name: Verify desktop contract
         run: pnpm electron:check
 
-      - name: Build standalone web server
+      - name: Build standalone web server (includes server smoke test)
         run: pnpm build:desktop
 
       - name: Package desktop app
@@ -60,6 +102,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
+      - name: Smoke test packaged runtime
+        run: node scripts/smoke-server.mjs --packaged
+
       - name: Upload release assets
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
@@ -67,7 +112,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  release:
+  publish:
     name: Publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/')
     needs: build
@@ -78,6 +123,7 @@ jobs:
           gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets \
             --jq '.assets[] | select(.name != "SHA256SUMS.txt" and .digest != null) | "\(.digest | sub("^sha256:"; ""))  \(.name)"' \
             | sort > SHA256SUMS.txt
+          # 2 dmg + 2 zip (mac arm64/x64) + 1 exe + 1 AppImage + 1 deb
           test "$(wc -l < SHA256SUMS.txt)" -eq 7
           gh release upload "$GITHUB_REF_NAME" SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
         env:

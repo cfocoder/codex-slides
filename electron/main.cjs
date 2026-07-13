@@ -1,9 +1,9 @@
-const { app, BrowserWindow, clipboard, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, ipcMain, shell, utilityProcess } = require("electron");
 const fs = require("node:fs");
 const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
-const { spawn, spawnSync } = require("node:child_process");
+const { spawnSync } = require("node:child_process");
 
 const PRODUCT_NAME = "Codex Slides";
 const APP_ID = "io.nexu.codex-slides";
@@ -13,7 +13,7 @@ if (process.platform === "win32") app.setAppUserModelId(APP_ID);
 
 let mainWindow = null;
 let serverProcess = null;
-let serverLogFd = null;
+let serverLogStream = null;
 let appUrl = "";
 
 function resolveDesktopIconPath() {
@@ -61,10 +61,18 @@ function freePort(preferred = 4311) {
   });
 }
 
-function waitForServer(url, timeoutMs = 60_000) {
+function waitForServer(url, child, logPath, timeoutMs = 60_000) {
   const deadline = Date.now() + timeoutMs;
   return new Promise((resolve, reject) => {
+    let exited = false;
+    // A server that dies on boot should fail with its exit code and log path
+    // immediately instead of burning the whole readiness timeout.
+    child.once("exit", (code) => {
+      exited = true;
+      reject(new Error(`${PRODUCT_NAME} server exited during startup (${code}). See ${logPath}.`));
+    });
     const attempt = () => {
+      if (exited) return;
       const request = http.get(`${url}/api/agents`, (response) => {
         response.resume();
         if (response.statusCode && response.statusCode < 500) resolve();
@@ -74,8 +82,9 @@ function waitForServer(url, timeoutMs = 60_000) {
       request.once("error", retry);
     };
     const retry = () => {
+      if (exited) return;
       if (Date.now() >= deadline) {
-        reject(new Error(`${PRODUCT_NAME} server did not become ready at ${url}`));
+        reject(new Error(`${PRODUCT_NAME} server did not become ready at ${url}. See ${logPath}.`));
         return;
       }
       setTimeout(attempt, 350);
@@ -90,40 +99,45 @@ async function startPackagedServer() {
   if (!fs.existsSync(entry)) throw new Error(`Packaged Next.js server is missing: ${entry}`);
   const port = await freePort(4311);
   const logPath = path.join(app.getPath("userData"), "codex-slides-server.log");
-  serverLogFd = fs.openSync(logPath, "a");
-  serverProcess = spawn(process.execPath, [entry], {
+  serverLogStream = fs.createWriteStream(logPath, { flags: "a" });
+  // utilityProcess keeps the server inside Electron's helper process family:
+  // no second Dock icon on macOS, no dependency on the runAsNode fuse, and the
+  // child can never outlive the app.
+  serverProcess = utilityProcess.fork(entry, [], {
     cwd: serverRoot,
+    serviceName: "codex-slides-server",
+    stdio: ["ignore", "pipe", "pipe"],
     env: {
       ...process.env,
-      ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
       HOSTNAME: "127.0.0.1",
       PORT: String(port),
       NEXT_TELEMETRY_DISABLED: "1",
       CODEX_SLIDES_DATA_DIR: path.join(app.getPath("userData"), "data"),
     },
-    stdio: ["ignore", serverLogFd, serverLogFd],
-    windowsHide: true,
   });
+  serverProcess.stdout?.pipe(serverLogStream);
+  serverProcess.stderr?.pipe(serverLogStream);
+  const url = `http://127.0.0.1:${port}`;
+  await waitForServer(url, serverProcess, logPath);
   serverProcess.once("exit", (code) => {
     if (code && !app.isQuitting) dialog.showErrorBox(PRODUCT_NAME, `The local server stopped unexpectedly (${code}). See ${logPath}.`);
   });
-  const url = `http://127.0.0.1:${port}`;
-  await waitForServer(url);
   return url;
 }
 
 function stopServer() {
-  if (serverProcess && !serverProcess.killed) {
-    if (process.platform === "win32") {
+  if (serverProcess) {
+    // The server spawns agent CLI children; on Windows only a tree kill
+    // prevents them from being orphaned.
+    if (process.platform === "win32" && serverProcess.pid) {
       spawnSync("taskkill", ["/pid", String(serverProcess.pid), "/T", "/F"], { windowsHide: true });
-    } else {
-      serverProcess.kill("SIGTERM");
     }
+    serverProcess.kill();
   }
   serverProcess = null;
-  if (serverLogFd != null) fs.closeSync(serverLogFd);
-  serverLogFd = null;
+  if (serverLogStream) serverLogStream.end();
+  serverLogStream = null;
 }
 
 function secureWindowOptions() {

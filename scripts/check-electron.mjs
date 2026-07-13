@@ -65,6 +65,12 @@ assert.match(nextConfig, /CODEX_SLIDES_TSCONFIG_PATH/);
 assert.match(nextConfig, /images:\s*\{\s*unoptimized:\s*true\s*\}/);
 assert.match(nextConfig, /"\.\/data\/\*\*\/\*"/);
 assert.match(main, /CODEX_SLIDES_DATA_DIR/);
+// The packaged server must run under utilityProcess: a spawned
+// ELECTRON_RUN_AS_NODE child shows a second "exec" Dock icon on macOS and
+// depends on the runAsNode fuse staying enabled.
+assert.match(main, /utilityProcess\.fork/);
+assert.doesNotMatch(main, /ELECTRON_RUN_AS_NODE/);
+assert.match(main, /server exited during startup/);
 assert.match(main, /app\.setName\(PRODUCT_NAME\)/);
 assert.match(main, /app\.dock\.setIcon\(resolveDesktopIconPath\(\)\)/);
 assert.match(main, /codex-slides-app-icon\.png/);
@@ -98,7 +104,15 @@ assert.match(builder, /to:\s*next\/\.next-desktop\/static/);
 assert.match(prepareStandalone, /get-metadata-route/);
 assert.match(prepareStandalone, /Unsafe local directory/);
 assert.match(prepareStandalone, /rmSync\(join\(standalone, "dist"\)/);
+assert.match(prepareStandalone, /webpack-runtime\.js/);
 assert.match(buildDesktop, /CODEX_SLIDES_DIST_DIR:\s*"\.next-desktop"/);
+assert.match(buildDesktop, /smoke-server\.mjs/);
+// The root package must stay CommonJS: "type": "module" makes Next emit an
+// ESM standalone server whose CJS chunks then fail to parse, and poisons
+// output file tracing. next.config must never exclude the active dist dir.
+assert.equal(pkg.type, undefined);
+assert.match(nextConfig, /staleBuildDirExcludes/);
+assert.match(nextConfig, /entry\.name !== activeDistDir/);
 assert.match(release, /macos-latest/);
 assert.match(release, /windows-latest/);
 assert.match(release, /ubuntu-latest/);

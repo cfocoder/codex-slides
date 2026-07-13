@@ -23,5 +23,11 @@ function run(command, args) {
 // back into the generated output. Remove the build tree without following those
 // links before Next performs its own recursive cleanup.
 rmSync(join(root, ".next-desktop"), { recursive: true, force: true });
+// Stale packaged output would otherwise survive into the next electron-builder
+// run (and into `smoke-server.mjs --packaged`, which scans every dist/ app).
+rmSync(join(root, "dist"), { recursive: true, force: true });
 run(process.execPath, [require.resolve("next/dist/bin/next"), "build"]);
 run(process.execPath, [join(root, "scripts", "prepare-standalone.mjs")]);
+// Boot the exact runtime the desktop shell will start and require 200s from
+// core routes, so a broken standalone can never reach packaging.
+run(process.execPath, [join(root, "scripts", "smoke-server.mjs")]);

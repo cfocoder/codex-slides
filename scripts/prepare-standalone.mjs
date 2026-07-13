@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { cpSync, existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -12,8 +12,6 @@ const standalone = join(root, distDir, "standalone");
 const server = join(standalone, "server.js");
 if (!existsSync(server)) throw new Error("Next standalone server was not produced.");
 
-const rootRequire = createRequire(import.meta.url);
-const sourceNext = dirname(rootRequire.resolve("next/package.json"));
 const rootPackage = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const standalonePackageFile = join(standalone, "package.json");
 const standalonePackage = JSON.parse(readFileSync(standalonePackageFile, "utf8"));
@@ -50,29 +48,25 @@ if (install.status !== 0) throw new Error(`Standalone production install failed 
 
 const destinationNext = realpathSync(join(standalone, "node_modules", "next"));
 
-// Next 14.2's file tracer misses this statically-required metadata helper in
-// standalone mode. Copy the small runtime family so packaged servers do not
-// depend on the source checkout or fail only after Electron starts.
-rmSync(join(destinationNext, "dist", "lib", "metadata"), { recursive: true, force: true });
-cpSync(
-  join(sourceNext, "dist", "lib", "metadata"),
-  join(destinationNext, "dist", "lib", "metadata"),
-  { recursive: true },
-);
-rmSync(join(destinationNext, "dist", "shared"), { recursive: true, force: true });
-cpSync(
-  join(sourceNext, "dist", "shared"),
-  join(destinationNext, "dist", "shared"),
-  { recursive: true },
-);
-
 // A repeated local packaging run can otherwise feed the previous Electron
 // output back into Next's trace. It is generated state, never app input.
 rmSync(join(standalone, "dist"), { recursive: true, force: true });
 
-for (const unsafe of ["data", ".next-dev", ".claude"]) {
+for (const unsafe of ["data", ".next-dev", ".claude", ".claude-sessions"]) {
   if (existsSync(join(standalone, unsafe))) {
     throw new Error(`Unsafe local directory was traced into standalone: ${unsafe}`);
+  }
+}
+
+// The server's own compiled runtime must ship next to the manifests. When the
+// output-file-tracing excludes accidentally cover the active dist dir, Next
+// silently drops these and every route 500s only in packaged builds.
+for (const requiredServerFile of [
+  join(distDir, "server", "webpack-runtime.js"),
+  join(distDir, "server", "chunks"),
+]) {
+  if (!existsSync(join(standalone, requiredServerFile))) {
+    throw new Error(`Standalone output is missing ${requiredServerFile}; check outputFileTracingExcludes.`);
   }
 }
 
