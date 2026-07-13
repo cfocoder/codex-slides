@@ -43,6 +43,7 @@ import type {
   SlidePage,
 } from "./types";
 import { completeJsonArrayObjects } from "./streamingJson";
+import { isAbortError, sleep, withRetry } from "./retry";
 
 type Emit = (e: ProgressEvent) => void;
 
@@ -126,6 +127,24 @@ export interface RunOptions {
  * because each page is TWO calls (copy + image).
  */
 export const FAST_CONCURRENCY = 4;
+
+/**
+ * How many times each generation STAGE (copy, then image) is attempted for a
+ * single page inside one render pass before the page is declared failed. The
+ * low-level HTTP client (`postCodexResponses`) already retries transient
+ * 429/5xx/network errors; this second layer additionally recovers the failures
+ * that survive a "successful" HTTP call — an empty image stream, a content-
+ * safety block, or a flaky copy stage — so a single blip never fails a page.
+ */
+export const PAGE_MAX_ATTEMPTS = 3;
+
+/**
+ * After the main pass, how many additional verification sweeps re-render pages
+ * that are still missing an image. Each sweep re-runs the full per-page retry
+ * with a longer inter-round backoff, so a sustained outage (rate-limit storm)
+ * gets a real chance to clear. This is the "确保每一页都生成" guarantee.
+ */
+export const VERIFY_MAX_ROUNDS = 2;
 
 /**
  * Run `worker` over `items` with at most `limit` in flight at once (the rest
@@ -280,31 +299,55 @@ export async function renderProject(
     if (signal?.aborted) throw new Error("aborted");
     if (page.status === "rendered") return;
     emit({ type: "page_start", index: page.index, total, title: page.title });
-    try {
-      const descPrompt = buildPageDescriptionPrompt(config, project.outline, page, page.index, total);
-      const descRaw = await generateText(config.engine, descPrompt, {
-        signal,
-        attachments: projectAttachments,
+    const onRetry = (stage: "copy" | "image") => (attempt: number, error: unknown) => {
+      emit({
+        type: "page_retry",
+        index: page.index,
+        attempt,
+        maxAttempts: PAGE_MAX_ATTEMPTS,
+        stage,
+        error: String((error as any)?.message ?? error),
       });
-      page.description = extractSlideText(descRaw);
-      page.status = "described";
-      saveProject(project);
-      emit({ type: "page_described", index: page.index });
+    };
+    try {
+      // Copy stage — skip if a prior attempt (or verify sweep) already produced
+      // the body text, so a retry that only needs a new image doesn't waste a
+      // text call.
+      if (!page.description) {
+        const descRaw = await withRetry(
+          () => {
+            const descPrompt = buildPageDescriptionPrompt(config, project.outline, page, page.index, total);
+            return generateText(config.engine, descPrompt, { signal, attachments: projectAttachments });
+          },
+          { attempts: PAGE_MAX_ATTEMPTS, signal, onRetry: onRetry("copy") },
+        );
+        page.description = extractSlideText(descRaw);
+        page.status = "described";
+        saveProject(project);
+        emit({ type: "page_described", index: page.index });
+      }
 
       const imgPrompt = buildImagePrompt(config, page, page.index, total, hasMaterials, Boolean(styleReference));
       page.imagePrompt = imgPrompt;
-      const bytes = await generateSlideImage(imgPrompt, {
-        refImages: referenceBuffers,
-        aspect: config.aspect,
-        resolution: config.resolution,
-        signal,
-      });
+      const bytes = await withRetry(
+        () => generateSlideImage(imgPrompt, {
+          refImages: referenceBuffers,
+          aspect: config.aspect,
+          resolution: config.resolution,
+          signal,
+        }),
+        { attempts: PAGE_MAX_ATTEMPTS, signal, onRetry: onRetry("image") },
+      );
       page.image = saveSlideImage(id, page.index, bytes);
       page.imageUpdatedAt = Date.now();
       page.status = "rendered";
+      page.error = undefined;
       saveProject(project);
       emit({ type: "page_rendered", index: page.index, image: page.image });
     } catch (e: any) {
+      // A cancel isn't a page failure: leave the page's status untouched and let
+      // the enclosing pass observe the aborted signal and stop.
+      if (isAbortError(e, signal)) return;
       page.status = "error";
       page.error = String(e?.message ?? e);
       saveProject(project);
@@ -329,6 +372,69 @@ export async function renderProject(
       await renderPage(page);
     }
   }
+
+  // Verification sweep: every page MUST end with a rendered image. Any page that
+  // is still missing one — a stage that exhausted its per-page retries, usually
+  // a sustained rate-limit or a content-safety block — is re-rendered from where
+  // it left off, for a few rounds with a growing backoff so a transient outage
+  // has time to clear. The deck is only declared done once no page is left
+  // failed, or the sweep budget is spent (partial decks stay usable, and the
+  // caller still surfaces the remaining failures).
+  const unfinished = () => project.pages.filter((p) => p.status !== "rendered");
+  emit({
+    type: "verify",
+    phase: "start",
+    round: 0,
+    total,
+    pending: unfinished().length,
+    rendered: total - unfinished().length,
+  });
+  for (let round = 1; round <= VERIFY_MAX_ROUNDS; round++) {
+    if (signal?.aborted) throw new Error("aborted");
+    const failing = unfinished();
+    if (!failing.length) break;
+    emit({
+      type: "verify",
+      phase: "round",
+      round,
+      total,
+      pending: failing.length,
+      rendered: total - failing.length,
+    });
+    emit({
+      type: "log",
+      message: `Verify round ${round}/${VERIFY_MAX_ROUNDS}: re-rendering ${failing.length} unfinished page(s)`,
+    });
+    // Let a transient outage settle before hammering the endpoint again.
+    await sleep(Math.min(20_000, 2_000 * round));
+    // Clear stale error state so renderPage restarts these pages cleanly. A
+    // page that already has body copy keeps it (renderPage skips the copy
+    // stage) and only its image is redrawn.
+    for (const page of failing) {
+      if (page.status === "error") {
+        page.status = page.description ? "described" : "pending";
+        page.error = undefined;
+      }
+    }
+    saveProject(project);
+    if (config.fast) {
+      await runPool(failing, FAST_CONCURRENCY, renderPage);
+    } else {
+      for (const page of failing) {
+        if (signal?.aborted) throw new Error("aborted");
+        await renderPage(page);
+      }
+    }
+  }
+  const stillFailed = unfinished().length;
+  emit({
+    type: "verify",
+    phase: "done",
+    round: VERIFY_MAX_ROUNDS,
+    total,
+    pending: stillFailed,
+    rendered: total - stillFailed,
+  });
 
   project.status = "ready";
   project.workflow = { ...(project.workflow ?? {}), stage: "deck" };
@@ -438,10 +544,13 @@ export async function regeneratePage(
     index,
     total,
   );
-  const descRaw = await generateText(project.config.engine, descPrompt, {
-    signal,
-    attachments: projectAttachments,
-  });
+  const descRaw = await withRetry(
+    () => generateText(project.config.engine, descPrompt, {
+      signal,
+      attachments: projectAttachments,
+    }),
+    { attempts: PAGE_MAX_ATTEMPTS, signal },
+  );
   page.description = extractSlideText(descRaw);
 
   const materialBuffers = loadProjectMaterialBuffers(id, project.materials);
@@ -456,12 +565,15 @@ export async function regeneratePage(
     Boolean(styleReference),
   );
   page.imagePrompt = imgPrompt;
-  const bytes = await generateSlideImage(imgPrompt, {
-    refImages: referenceBuffers,
-    aspect: project.config.aspect,
-    resolution: project.config.resolution,
-    signal,
-  });
+  const bytes = await withRetry(
+    () => generateSlideImage(imgPrompt, {
+      refImages: referenceBuffers,
+      aspect: project.config.aspect,
+      resolution: project.config.resolution,
+      signal,
+    }),
+    { attempts: PAGE_MAX_ATTEMPTS, signal },
+  );
   page.image = saveSlideImage(id, index, bytes);
   page.imageUpdatedAt = Date.now();
   page.status = "rendered";

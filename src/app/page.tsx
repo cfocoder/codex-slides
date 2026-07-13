@@ -1062,14 +1062,33 @@ export default function Home({ searchParams }: { searchParams?: HomeSearchParams
       await streamRender(projectId, (ev) => {
         if (ev.type === "page_rendered") rendered++;
         if (ev.type === "page_error") failed++;
-        if (ev.type === "page_rendered" || ev.type === "page_error" || ev.type === "page_start") {
+        // The verify sweep recomputes counts from ground truth, correcting the
+        // running tally after retried pages flip from failed back to rendered.
+        if (ev.type === "verify") {
+          rendered = ev.rendered;
+          failed = ev.pending;
+        }
+        if (
+          ev.type === "page_rendered" ||
+          ev.type === "page_error" ||
+          ev.type === "page_start" ||
+          ev.type === "page_retry" ||
+          ev.type === "verify"
+        ) {
           updateChatMessage(runId, (current) => ({
             ...current,
             process: patchAgentTool(current.process!, "render", {
               state: "running",
-              detail: ev.type === "page_start"
-                ? `${rendered} / ${outline.length} · ${t("flow.renderingSlide", { index: ev.index })}`
-                : `${rendered} / ${outline.length}${failed ? ` · ${t("flow.failedCount", { count: failed })}` : ""}`,
+              detail:
+                ev.type === "page_retry"
+                  ? t("flow.retrying", { index: ev.index, attempt: ev.attempt + 1, total: ev.maxAttempts })
+                  : ev.type === "verify"
+                    ? ev.phase === "done"
+                      ? t("flow.verifyDone", { rendered: ev.rendered, total: ev.total })
+                      : t("flow.verifying", { pending: ev.pending, total: ev.total })
+                    : ev.type === "page_start"
+                      ? `${rendered} / ${outline.length} · ${t("flow.renderingSlide", { index: ev.index })}`
+                      : `${rendered} / ${outline.length}${failed ? ` · ${t("flow.failedCount", { count: failed })}` : ""}`,
             }),
           }));
         }

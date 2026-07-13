@@ -545,6 +545,13 @@ export type ProgressEvent =
   | { type: "page_described"; index: number }
   | { type: "page_rendered"; index: number; image: string }
   | { type: "page_error"; index: number; error: string }
+  // A page's copy/image stage failed and is being re-attempted inside the same
+  // render pass. `attempt` is the try that just failed (1-based); the page is
+  // NOT yet in `error` — it only lands there after all attempts are spent.
+  | { type: "page_retry"; index: number; attempt: number; maxAttempts: number; stage: "copy" | "image"; error: string }
+  // The post-render verification sweep that guarantees every page ends rendered.
+  // `pending` = pages still missing an image; `rendered` = pages already done.
+  | { type: "verify"; phase: "start" | "round" | "done"; round: number; total: number; pending: number; rendered: number }
   | { type: "log"; message: string }
   | { type: "done"; id: string }
   | { type: "error"; error: string };

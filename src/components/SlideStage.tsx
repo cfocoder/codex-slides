@@ -172,6 +172,10 @@ export default function SlideStage({
   const userPicked = useRef(false);
   const stageRef = useRef<HTMLElement>(null);
   const handledDeepLinkKey = useRef(0);
+  // The stage owns the presenter popup's lifetime. Keeping the handle here (not
+  // inside PlayMode) means React StrictMode remounting the overlay can't tear
+  // down the window, and it is always closed exactly once when playback ends.
+  const presenterWindowRef = useRef<Window | null>(null);
 
   const arCss = useMemo(() => aspect.replace(":", " / "), [aspect]);
   const current = slides.find((slide) => slide.index === selected) ?? slides[0];
@@ -528,10 +532,31 @@ export default function SlideStage({
       presenterWindow.document.title = t("presenter.windowTitle");
       if (presenterWindow.document.body) presenterWindow.document.body.textContent = t("presenter.opening");
     }
+    presenterWindowRef.current = presenterWindow;
     setActionError("");
     setPlayOpen(false);
     setPlaySession({ initialIndex: playStartIndex(fromCurrent), presenterWindow });
   }
+
+  // Single teardown for playback: close the presenter popup (if any) and drop
+  // the overlay. Used by PlayMode's onClose and by unmount below.
+  const endPlayback = useCallback(() => {
+    const presenterWindow = presenterWindowRef.current;
+    if (presenterWindow && !presenterWindow.closed) {
+      try { presenterWindow.close(); } catch { /* window is already closing */ }
+    }
+    presenterWindowRef.current = null;
+    setPlaySession(null);
+  }, []);
+
+  useEffect(() => () => {
+    // If the stage unmounts mid-presentation, don't leak the popup window.
+    const presenterWindow = presenterWindowRef.current;
+    if (presenterWindow && !presenterWindow.closed) {
+      try { presenterWindow.close(); } catch { /* window is already closing */ }
+    }
+    presenterWindowRef.current = null;
+  }, []);
 
   useEffect(() => {
     if (!deepLinkAction || handledDeepLinkKey.current === deepLinkAction.key) return;
@@ -540,6 +565,7 @@ export default function SlideStage({
       const requestedIndex = deepLinkAction.slideIndex
         ? playSlides.findIndex((slide) => slide.index === deepLinkAction.slideIndex)
         : -1;
+      presenterWindowRef.current = null;
       setPlaySession({
         initialIndex: requestedIndex >= 0 ? requestedIndex : playStartIndex(true),
         presenterWindow: null,
@@ -731,7 +757,20 @@ export default function SlideStage({
           ) : current?.status === "working" ? (
             <SlideSkeleton caption={t("slide.drawing", { index: current.index, title: current.title ? ` — ${current.title}` : "" })} />
           ) : current?.status === "error" ? (
-            <div className="ph err"><span style={{ fontSize: 22 }}>⚠</span>{current.error || t("slide.renderFailed")}</div>
+            <div className="slide-empty-state slide-error-state">
+              <span className="slide-empty-icon slide-error-icon" aria-hidden>⚠</span>
+              <h3>{t("slide.renderFailed")}</h3>
+              <p>{current.error || t("slide.emptyBody")}</p>
+              <div className="slide-empty-actions">
+                <button onClick={() => askAgent(current.index)} disabled={!canEdit}>
+                  <span>✦</span><b>{t("slide.retry")}</b><small>{t("slide.continueChat")}</small>
+                </button>
+                <button onClick={() => chooseUpload(current.index)} disabled={!canEdit}>
+                  <span>↥</span><b>{t("slide.upload")}</b><small>{t("slide.formats")}</small>
+                </button>
+              </div>
+              {actionError && <div className="slide-action-error">{actionError}</div>}
+            </div>
           ) : current && !streaming ? (
             <div className="slide-empty-state">
               <span className="slide-empty-icon">＋</span>
@@ -882,7 +921,7 @@ export default function SlideStage({
           deckTitle={title}
           presenterWindow={playSession.presenterWindow}
           onSpeakerNotesChange={persistSpeakerNote}
-          onClose={() => setPlaySession(null)}
+          onClose={endPlayback}
         />
       )}
     </section>

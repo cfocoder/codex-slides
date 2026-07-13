@@ -82,13 +82,14 @@ export default function PlayMode({
     [slides.length],
   );
 
+  // The presenter window is owned by the parent (it opened it with a user
+  // gesture and tears it down in onClose). PlayMode never closes it directly:
+  // doing so from an effect cleanup lets React StrictMode's dev-only
+  // mount→unmount→mount cycle destroy the window it just opened.
   const close = useCallback(async () => {
-    if (presenterWindow && !presenterWindow.closed) {
-      try { presenterWindow.close(); } catch { /* window is already closing */ }
-    }
     if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
     onClose();
-  }, [onClose, presenterWindow]);
+  }, [onClose]);
 
   const toggleFullscreen = useCallback(async () => {
     if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
@@ -102,10 +103,7 @@ export default function PlayMode({
 
   useEffect(() => () => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    if (presenterWindow && !presenterWindow.closed) {
-      try { presenterWindow.close(); } catch { /* already closed */ }
-    }
-  }, [presenterWindow]);
+  }, []);
 
   useEffect(() => {
     const onFullscreen = () => setFullscreen(Boolean(document.fullscreenElement));

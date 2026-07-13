@@ -712,11 +712,29 @@ async function runRender(projectId: string, run: ProjectRunState, signal: AbortS
   await renderProject(projectId, (event) => {
     if (event.type === "page_rendered") rendered += 1;
     if (event.type === "page_error") failed += 1;
-    if (event.type !== "page_start" && event.type !== "page_rendered" && event.type !== "page_error") return;
+    // The verify sweep is authoritative: it recomputes counts from live page
+    // state, correcting the running tally once retried pages flip back to done.
+    if (event.type === "verify") {
+      rendered = event.rendered;
+      failed = event.pending;
+    }
+    if (
+      event.type !== "page_start" &&
+      event.type !== "page_rendered" &&
+      event.type !== "page_error" &&
+      event.type !== "page_retry" &&
+      event.type !== "verify"
+    ) return;
     const target = "index" in event ? event.index : undefined;
-    const detail = event.type === "page_start"
-      ? `${rendered} / ${total} · ${tr(locale, "flow.renderingSlide", { index: event.index })}`
-      : `${rendered} / ${total}${failed ? ` · ${tr(locale, "flow.failedCount", { count: failed })}` : ""}`;
+    const detail = event.type === "page_retry"
+      ? tr(locale, "flow.retrying", { index: event.index, attempt: event.attempt + 1, total: event.maxAttempts })
+      : event.type === "verify"
+        ? event.phase === "done"
+          ? tr(locale, "flow.verifyDone", { rendered: event.rendered, total: event.total })
+          : tr(locale, "flow.verifying", { pending: event.pending, total: event.total })
+        : event.type === "page_start"
+          ? `${rendered} / ${total} · ${tr(locale, "flow.renderingSlide", { index: event.index })}`
+          : `${rendered} / ${total}${failed ? ` · ${tr(locale, "flow.failedCount", { count: failed })}` : ""}`;
     patchActiveRun(projectId, run.id, {
       detail,
       targetSlide: target,
