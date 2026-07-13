@@ -1,7 +1,7 @@
 {
   "name": "codex-slides-web",
   "productName": "Codex Slides",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "main": "electron/main.cjs",
   "description": "Codex Slides — the open-source AI slide studio inside Codex, with durable projects, image-native decks, visual editing, and PDF/PPTX export.",
