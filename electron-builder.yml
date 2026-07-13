@@ -55,6 +55,7 @@ win:
 linux:
   icon: public/brand/codex-slides-mark.png
   category: Office
+  maintainer: Codex Slides contributors <1043269994@qq.com>
   target:
     - target: AppImage
       arch: [x64]
