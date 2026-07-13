@@ -17,6 +17,8 @@ This specialized skill remains for compatibility. The canonical
    files, or `view:"brand-system"` plus `projectId` for the brand editor.
 2. Navigate the returned resource link in the Codex in-editor Browser. Do not
    stop after printing the URL and do not ask the user to open it manually.
+   Follow `browserHandoff.url` exactly so slide, panel, version, mode,
+   checkpoint, conversation, and run focus are preserved.
 3. For a new deck, always open and verify the home/create screen before any
    research, outline, or rendering call. Submit the topic in that UI so it
    creates a durable project and opens the guided workspace. Use
@@ -28,6 +30,10 @@ This specialized skill remains for compatibility. The canonical
 5. Use direct MCP tools or the canonical skill CLI for deterministic recovery
    and mutations, then reload or inspect the Browser result.
 6. Verify the visible outcome before reporting completion.
+
+Long Deck Agent, outline, and render operations can continue after navigation.
+Use `start_project_run`, retain its `runId`, and use `get_project_run`,
+`wait_project_run`, or `cancel_project_run` without closing the Browser.
 
 Use the Browser for scenario/slot selection, `@` Design File references, brand
 system editing, Play from the current slide or the beginning, dual-window

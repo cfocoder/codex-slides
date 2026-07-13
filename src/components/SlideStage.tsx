@@ -1,11 +1,10 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
   Copy,
-  DownloadSimple,
   FilmStrip,
   Image,
   PencilSimple,
@@ -14,6 +13,7 @@ import {
   Sparkle,
   Trash,
 } from "@phosphor-icons/react";
+import ExportMenu from "@/components/ExportMenu";
 import MarkCanvas from "@/components/MarkCanvas";
 import PlayMode from "@/components/PlayMode";
 import SpeakerNotesPanel from "@/components/SpeakerNotesPanel";
@@ -114,6 +114,7 @@ export default function SlideStage({
   onStartMarkRun,
   focusSlideIndex,
   focusSlideKey = 0,
+  deepLinkAction,
 }: {
   projectId: string | null;
   aspect: string;
@@ -141,6 +142,13 @@ export default function SlideStage({
   focusSlideIndex?: number | null;
   /** Increment to repeat navigation to the same externally requested slide. */
   focusSlideKey?: number;
+  /** One-shot Browser handoff action encoded in the project URL. */
+  deepLinkAction?: {
+    key: number;
+    slideIndex?: number;
+    panel?: "speaker-notes" | "export" | "play";
+    mode?: "workspace" | "play" | "presenter";
+  };
 }) {
   const { t } = useI18n();
   const [selected, setSelected] = useState<number | null>(null);
@@ -158,12 +166,12 @@ export default function SlideStage({
   const [addingAfter, setAddingAfter] = useState<number | null>(null);
   const [enteringSlide, setEnteringSlide] = useState<number | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
-  const exportRef = useRef<HTMLDivElement>(null);
   const playRef = useRef<HTMLDivElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   const uploadTarget = useRef<number | null>(null);
   const userPicked = useRef(false);
   const stageRef = useRef<HTMLElement>(null);
+  const handledDeepLinkKey = useRef(0);
 
   const arCss = useMemo(() => aspect.replace(":", " / "), [aspect]);
   const current = slides.find((slide) => slide.index === selected) ?? slides[0];
@@ -180,14 +188,13 @@ export default function SlideStage({
   }, [slides, selected]);
 
   useEffect(() => {
-    if (!exportOpen && !playOpen) return;
+    if (!playOpen) return;
     const close = (event: MouseEvent) => {
-      if (exportRef.current && !exportRef.current.contains(event.target as Node)) setExportOpen(false);
       if (playRef.current && !playRef.current.contains(event.target as Node)) setPlayOpen(false);
     };
     window.addEventListener("mousedown", close);
     return () => window.removeEventListener("mousedown", close);
-  }, [exportOpen, playOpen]);
+  }, [playOpen]);
 
   useEffect(() => {
     if (selected == null) return;
@@ -486,7 +493,7 @@ export default function SlideStage({
     }
   }
 
-  const playSlides = slides
+  const playSlides = useMemo(() => slides
     .filter((slide) => slide.image)
     .map((slide) => ({
       index: slide.index,
@@ -494,15 +501,15 @@ export default function SlideStage({
       title: slide.title,
       transition: slide.transition ?? "none",
       speakerNotes: slide.speakerNotes,
-    }));
+    })), [projectId, slides]);
 
-  function playStartIndex(fromCurrent: boolean) {
+  const playStartIndex = useCallback((fromCurrent: boolean) => {
     if (!fromCurrent || !current || !playSlides.length) return 0;
     const exact = playSlides.findIndex((slide) => slide.index === current.index);
     if (exact >= 0) return exact;
     const following = playSlides.findIndex((slide) => slide.index > current.index);
     return following >= 0 ? following : playSlides.length - 1;
-  }
+  }, [current, playSlides]);
 
   function startPlayback(fromCurrent: boolean, presenter: boolean) {
     if (!projectId || !playSlides.length) return;
@@ -525,6 +532,35 @@ export default function SlideStage({
     setPlayOpen(false);
     setPlaySession({ initialIndex: playStartIndex(fromCurrent), presenterWindow });
   }
+
+  useEffect(() => {
+    if (!deepLinkAction || handledDeepLinkKey.current === deepLinkAction.key) return;
+    if (deepLinkAction.mode === "play" && !playSlides.length) return;
+    if (deepLinkAction.mode === "play") {
+      const requestedIndex = deepLinkAction.slideIndex
+        ? playSlides.findIndex((slide) => slide.index === deepLinkAction.slideIndex)
+        : -1;
+      setPlaySession({
+        initialIndex: requestedIndex >= 0 ? requestedIndex : playStartIndex(true),
+        presenterWindow: null,
+      });
+    } else if (deepLinkAction.mode === "presenter" || deepLinkAction.panel === "play") {
+      // Presenter windows require a user gesture. Open the exact Play menu so
+      // the remaining click is visible and intentional instead of being blocked.
+      setPlayOpen(true);
+    } else if (deepLinkAction.panel === "export") {
+      setExportOpen(true);
+    } else if (deepLinkAction.panel === "speaker-notes") {
+      requestAnimationFrame(() => {
+        const notes = document.getElementById("speaker-notes-panel");
+        notes?.scrollIntoView({ behavior: "smooth", block: "center" });
+        notes?.focus({ preventScroll: true });
+      });
+    }
+    handledDeepLinkKey.current = deepLinkAction.key;
+    // playSlides is intentionally observed so a play deep link waits until
+    // rendered pages are available, then consumes the action exactly once.
+  }, [deepLinkAction, playSlides, playStartIndex]);
 
   async function persistSpeakerNote(index: number, note: string) {
     if (!projectId) throw new Error(t("speakerNotes.unavailable"));
@@ -604,26 +640,13 @@ export default function SlideStage({
             )}
           </div>
 
-          <div ref={exportRef} className="export-wrap">
-            <button className="iconbtn" disabled={!canExport} onClick={() => setExportOpen((open) => !open)} title={t("slide.exportHelp")}>
-              <DownloadSimple size={16} weight="bold" aria-hidden="true" />
-              <span className="stage-action-label">{t("slide.export")}</span>
-              <span className="caret">▾</span>
-            </button>
-            {exportOpen && canExport && (
-              <div className="pop down export-pop">
-                <div className="pop-title">{t("slide.download")}</div>
-                <a className="pop-item" href={`/api/projects/${projectId}/export?format=pdf`} target="_blank" rel="noreferrer" onClick={() => setExportOpen(false)}>
-                  <span className="ic">📄</span>
-                  <span className="grow"><b>PDF</b><em>{t("slide.pdfHelp")}</em></span>
-                </a>
-                <a className="pop-item" href={`/api/projects/${projectId}/export?format=pptx`} target="_blank" rel="noreferrer" onClick={() => setExportOpen(false)}>
-                  <span className="ic">📊</span>
-                  <span className="grow"><b>PowerPoint</b><em>{t("slide.pptxHelp")}</em></span>
-                </a>
-              </div>
-            )}
-          </div>
+          <ExportMenu
+            pdfUrl={`/api/projects/${projectId}/export?format=pdf`}
+            pptxUrl={`/api/projects/${projectId}/export?format=pptx`}
+            disabled={!canExport}
+            open={exportOpen}
+            onOpenChange={setExportOpen}
+          />
 
           {headerExtra && <span className="stage-actions-sep" />}
           {headerExtra}
@@ -650,35 +673,31 @@ export default function SlideStage({
               <PencilSimple size={16} />
               <span>{t("slide.mark")}</span>
             </button>
-            <button type="button" onClick={() => openTransition(current.index)} disabled={!canEdit} title={t("slide.transitionHelp")}>
+            <button type="button" className="icon-only" onClick={() => openTransition(current.index)} disabled={!canEdit} title={t("slide.transitionHelp")} aria-label={t("slide.transition")}>
               <FilmStrip size={16} />
-              <span>{t("slide.transition")}</span>
             </button>
             <button
               type="button"
+              className="icon-only"
               onClick={() => chooseUpload(current.index)}
               disabled={!canEdit}
               title={current.image ? t("slide.replaceHelp") : t("slide.uploadHelp")}
+              aria-label={current.image ? t("slide.replace") : t("slide.upload")}
             >
               <Image size={16} />
-              <span>{current.image ? t("slide.replace") : t("slide.upload")}</span>
             </button>
-            <button type="button" onClick={() => void reorderPage(current.index, -1)} disabled={!canEdit || current.index <= 1} title={t("slide.moveLeftHelp")}>
+            <button type="button" className="icon-only" onClick={() => void reorderPage(current.index, -1)} disabled={!canEdit || current.index <= 1} title={t("slide.moveLeftHelp")} aria-label={t("slide.moveLeft")}>
               <ArrowLeft size={16} />
-              <span>{t("slide.moveLeft")}</span>
             </button>
-            <button type="button" onClick={() => void reorderPage(current.index, 1)} disabled={!canEdit || current.index >= slides.length} title={t("slide.moveRightHelp")}>
+            <button type="button" className="icon-only" onClick={() => void reorderPage(current.index, 1)} disabled={!canEdit || current.index >= slides.length} title={t("slide.moveRightHelp")} aria-label={t("slide.moveRight")}>
               <ArrowRight size={16} />
-              <span>{t("slide.moveRight")}</span>
             </button>
-            <button type="button" onClick={() => duplicatePage(current.index)} disabled={!canEdit} title={t("slide.duplicateHelp")}>
+            <button type="button" className="icon-only" onClick={() => duplicatePage(current.index)} disabled={!canEdit} title={t("slide.duplicateHelp")} aria-label={t("slide.duplicate")}>
               <Copy size={16} />
-              <span>{t("slide.duplicate")}</span>
             </button>
             <span className="slide-toolbar-sep" aria-hidden="true" />
-            <button type="button" className="danger" onClick={() => deletePage(current.index)} disabled={!canEdit} title={t("slide.deleteHelp")}>
+            <button type="button" className="danger icon-only" onClick={() => deletePage(current.index)} disabled={!canEdit} title={t("slide.deleteHelp")} aria-label={t("slide.delete")}>
               <Trash size={16} />
-              <span>{t("slide.delete")}</span>
             </button>
           </div>
         )}

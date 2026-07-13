@@ -18,6 +18,10 @@ object. Success responses contain `"ok": true`; failures contain
 | `capabilities` | `get_capabilities` | none |
 | `open` | `open_codex_slides` | optional `projectId`, `view`, `filePath`, `scenarioId` |
 | `start-project` | `start_project` | `topic`; optional deck configuration including `projectTemplateId`; creates only a durable project shell and Browser continuation URL |
+| `run-start` | `start_project_run` | `projectId`, `kind` (`chat`, `outline`, `render`); non-render runs require `instruction`; optional slide, conversation, material, and Design File context |
+| `run-status` | `get_project_run` | `projectId`; optional `runId` |
+| `run-wait` | `wait_project_run` | `projectId`, `runId`; optional `timeoutSeconds`, `pollIntervalMs` |
+| `run-cancel` | `cancel_project_run` | `projectId`; optional active `runId` |
 | `onboard` | `get_onboarding_questions` | `topic`; optional `scenarioId`, `uiLocale` |
 | `research` | `deep_research` | `topic`, optional `rounds`, `scenarioId` |
 | `create` | `create_deck` | `topic`; optional `scenarioId`, `projectTemplateId`, `pages`, `aspect`, `language`, `style`, `template`, `resolution`, `materialIds`, `materialContexts`, `designSystem`, `fast`, `research`, `researchDoc`, `rounds` |
@@ -69,6 +73,25 @@ node <skill-dir>/scripts/codex-slides.mjs start-project --json '{
 
 The `create` command below is an explicit unattended/headless fast path, not the
 default Codex user experience.
+
+Start a durable render, leave or reopen the project, then wait on the same id:
+
+```bash
+node <skill-dir>/scripts/codex-slides.mjs run-start --json '{
+  "projectId":"PROJECT_ID",
+  "kind":"render"
+}'
+
+node <skill-dir>/scripts/codex-slides.mjs run-wait --json '{
+  "projectId":"PROJECT_ID",
+  "runId":"RUN_ID",
+  "timeoutSeconds":120
+}'
+```
+
+Every Browser-capable result includes `browserHandoff`. Navigate its exact URL;
+do not drop focus parameters such as `slide`, `panel`, `version`, `mode`,
+`checkpoint`, `conversation`, or `run`.
 
 Discover scenarios, stage required files, and create with semantic roles:
 

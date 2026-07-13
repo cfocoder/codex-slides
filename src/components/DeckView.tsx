@@ -360,8 +360,17 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   const [designSystemProgress, setDesignSystemProgress] = useState(0);
   const [headerActionsOpen, setHeaderActionsOpen] = useState(false);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  const [versionDeepLinkId, setVersionDeepLinkId] = useState<string | undefined>();
+  const [versionDeepLinkSlide, setVersionDeepLinkSlide] = useState<number | undefined>();
+  const [slideDeepLinkAction, setSlideDeepLinkAction] = useState<{
+    key: number;
+    slideIndex?: number;
+    panel?: "speaker-notes" | "export" | "play";
+    mode?: "workspace" | "play" | "presenter";
+  }>();
   const designSystemTriggerRef = useRef<HTMLButtonElement>(null);
   const headerActionsRef = useRef<HTMLDivElement>(null);
+  const deepLinkConsumedRef = useRef(false);
 
   const currentConversationQueue = queue.filter(
     (item) => item.conversationId === conversationState.activeConversationId,
@@ -486,16 +495,49 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
   }, [activeRun?.id, activeRun?.status, refreshPersistedProject]);
 
   useEffect(() => {
+    if (deepLinkConsumedRef.current) return;
+    deepLinkConsumedRef.current = true;
     const params = new URLSearchParams(window.location.search);
     const view = params.get("view");
-    if (view === "design-files") {
+    const panel = params.get("panel");
+    const requestedSlide = Number(params.get("slide"));
+    const slideIndex = Number.isInteger(requestedSlide) && requestedSlide > 0
+      ? requestedSlide
+      : undefined;
+    if (slideIndex) {
+      setFocusSlideIndex(slideIndex);
+      setFocusSlideKey((key) => key + 1);
+    }
+    if (view === "design-files" || panel === "design-files") {
       setDesignFilePath(params.get("file") || undefined);
       setDesignFileOpenKey((key) => key + 1);
       setWorkspaceView("files");
-    } else if (view === "brand-system") {
+    } else if (view === "brand-system" || panel === "brand-system") {
       setShowDesignSystem(true);
     }
-  }, []);
+    if (panel === "versions" || params.get("version")) {
+      setVersionDeepLinkId(params.get("version") || undefined);
+      setVersionDeepLinkSlide(slideIndex);
+      setVersionHistoryOpen(true);
+    }
+    const mode = params.get("mode");
+    if (["speaker-notes", "export", "play"].includes(panel || "") || ["play", "presenter"].includes(mode || "")) {
+      setSlideDeepLinkAction({
+        key: Date.now(),
+        slideIndex,
+        panel: ["speaker-notes", "export", "play"].includes(panel || "")
+          ? panel as "speaker-notes" | "export" | "play"
+          : undefined,
+        mode: ["workspace", "play", "presenter"].includes(mode || "")
+          ? mode as "workspace" | "play" | "presenter"
+          : undefined,
+      });
+    }
+    const conversationId = params.get("conversation");
+    if (conversationId && conversationState.summaries.some((item) => item.id === conversationId)) {
+      conversationState.selectConversation(conversationId);
+    }
+  }, [conversationState.selectConversation, conversationState.summaries]);
 
   useEffect(() => {
     if (!showDesignSystem) return;
@@ -1515,6 +1557,7 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
             onStartMarkRun={startBackgroundMark}
             focusSlideIndex={focusSlideIndex}
             focusSlideKey={focusSlideKey}
+            deepLinkAction={slideDeepLinkAction}
             headerExtra={projectHeaderActions}
           />
         )}
@@ -1554,6 +1597,8 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       {versionHistoryOpen ? (
         <DeckVersionDialog
           projectId={projectId}
+          initialVersionId={versionDeepLinkId}
+          initialSlideIndex={versionDeepLinkSlide}
           onClose={() => setVersionHistoryOpen(false)}
           onRestored={(restored) => {
             projectRef.current = restored;

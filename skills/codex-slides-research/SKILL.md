@@ -29,3 +29,7 @@ or a user-requested headless workflow:
 For an explicitly requested unattended fast path, call `create_deck` with
 `research: true`. Do not claim a brief is source-backed when its returned
 Markdown has no source links.
+
+For a durable outline revision or render that should survive navigation, use
+`start_project_run`, then retain and track its `runId` while the Browser remains
+on the matching checkpoint.

@@ -27,6 +27,10 @@ const manifest = JSON.parse(
 const CAPABILITIES = [
   ["Open and operate the full workspace", "open_codex_slides", "Browser"],
   ["Start a durable guided project before generation", "start_project", "MCP + Browser"],
+  ["Start a navigation-independent project job", "start_project_run", "MCP + Browser"],
+  ["Read durable project-job state", "get_project_run", "MCP + Browser"],
+  ["Wait for a project job without hiding the Browser", "wait_project_run", "MCP + Browser"],
+  ["Cancel a project job after navigation or reconnect", "cancel_project_run", "MCP + Browser"],
   ["Discover every Codex-callable workflow", "get_capabilities", "MCP"],
   ["Generate topic-specific onboarding questions", "get_onboarding_questions", "MCP"],
   ["Run source-backed deep research", "deep_research", "MCP"],
@@ -163,11 +167,29 @@ async function ensureServer() {
   await booting;
 }
 
-function browserUrl(projectId, { view, filePath, scenarioId } = {}) {
+function browserUrl(projectId, {
+  view,
+  filePath,
+  scenarioId,
+  slideIndex,
+  panel,
+  versionId,
+  mode,
+  checkpoint,
+  conversationId,
+  runId,
+} = {}) {
   const url = new URL(projectId ? `${BASE}/project/${encodeURIComponent(projectId)}` : BASE);
   if (view && view !== "workspace") url.searchParams.set("view", view);
   if (filePath) url.searchParams.set("file", filePath);
   if (scenarioId) url.searchParams.set("scenario", scenarioId);
+  if (Number.isInteger(slideIndex) && slideIndex > 0) url.searchParams.set("slide", String(slideIndex));
+  if (panel) url.searchParams.set("panel", panel);
+  if (versionId) url.searchParams.set("version", versionId);
+  if (mode) url.searchParams.set("mode", mode);
+  if (checkpoint) url.searchParams.set("checkpoint", checkpoint);
+  if (conversationId) url.searchParams.set("conversation", conversationId);
+  if (runId) url.searchParams.set("run", runId);
   return url.toString();
 }
 
@@ -186,13 +208,27 @@ function resourceLink(uri, name, description) {
   return { type: "resource_link", uri, name, description, mimeType: "text/html" };
 }
 
+function browserHandoff(uri, context = {}) {
+  return {
+    required: true,
+    url: uri,
+    preferredMode: "codex-internal-browser",
+    browserAction: "navigate",
+    ...context,
+  };
+}
+
 function ok(message, data = {}, links = []) {
+  const handoffLink = links.find((link) => link.handoff);
+  const structuredContent = handoffLink
+    ? { ...data, browserHandoff: browserHandoff(handoffLink.uri, handoffLink.handoff) }
+    : data;
   return {
     content: [
       { type: "text", text: message },
       ...links.map((link) => resourceLink(link.uri, link.name, link.description)),
     ],
-    structuredContent: data,
+    structuredContent,
   };
 }
 
@@ -287,11 +323,105 @@ async function postSse(path, body, onEvent, signal) {
   await consumeSse(response, onEvent);
 }
 
-function projectLink(projectId, label = "Open deck in Codex Browser", options = {}) {
+function runApiPath(projectId, runId) {
+  const path = `/api/projects/${encodeURIComponent(projectId)}/runs`;
+  return runId ? `${path}?runId=${encodeURIComponent(runId)}` : path;
+}
+
+async function readProjectRun(projectId, runId, signal) {
+  return apiJson(runApiPath(projectId, runId), { signal });
+}
+
+async function waitForProjectRun(projectId, runId, {
+  timeoutSeconds = 120,
+  pollIntervalMs = 750,
+  signal,
+} = {}) {
+  const deadline = Date.now() + timeoutSeconds * 1000;
+  for (;;) {
+    if (signal?.aborted) throw new Error("Run wait was cancelled by the MCP client.");
+    const snapshot = await readProjectRun(projectId, runId, signal);
+    if (!snapshot.run) throw new Error(`Project run not found: ${runId}`);
+    if (["complete", "error", "cancelled"].includes(snapshot.run.status)) return snapshot;
+    if (Date.now() >= deadline) return { ...snapshot, timedOut: true };
+    await sleep(pollIntervalMs);
+  }
+}
+
+async function projectRunRequest(projectId, {
+  kind,
+  instruction,
+  conversationId,
+  locale,
+  slideIndex,
+  materialIds = [],
+  designFilePaths = [],
+}) {
+  const project = await apiJson(`/api/projects/${encodeURIComponent(projectId)}`);
+  if (kind === "render") return { kind, conversationId, locale };
+  const contextPage = slideIndex
+    ? project.pages?.find((page) => page.index === slideIndex)
+    : undefined;
+  const materialById = new Map((project.materials || []).map((item) => [item.id, item]));
+  const attachments = materialIds.flatMap((id) => {
+    const item = materialById.get(id);
+    if (!item) return [];
+    return [{
+      id,
+      name: item.name,
+      url: `/api/projects/${encodeURIComponent(projectId)}/materials/${encodeURIComponent(item.file)}`,
+      kind: item.kind === "image" ? "image" : "file",
+      mimeType: item.mimeType || "application/octet-stream",
+      size: item.size || 0,
+    }];
+  });
+  const designFiles = designFilePaths.map((filePath) => ({
+    path: filePath,
+    relativePath: filePath,
+    name: basename(filePath),
+    kind: "other",
+  }));
   return {
-    uri: browserUrl(projectId, options),
+    kind,
+    conversationId,
+    locale,
+    request: {
+      message: instruction,
+      context: contextPage ? { slideIndex, title: contextPage.title } : undefined,
+      attachments,
+      designFiles,
+    },
+  };
+}
+
+function projectLink(projectId, label = "Open deck in Codex Browser", options = {}) {
+  const uri = browserUrl(projectId, options);
+  return {
+    uri,
     name: label,
     description: "Open the live Codex Slides workspace in the Codex in-editor Browser.",
+    handoff: {
+      projectId,
+      stage: options.checkpoint,
+      focus: {
+        ...(options.slideIndex ? { slideIndex: options.slideIndex } : {}),
+        ...(options.panel ? { panel: options.panel } : {}),
+        ...(options.filePath ? { filePath: options.filePath } : {}),
+        ...(options.versionId ? { versionId: options.versionId } : {}),
+        ...(options.mode ? { mode: options.mode } : {}),
+        ...(options.conversationId ? { conversationId: options.conversationId } : {}),
+        ...(options.runId ? { runId: options.runId } : {}),
+      },
+    },
+  };
+}
+
+function homeLink(uri, label = "Open Codex Slides", context = {}) {
+  return {
+    uri,
+    name: label,
+    description: "Open the live Codex Slides workspace in the Codex in-editor Browser.",
+    handoff: context,
   };
 }
 
@@ -343,7 +473,7 @@ register(
   async () => ok(
     `Codex Slides exposes ${CAPABILITIES.length} callable workflow surfaces. Use open_codex_slides for the live visual workspace.`,
     { baseUrl: BASE, capabilities: CAPABILITIES.map(([capability, tool, surface]) => ({ capability, tool, surface })) },
-    [{ uri: BASE, name: "Open Codex Slides", description: "Open the full workspace in the Codex Browser." }],
+    [homeLink(BASE)],
   ),
 );
 
@@ -358,20 +488,34 @@ register(
         .describe("Deep-link to a newly exposed workspace surface."),
       filePath: z.string().optional().describe("Design File path when view is design-files."),
       scenarioId: z.string().optional().describe("Scenario to preselect when view is scenarios."),
+      slideIndex: z.number().int().min(1).optional().describe("Slide to focus in the live canvas."),
+      panel: z.enum(["design-files", "brand-system", "speaker-notes", "versions", "export", "play"]).optional(),
+      versionId: z.string().optional().describe("Version to focus when panel is versions."),
+      mode: z.enum(["workspace", "play", "presenter"]).optional(),
+      checkpoint: z.enum(["clarify", "research", "outline", "inspire", "render", "deck"]).optional(),
+      conversationId: z.string().optional().describe("Deck Agent conversation to focus."),
+      runId: z.string().optional().describe("Durable project run to surface."),
     },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
-  async ({ projectId, view = "workspace", filePath, scenarioId }) => {
+  async ({ projectId, view = "workspace", filePath, scenarioId, slideIndex, panel, versionId, mode, checkpoint, conversationId, runId }) => {
     if (["design-files", "brand-system"].includes(view) && !projectId) {
       throw new Error(`${view} requires projectId.`);
     }
     await ensureServer();
     const targetProjectId = view === "scenarios" ? undefined : projectId;
-    const uri = browserUrl(targetProjectId, { view, filePath, scenarioId });
+    const uri = browserUrl(targetProjectId, {
+      view, filePath, scenarioId, slideIndex, panel, versionId, mode, checkpoint, conversationId, runId,
+    });
+    const link = targetProjectId
+      ? projectLink(targetProjectId, "Open deck workspace", {
+          view, filePath, slideIndex, panel, versionId, mode, checkpoint, conversationId, runId,
+        })
+      : homeLink(uri, "Open Codex Slides", { view, stage: checkpoint });
     return ok(
       `Codex Slides is ready at ${uri}. Open this resource now in the Codex in-editor Browser and keep it visible for interaction.`,
       { url: uri, projectId: targetProjectId || null, view, browserAction: "navigate" },
-      [{ uri, name: targetProjectId ? "Open deck workspace" : "Open Codex Slides", description: "Live Codex-controllable presentation workspace." }],
+      [link],
     );
   },
 );
@@ -539,11 +683,132 @@ register(
         browserAction: "navigate",
         interactionMode: "browser-guided",
       },
-      [{
-        uri,
-        name: "Continue project in Codex Slides",
-        description: "Open the live clarification workspace and continue the guided deck workflow.",
-      }],
+      [homeLink(uri, "Continue project in Codex Slides", {
+        projectId: project.id,
+        stage: project.workflow?.stage || "clarify",
+        focus: { checkpoint: project.workflow?.stage || "clarify" },
+      })],
+    );
+  },
+);
+
+register(
+  "start_project_run",
+  {
+    title: "Start a durable Codex Slides project run",
+    description: "Start a navigation-independent Deck Agent, outline, or render job and return immediately with a durable run id. Keep the returned Browser workspace open while the run proceeds.",
+    inputSchema: {
+      projectId: z.string(),
+      kind: z.enum(["chat", "outline", "render"]),
+      instruction: z.string().min(1).optional().describe("Required for chat and outline runs."),
+      conversationId: z.string().optional(),
+      locale: z.enum(["zh-CN", "en", "ja"]).optional(),
+      slideIndex: z.number().int().min(1).optional(),
+      materialIds: z.array(z.string()).max(8).optional(),
+      designFilePaths: z.array(z.string()).max(12).optional(),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+  },
+  async (args, extra) => {
+    if (args.kind !== "render" && !args.instruction?.trim()) {
+      throw new Error(`${args.kind} requires instruction.`);
+    }
+    const input = await projectRunRequest(args.projectId, args);
+    const data = await postJson(runApiPath(args.projectId), input, extra.signal);
+    const runId = data.queued ? null : (data.run?.id || data.activeRun?.id || null);
+    const link = projectLink(args.projectId, "Watch project run", {
+      slideIndex: args.slideIndex,
+      conversationId: args.conversationId,
+      runId,
+      checkpoint: args.kind === "outline" ? "outline" : args.kind === "render" ? "render" : "deck",
+    });
+    return ok(
+      data.queued
+        ? `The project was busy, so this request is queued as ${data.queuedRequestId}.`
+        : `Started ${args.kind} run ${runId}.`,
+      {
+        projectId: args.projectId,
+        runId,
+        run: data.run || data.activeRun || null,
+        queued: Boolean(data.queued),
+        queuedRequestId: data.queuedRequestId || null,
+        queue: data.queue || [],
+      },
+      [link],
+    );
+  },
+);
+
+register(
+  "get_project_run",
+  {
+    title: "Get a Codex Slides project run",
+    description: "Read the current or a named durable project run, including progress, target slide, and terminal outcome.",
+    inputSchema: { projectId: z.string(), runId: z.string().optional() },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ projectId, runId }, extra) => {
+    const data = await readProjectRun(projectId, runId, extra.signal);
+    if (runId && !data.run) throw new Error(`Project run not found: ${runId}`);
+    const focusRunId = data.run?.id || runId;
+    return ok(
+      data.run ? `Project run ${data.run.id} is ${data.run.status}.` : "This project has no active or recent run.",
+      { projectId, run: data.run || null, activeRun: data.activeRun || null },
+      [projectLink(projectId, "Open project run", {
+        slideIndex: data.run?.targetSlide,
+        runId: focusRunId,
+      })],
+    );
+  },
+);
+
+register(
+  "wait_project_run",
+  {
+    title: "Wait for a Codex Slides project run",
+    description: "Wait for a durable project run to finish while its Browser workspace remains independently visible and resumable.",
+    inputSchema: {
+      projectId: z.string(),
+      runId: z.string(),
+      timeoutSeconds: z.number().int().min(1).max(300).optional(),
+      pollIntervalMs: z.number().int().min(250).max(5000).optional(),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ projectId, runId, timeoutSeconds = 120, pollIntervalMs = 750 }, extra) => {
+    const data = await waitForProjectRun(projectId, runId, {
+      timeoutSeconds,
+      pollIntervalMs,
+      signal: extra.signal,
+    });
+    const run = data.run;
+    const message = data.timedOut
+      ? `Project run ${runId} is still ${run.status}; the wait timed out without cancelling it.`
+      : `Project run ${runId} finished with status ${run.status}.`;
+    return ok(message, { projectId, run, timedOut: Boolean(data.timedOut) }, [
+      projectLink(projectId, "Inspect project run result", {
+        slideIndex: run.targetSlide,
+        runId,
+      }),
+    ]);
+  },
+);
+
+register(
+  "cancel_project_run",
+  {
+    title: "Cancel a Codex Slides project run",
+    description: "Request cancellation of the active durable project run without requiring the Browser tab to remain mounted.",
+    inputSchema: { projectId: z.string(), runId: z.string().optional() },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+  },
+  async ({ projectId, runId }, extra) => {
+    const data = await apiJson(runApiPath(projectId, runId), { method: "DELETE", signal: extra.signal });
+    const run = data.run || data.activeRun || null;
+    return ok(
+      run ? `Cancellation requested for project run ${run.id}.` : "The project has no active run to cancel.",
+      { projectId, run, activeRun: data.activeRun || null },
+      [projectLink(projectId, "Open project after cancellation", { runId: run?.id || runId })],
     );
   },
 );
@@ -577,7 +842,7 @@ register(
     return ok(
       `Created “${title || args.topic}” (${rendered} rendered${errored ? `, ${errored} failed` : ""}). Open it now in the Codex Browser.`,
       { projectId, title, rendered, errored, previewUrl: browserUrl(projectId) },
-      [projectLink(projectId)],
+      [projectLink(projectId, "Inspect created deck", { checkpoint: "deck" })],
     );
   },
 );
@@ -607,7 +872,7 @@ register(
     return ok(
       `Created draft “${title || args.topic}” with ${outline.length} slides. Review or revise it before render_deck.`,
       { projectId, title, outline, researchDoc, previewUrl: browserUrl(projectId) },
-      [projectLink(projectId, "Open draft outline")],
+      [projectLink(projectId, "Open draft outline", { checkpoint: "outline" })],
     );
   },
 );
@@ -642,7 +907,7 @@ register(
     return ok(
       data.reply || `Saved ${data.pages?.length || pages?.length || 0} outline pages.`,
       { projectId, ...data },
-      [projectLink(projectId, "Review revised outline")],
+      [projectLink(projectId, "Review revised outline", { checkpoint: "outline" })],
     );
   },
 );
@@ -683,7 +948,7 @@ register(
     return ok(
       `Rendered ${rendered} slides${errored ? `; ${errored} failed` : ""}. Open the result in the Codex Browser.`,
       { projectId, rendered, errored, previewUrl: browserUrl(projectId) },
-      [projectLink(projectId)],
+      [projectLink(projectId, "Watch rendered deck", { checkpoint: "render" })],
     );
   },
 );
@@ -725,7 +990,7 @@ register(
     return ok(
       `“${project.title}” has ${project.pages?.length || 0} slides and is ${project.status || "ready"}.`,
       { project: { ...project, previewUrl: browserUrl(projectId) } },
-      [projectLink(projectId)],
+      [projectLink(projectId, "Open deck workspace", { checkpoint: project.workflow?.stage })],
     );
   },
 );
@@ -750,7 +1015,7 @@ register(
         ? `Loaded ${authored}/${data.notes?.length || 0} authored speaker note${authored === 1 ? "" : "s"}.`
         : "This selection has no speaker notes yet.",
       { ...data, previewUrl: browserUrl(projectId) },
-      [projectLink(projectId, "Open speaker notes in the deck")],
+      [projectLink(projectId, "Open speaker notes in the deck", { slideIndex: index, panel: "speaker-notes" })],
     );
   },
 );
@@ -784,7 +1049,7 @@ register(
     return ok(
       `Saved speaker notes for ${notes?.length || 1} slide${(notes?.length || 1) === 1 ? "" : "s"}.`,
       { ...data, previewUrl: browserUrl(projectId) },
-      [projectLink(projectId, "Inspect speaker notes")],
+      [projectLink(projectId, "Inspect speaker notes", { slideIndex: index, panel: "speaker-notes" })],
     );
   },
 );
@@ -814,7 +1079,7 @@ register(
         ? `Generated speaker notes for slide${count === 1 ? "" : "s"} ${data.generated.join(", ")}.`
         : "No notes were generated because the requested slides already have notes. Use overwrite:true to replace them.",
       { ...data, previewUrl: browserUrl(projectId) },
-      [projectLink(projectId, "Review generated speaker notes")],
+      [projectLink(projectId, "Review generated speaker notes", { slideIndex: index, panel: "speaker-notes" })],
     );
   },
 );
@@ -878,7 +1143,7 @@ register(
     return ok(
       templates.map((template) => `- ${template.id} — ${template.name} (${template.referenceCount} visual references)`).join("\n") || "No reusable project templates yet.",
       { projectTemplates: templates, browserUrl: BASE },
-      [{ uri: BASE, name: "Open project template library", description: "Open the Codex Slides home library in the Codex Browser." }],
+      [homeLink(BASE, "Open project template library", { panel: "project-templates" })],
     );
   },
 );
@@ -950,7 +1215,7 @@ register(
     return ok(
       scenarios.map((scenario) => `- ${scenario.id} — ${label(scenario.name)}: ${label(scenario.description)}`).join("\n") || "No scenarios matched.",
       { groups: data.groups, scenarios, featuredIds: data.featuredIds, browserUrl: uri },
-      [{ uri, name: "Open scenario catalog", description: "Browse and select a Codex Slides workflow in the Codex Browser." }],
+      [homeLink(uri, "Open scenario catalog", { view: "scenarios", scenarioId })],
     );
   },
 );
@@ -1202,7 +1467,7 @@ register(
     return ok(
       `${plan.reply || "Deck request complete."}${changed.length ? ` Changed slide${changed.length === 1 ? "" : "s"} ${changed.map((page) => page.index).join(", ")}.` : ""}`,
       { projectId, plan, changed, previewUrl: browserUrl(projectId) },
-      [projectLink(projectId, "Inspect edited deck")],
+      [projectLink(projectId, "Inspect edited deck", { slideIndex: changed[0]?.index })],
     );
   },
 );
@@ -1248,7 +1513,7 @@ register(
     return ok(
       redraw ? `Restyled ${changed.filter((page) => page.status !== "error").length}/${updated.pages?.length || 0} slides.` : "Saved the new deck style without redrawing yet.",
       { projectId, template: updated.config?.template, style: updated.config?.style, changed, previewUrl: browserUrl(projectId) },
-      [projectLink(projectId, "Inspect restyled deck")],
+      [projectLink(projectId, "Inspect restyled deck", { slideIndex: changed[0]?.index })],
     );
   },
 );
@@ -1284,7 +1549,9 @@ register(
     return ok(
       `${action} complete. The deck now has ${data.pages?.length || 0} slides.`,
       { projectId, action, pages: (data.pages || []).map(slideSummary) },
-      [projectLink(projectId)],
+      [projectLink(projectId, "Inspect slide structure", {
+        slideIndex: action === "move" ? toIndex : action === "add" ? Math.max(1, (afterIndex ?? data.pages?.length ?? 1) + 1) : index,
+      })],
     );
   },
 );
@@ -1306,7 +1573,7 @@ register(
     return ok(
       `Slide ${index} is rendered.`,
       { projectId, page: slideSummary(data.page), previewUrl: browserUrl(projectId) },
-      [projectLink(projectId, `Inspect slide ${index}`)],
+      [projectLink(projectId, `Inspect slide ${index}`, { slideIndex: index })],
     );
   },
 );
@@ -1353,7 +1620,7 @@ register(
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-    return ok(`Replaced slide ${index} with ${basename(absolute)}.`, { projectId, page: slideSummary(data.page) }, [projectLink(projectId)]);
+    return ok(`Replaced slide ${index} with ${basename(absolute)}.`, { projectId, page: slideSummary(data.page) }, [projectLink(projectId, `Inspect slide ${index}`, { slideIndex: index })]);
   },
 );
 
@@ -1396,7 +1663,7 @@ register(
     return ok(
       `Applied the annotations to slide ${index}; the marked source remains saved as ${sourceData.image}.`,
       { projectId, markedSource: sourceData.image, page: slideSummary(editData.page), previewUrl: browserUrl(projectId) },
-      [projectLink(projectId, `Inspect edited slide ${index}`)],
+      [projectLink(projectId, `Inspect edited slide ${index}`, { slideIndex: index })],
     );
   },
 );
@@ -1418,7 +1685,10 @@ register(
     return ok(
       `${format.toUpperCase()} export is ready: ${uri}`,
       { projectId, format, downloadUrl: uri },
-      [{ uri, name: `Download ${format.toUpperCase()}`, description: `Exported ${format.toUpperCase()} presentation.` }],
+      [
+        projectLink(projectId, "Review deck export", { panel: "export" }),
+        { uri, name: `Download ${format.toUpperCase()}`, description: `Exported ${format.toUpperCase()} presentation.` },
+      ],
     );
   },
 );

@@ -16,12 +16,23 @@ assert.match(skill, /Do not default to `create_deck`/);
 
 const mcp = read("mcp/server.mjs");
 assert.match(mcp, /"start_project"/);
+assert.match(mcp, /"start_project_run"/);
+assert.match(mcp, /"wait_project_run"/);
+assert.match(mcp, /"cancel_project_run"/);
 assert.match(mcp, /postJson\("\/api\/projects"/);
 assert.match(mcp, /interactionMode: "browser-guided"/);
 assert.match(mcp, /Use create_deck only when the user explicitly asks/);
+assert.match(mcp, /preferredMode: "codex-internal-browser"/);
+assert.match(mcp, /url\.searchParams\.set\("slide"/);
+assert.match(mcp, /url\.searchParams\.set\("panel"/);
+assert.match(mcp, /url\.searchParams\.set\("version"/);
 
 const cli = read("skills/codex-slides/scripts/codex-slides.mjs");
 assert.match(cli, /"start-project"/);
+assert.match(cli, /"run-start"/);
+assert.match(cli, /"run-status"/);
+assert.match(cli, /"run-wait"/);
+assert.match(cli, /"run-cancel"/);
 assert.match(cli, /interactionMode: "browser-guided"/);
 
 const manifest = JSON.parse(read(".codex-plugin/plugin.json"));
@@ -32,5 +43,14 @@ assert.ok(
 );
 assert.ok(manifest.interface.defaultPrompt.some((prompt) => /Browser.*step by step/i.test(prompt)));
 assert.ok(manifest.interface.capabilities.includes("Guided project checkpoints"));
+assert.ok(manifest.interface.capabilities.includes("Durable run start, status, wait, and cancel"));
+
+for (const path of [
+  "skills/codex-slides-verification/SKILL.md",
+  "skills/codex-slides-known-errors/SKILL.md",
+  "skills/codex-slides-structured-intake/SKILL.md",
+]) {
+  assert.match(read(path), /^---[\s\S]+?description:/, `${path} must be an installable Skill`);
+}
 
 process.stdout.write("Browser-first Codex contract passed.\n");

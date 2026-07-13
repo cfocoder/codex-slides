@@ -162,6 +162,7 @@ export default function PlayMode({
         empty: t("speakerNotes.emptyPresenter"),
         slide: t("presenter.slide", { current: "{current}", total: "{total}" }),
         save: t("speakerNotes.save"),
+        saving: t("speakerNotes.saving"),
         saved: t("speakerNotes.saved"),
         saveFailed: t("speakerNotes.failed"),
       },

@@ -123,11 +123,18 @@ function checkpointMaterials(project: Project): ContextItem[] {
 
 interface HomeSearchParams {
   resume?: string | string[];
+  [key: string]: string | string[] | undefined;
 }
 
 export default function Home({ searchParams }: { searchParams?: HomeSearchParams }) {
   const { locale, t } = useI18n();
   const resumeId = typeof searchParams?.resume === "string" ? searchParams.resume.trim() : "";
+  const resumeContinuationQuery = Object.entries(searchParams ?? {}).reduce((query, [key, value]) => {
+    if (key === "resume") return query;
+    if (Array.isArray(value)) value.forEach((item) => query.append(key, item));
+    else if (typeof value === "string") query.set(key, value);
+    return query;
+  }, new URLSearchParams()).toString();
   const [config, setConfig] = useState<PptConfig>({ ...DEFAULT_CONFIG, requirement: "" });
   const [engines, setEngines] = useState<EngineInfo[]>([]);
   const [projectTemplates, setProjectTemplates] = useState<ProjectTemplateSummary[]>([]);
@@ -443,7 +450,9 @@ export default function Home({ searchParams }: { searchParams?: HomeSearchParams
           && restoredWorkflow.stage !== "research"
           && restoredWorkflow.stage !== "outlining"
         ) {
-          window.location.replace(`/project/${encodeURIComponent(project.id)}`);
+          window.location.replace(
+            `/project/${encodeURIComponent(project.id)}${resumeContinuationQuery ? `?${resumeContinuationQuery}` : ""}`,
+          );
           return;
         }
 
@@ -528,7 +537,7 @@ export default function Home({ searchParams }: { searchParams?: HomeSearchParams
     return () => { cancelled = true; };
     // Restore once from the explicit deep link. Later navigation stays in-page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumeId]);
+  }, [resumeId, resumeContinuationQuery]);
   /** Reference images attached to a clarify question join the shared materials. */
   function attachClarifyImages(items: ContextItem[]) {
     onAddItems(mergeContextItems(materials, items));

@@ -1,10 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PencilSimple, Sparkle } from "@phosphor-icons/react";
+import { Sparkle } from "@phosphor-icons/react";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { UiSlide } from "@/lib/deckEdit";
 
+interface PendingNote {
+  index: number;
+  value: string;
+}
+
+/** Every slide owns an always-editable note field. Writes are debounced and
+ * serialized per page so switching quickly can never discard an intermediate
+ * slide's note or let an older request overwrite newer typing. */
 export default function SpeakerNotesPanel({
   slide,
   disabled,
@@ -19,32 +27,92 @@ export default function SpeakerNotesPanel({
   const { t } = useI18n();
   const note = slide?.speakerNotes ?? "";
   const [draft, setDraft] = useState(note);
-  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [status, setStatus] = useState<"saved" | "generated" | "error" | null>(null);
   const [error, setError] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const onSaveRef = useRef(onSave);
+  const mountedRef = useRef(true);
+  const currentIndexRef = useRef<number | null>(slide?.index ?? null);
+  const draftRef = useRef(note);
+  const savedValuesRef = useRef(new Map<number, string>(slide ? [[slide.index, note]] : []));
+  const pendingRef = useRef(new Map<number, string>());
+  const saveTaskRef = useRef<Promise<void> | null>(null);
+
+  useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
+
+  function queueSave(index: number, value: string) {
+    if (savedValuesRef.current.get(index) === value) return saveTaskRef.current ?? Promise.resolve();
+    pendingRef.current.set(index, value);
+    if (!saveTaskRef.current) {
+      saveTaskRef.current = (async () => {
+        if (mountedRef.current) setSaving(true);
+        while (pendingRef.current.size) {
+          const pending = pendingRef.current.entries().next().value as [number, string] | undefined;
+          if (!pending) break;
+          const [pendingIndex, pendingValue] = pending;
+          pendingRef.current.delete(pendingIndex);
+          try {
+            const saved = await onSaveRef.current(pendingIndex, pendingValue);
+            savedValuesRef.current.set(pendingIndex, saved);
+            if (mountedRef.current && currentIndexRef.current === pendingIndex && draftRef.current === pendingValue) {
+              draftRef.current = saved;
+              setDraft(saved);
+              setStatus("saved");
+              setError("");
+            }
+          } catch (reason: unknown) {
+            if (mountedRef.current && currentIndexRef.current === pendingIndex) {
+              setStatus("error");
+              setError(reason instanceof Error ? reason.message : String(reason));
+            }
+          }
+        }
+      })().finally(() => {
+        saveTaskRef.current = null;
+        if (mountedRef.current) setSaving(false);
+        // A value can be queued between the loop's last size check and finally.
+        const next = pendingRef.current.entries().next().value as [number, string] | undefined;
+        if (next) void queueSave(next[0], next[1]);
+      });
+    }
+    return saveTaskRef.current;
+  }
 
   useEffect(() => {
-    setDraft(note);
-  }, [note]);
+    if (!slide) return;
+    const previousIndex = currentIndexRef.current;
+    const previousDraft = draftRef.current;
+    if (previousIndex !== slide.index) {
+      if (previousIndex != null && savedValuesRef.current.get(previousIndex) !== previousDraft) {
+        void queueSave(previousIndex, previousDraft);
+      }
+      currentIndexRef.current = slide.index;
+      savedValuesRef.current.set(slide.index, note);
+      draftRef.current = note;
+      setDraft(note);
+      setStatus(null);
+      setError("");
+      return;
+    }
+
+    const previousSaved = savedValuesRef.current.get(slide.index);
+    savedValuesRef.current.set(slide.index, note);
+    if (draftRef.current === previousSaved) {
+      draftRef.current = note;
+      setDraft(note);
+    }
+  // `note` is the server value for the current page; queueSave reads callbacks from refs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note, slide?.index]);
 
   useEffect(() => {
-    setEditing(false);
-    setStatus(null);
-    setError("");
-  }, [slide?.index]);
-
-  useEffect(() => {
-    if (!editing) return;
-    const frame = requestAnimationFrame(() => {
-      textareaRef.current?.focus();
-      const end = textareaRef.current?.value.length ?? 0;
-      textareaRef.current?.setSelectionRange(end, end);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [editing]);
+    if (!slide || disabled || generating || savedValuesRef.current.get(slide.index) === draft) return;
+    const timer = window.setTimeout(() => { void queueSave(slide.index, draft); }, 700);
+    return () => window.clearTimeout(timer);
+  // queueSave deliberately reads the latest callback from a ref.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disabled, draft, generating, slide?.index]);
 
   useEffect(() => {
     if (status !== "saved" && status !== "generated") return;
@@ -52,41 +120,30 @@ export default function SpeakerNotesPanel({
     return () => window.clearTimeout(timer);
   }, [status]);
 
-  async function save(close = true) {
-    if (!slide || saving || generating) return;
-    if (draft === note) {
-      if (close) setEditing(false);
-      return;
+  useEffect(() => () => {
+    mountedRef.current = false;
+    const index = currentIndexRef.current;
+    if (index != null && savedValuesRef.current.get(index) !== draftRef.current) {
+      void queueSave(index, draftRef.current);
     }
-    setSaving(true);
-    setStatus(null);
-    setError("");
-    try {
-      const saved = await onSave(slide.index, draft);
-      setDraft(saved);
-      setStatus("saved");
-      if (close) setEditing(false);
-    } catch (reason: any) {
-      setStatus("error");
-      setError(String(reason?.message ?? reason));
-    } finally {
-      setSaving(false);
-    }
-  }
+  }, []);
 
   async function generate() {
-    if (!slide || disabled || saving || generating) return;
+    if (!slide || disabled || generating) return;
     setGenerating(true);
     setStatus(null);
     setError("");
     try {
-      const generated = await onGenerate(slide.index, Boolean(note.trim()));
+      await queueSave(slide.index, draftRef.current);
+      const generated = await onGenerate(slide.index, Boolean(draftRef.current.trim()));
+      savedValuesRef.current.set(slide.index, generated);
+      currentIndexRef.current = slide.index;
+      draftRef.current = generated;
       setDraft(generated);
-      setEditing(false);
       setStatus("generated");
-    } catch (reason: any) {
+    } catch (reason: unknown) {
       setStatus("error");
-      setError(String(reason?.message ?? reason));
+      setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setGenerating(false);
     }
@@ -95,78 +152,49 @@ export default function SpeakerNotesPanel({
   if (!slide) return null;
 
   return (
-    <section className="speaker-notes-panel" aria-label={t("speakerNotes.title")}>
+    <section id="speaker-notes-panel" className="speaker-notes-panel" aria-label={t("speakerNotes.title")} tabIndex={-1}>
       <header className="speaker-notes-head">
         <div>
           <strong>{t("speakerNotes.title")}</strong>
           <span>{t("speakerNotes.slide", { current: slide.index })}</span>
         </div>
         <div className="speaker-notes-actions">
-          {status && (
+          {status ? (
             <span className={`speaker-notes-status ${status}`} role="status">
-              {status === "saved"
-                ? t("speakerNotes.saved")
-                : status === "generated"
-                  ? t("speakerNotes.generated")
-                  : t("speakerNotes.failed")}
+              {status === "saved" ? t("speakerNotes.saved") : status === "generated" ? t("speakerNotes.generated") : t("speakerNotes.failed")}
             </span>
-          )}
-          {!editing && note.trim() && (
-            <button type="button" onClick={() => setEditing(true)} disabled={disabled || generating}>
-              <PencilSimple size={14} /> {t("speakerNotes.edit")}
-            </button>
-          )}
-          {!editing && note.trim() && (
-            <button type="button" onClick={generate} disabled={disabled || generating}>
-              {generating ? <span className="spinner sm" /> : <Sparkle size={14} />}
-              {t("speakerNotes.regenerate")}
-            </button>
-          )}
+          ) : null}
+          <button type="button" onClick={() => void generate()} disabled={disabled || generating || saving}>
+            {generating ? <span className="spinner sm" /> : <Sparkle size={14} />}
+            {draft.trim() ? t("speakerNotes.regenerate") : t("speakerNotes.generate")}
+          </button>
         </div>
       </header>
 
-      {editing ? (
-        <div className="speaker-notes-editor">
-          <textarea
-            ref={textareaRef}
-            value={draft}
-            rows={4}
-            maxLength={20_000}
-            placeholder={t("speakerNotes.placeholder")}
-            onChange={(event) => setDraft(event.currentTarget.value)}
-            onBlur={() => void save(true)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                setDraft(note);
-                setEditing(false);
-              } else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                event.preventDefault();
-                void save(true);
-              }
-            }}
-          />
-          {saving && <span className="speaker-notes-saving"><span className="spinner sm" />{t("speakerNotes.saving")}</span>}
-        </div>
-      ) : note.trim() ? (
-        <button
-          type="button"
-          className="speaker-notes-preview"
-          onClick={() => !disabled && setEditing(true)}
-          disabled={disabled}
-        >
-          {note}
-        </button>
-      ) : (
-        <div className="speaker-notes-empty">
-          <span>{t("speakerNotes.empty")}</span>
-          <button type="button" className="primary" onClick={generate} disabled={disabled || generating}>
-            {generating ? <span className="spinner sm" /> : <Sparkle size={15} />}
-            {generating ? t("speakerNotes.generating") : t("speakerNotes.generate")}
-          </button>
-        </div>
-      )}
-      {error && <div className="speaker-notes-error" role="alert">{error}</div>}
+      <div className="speaker-notes-editor">
+        <textarea
+          value={draft}
+          rows={4}
+          maxLength={20_000}
+          placeholder={t("speakerNotes.placeholder")}
+          disabled={disabled || generating}
+          onChange={(event) => {
+            draftRef.current = event.currentTarget.value;
+            setDraft(event.currentTarget.value);
+            setStatus(null);
+            setError("");
+          }}
+          onBlur={() => void queueSave(slide.index, draftRef.current)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault();
+              void queueSave(slide.index, draftRef.current);
+            }
+          }}
+        />
+        {saving ? <span className="speaker-notes-saving"><span className="spinner sm" />{t("speakerNotes.saving")}</span> : null}
+      </div>
+      {error ? <div className="speaker-notes-error" role="alert">{error}</div> : null}
     </section>
   );
 }

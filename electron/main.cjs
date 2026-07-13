@@ -146,10 +146,31 @@ function secureWindowOptions() {
   };
 }
 
+// Presenter popup: same hardened webPreferences, but shown immediately (no
+// ready-to-show handler is attached to child windows) and sized for the
+// separate notes + timer view.
+function presenterWindowOptions() {
+  return {
+    ...secureWindowOptions(),
+    width: 1320,
+    height: 820,
+    minWidth: 720,
+    minHeight: 620,
+    show: true,
+    backgroundColor: "#111318",
+  };
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow(secureWindowOptions());
   mainWindow.once("ready-to-show", () => mainWindow?.show());
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  mainWindow.webContents.setWindowOpenHandler(({ url, frameName }) => {
+    // Presenter mode opens a named blank popup and writes its own HTML via
+    // document.write(). Keep the exception narrow so unrelated blank popups
+    // remain denied by the desktop shell.
+    if (url === "about:blank" && frameName.startsWith("codex-slides-presenter-")) {
+      return { action: "allow", overrideBrowserWindowOptions: presenterWindowOptions() };
+    }
     try {
       if (new URL(url).origin === new URL(appUrl).origin) {
         return { action: "allow", overrideBrowserWindowOptions: secureWindowOptions() };

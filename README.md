@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/brand/codex-slides-mark.png" alt="Codex Slides app icon" width="112" />
+  <img src="docs/assets/readme/hero.png" alt="Codex Slides — the open-source AI slide studio inside your coding agent, operated in the Codex in-app Browser" width="960" />
 </p>
 
 <h1 align="center">Codex Slides</h1>
@@ -10,7 +10,8 @@
 </p>
 
 <p align="center">
-  Image-native decks · Browser-first · zero separate API keys · reusable project templates · web &amp; desktop · PDF/PPTX export
+  <strong>45 deck templates · 73 community styles · 24 guided scenarios</strong><br />
+  ⚡ Fast mode renders every page in parallel → production-ready <strong>PPTX / PDF</strong> in about a minute · Browser-first · zero separate API keys · web &amp; desktop
 </p>
 
 <p align="center">
@@ -18,7 +19,7 @@
   <img alt="Codex plugin" src="https://img.shields.io/badge/Codex-plugin-6D5EF8.svg" />
   <img alt="Next.js 14" src="https://img.shields.io/badge/Next.js-14-000000.svg" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6.svg" />
-  <img alt="MCP" src="https://img.shields.io/badge/MCP-34_tools-6D5EF8.svg" />
+  <img alt="MCP" src="https://img.shields.io/badge/MCP-38_tools-6D5EF8.svg" />
   <img alt="Browser first" src="https://img.shields.io/badge/workflow-Browser--first-2563EB.svg" />
 </p>
 
@@ -32,6 +33,21 @@ none of it a hidden background task.
 Think of it as the **open-source, agent-native alternative to Gamma and Tome** — except it
 lives inside the coding agent you already use, runs on your existing `codex login` with zero
 extra API keys, and keeps every project on your own disk.
+
+**What you get, out of the box:**
+
+- **118 ready-made visual systems** — **45 curated deck templates** across 15 professional
+  categories, plus **73 community styles** across 12 groups (reports, infographics, diagrams,
+  data & maps, dashboards, posters, product, brand, architecture, photography, editorial,
+  illustration).
+- **24 guided scenarios** in 6 groups — zero-to-one decks, source-to-slides, data stories,
+  deep research, redesign, localization, training, keynotes, and more.
+- **⚡ Fast mode** — renders every page **in parallel** (not one-by-one), so a full deck lands
+  in a fraction of the time while the outline and visual direction stay locked.
+- **Production export** — real, presentation-ready **PPTX** and print-ready **PDF** with
+  speaker notes preserved; 1K/2K/4K render quality and five aspect ratios (16:9, 4:3, 1:1,
+  9:16, 3:4).
+- **Zero extra keys** — runs on your existing `codex login`; every project stays on your disk.
 
 ```text
 Open Codex Slides in the Codex Browser and keep it visible.
@@ -136,16 +152,60 @@ and interrupted generation can resume safely.
 
 ## See it inside Codex
 
-Everything happens in a live, Browser-first workspace — not a black box.
+Everything happens in a live, Browser-first workspace — not a black box. Start from a prompt,
+a proven visual direction, or a purpose-built workflow, then stay in the same durable project
+through questions, research, outline, generation, editing, presenting, and export.
+
+<p align="center">
+  <img src="docs/assets/readme/01-home-community.png" alt="Codex Slides home with the prompt composer, scenario shortcuts, and Community Styles" width="920" />
+</p>
+
+<p align="center"><strong>1 · Start at Home</strong> — describe what you want to make, attach source files, choose the engine and output settings, or jump into a guided workflow.</p>
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/assets/readme/home.png" alt="Codex Slides home" /></td>
-    <td width="50%"><img src="docs/assets/readme/workspace.png" alt="Codex Slides project workspace" /></td>
+    <td width="50%"><img src="docs/assets/readme/02-community-styles.png" alt="Community Styles gallery with 73 visual directions" /></td>
+    <td width="50%"><img src="docs/assets/readme/03-scenarios.png" alt="Scenario library with 24 presentation workflows" /></td>
   </tr>
   <tr>
-    <td><strong>Home</strong> — describe a presentation, pick a scenario, template, and style. Your local Codex writes the copy and draws the slides.</td>
-    <td><strong>Project workspace</strong> — a Deck Agent on the left, the live canvas in the center, and slide thumbnails below. Ask, mark, restyle, present, and export in one place.</td>
+    <td><strong>2 · Explore Community Styles</strong> — browse 73 visual directions across reports, infographics, diagrams, data, UI, posters, products, brand systems, architecture, photography, editorial, and illustration.</td>
+    <td><strong>3 · Pick a scenario</strong> — choose from 24 configured workflows for zero-to-one decks, source-to-slides, data stories, research, redesign, localization, training, keynotes, and more.</td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/assets/readme/04-project-questions.png" alt="English clarification form inside a Codex Slides project" /></td>
+  </tr>
+  <tr>
+    <td colspan="2"><strong>4 · Enter a durable project and clarify the brief</strong> — confirm audience, page count, aspect ratio, language, resolution, and visual intent before the outline begins.</td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/readme/05-research-brief.png" alt="Source-backed English research brief in Design Files" /></td>
+    <td width="50%"><img src="docs/assets/readme/05-research-outline.png" alt="Editable English presentation outline" /></td>
+  </tr>
+  <tr>
+    <td><strong>5 · Research</strong> — run optional multi-round web research, then keep the Markdown brief and sources inspectable inside Design Files.</td>
+    <td><strong>6 · Shape the outline</strong> — edit every title and talking point, add or remove slides, change the order, or ask the agent to revise the story.</td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/readme/06-visual-style.png" alt="Ranked visual direction picker inside a Codex Slides project" /></td>
+    <td width="50%"><img src="docs/assets/readme/07-parallel-generation.png" alt="English slide generation with completed and pending pages visible" /></td>
+  </tr>
+  <tr>
+    <td><strong>7 · Lock the visual direction</strong> — Codex Slides ranks Community Styles against the topic and outline; choose one, search the full library, or keep the default.</td>
+    <td><strong>8 · Generate progressively or in parallel</strong> — watch completed slides land in the canvas while remaining pages stay visible and resumable. Fast mode fans pages out in parallel and queues overflow.</td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/readme/08-editor.png" alt="English slide editor with canvas, editing toolbar, speaker notes, and thumbnails" /></td>
+    <td width="50%"><img src="docs/assets/readme/09-presenter-mode.png" alt="Audience playback and Presenter Mode menu in English" /></td>
+  </tr>
+  <tr>
+    <td><strong>9 · Edit in place</strong> — ask AI, mark a region, rewrite or redraw a page, add and reorder slides, set transitions, replace images, and prepare speaker notes.</td>
+    <td><strong>10 · Present</strong> — start audience playback from any slide, or use Presenter Mode with a synchronized audience window, notes, navigation, and timer.</td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/assets/readme/10-export.png" alt="English PDF and PowerPoint export menu" /></td>
+  </tr>
+  <tr>
+    <td colspan="2"><strong>11 · Export</strong> — download a production-ready PowerPoint file or a print-ready PDF, with the project's speaker notes preserved.</td>
   </tr>
 </table>
 
@@ -173,10 +233,56 @@ brief, an outline, a visual direction, and progressive rendering.
   </tr>
 </table>
 
-Codex Slides ships with **45 curated deck templates plus 73 community visual directions**
-across business reports, data, diagrams, UI, posters, products, brand systems, architecture,
-photography, editorial, and illustration. Start from a finished direction, or describe your
-own.
+## Scenarios and visual systems
+
+Codex Slides is not a single "generate" button. It ships **118 ready-made visual systems** —
+**45 curated deck templates** (15 professional categories × 3) plus **73 community styles**
+(12 groups) — driven by **24 guided scenarios** in 6 groups. Start from a finished direction,
+pick a scenario, or just describe your own.
+
+### 24 guided scenarios (6 groups)
+
+| Group | Scenarios |
+|---|---|
+| **Create** | Create from scratch · Business report · Pitch deck · Project proposal |
+| **Transform sources** | Beautify a deck (PPTX/HTML/PDF) · Document to deck · Notes / transcript to deck · Visuals / whiteboard to deck |
+| **Data & insights** | Data visualization & insights · Recurring performance report · Financial results · Survey & user research |
+| **Research & decisions** | Deep research presentation · Market & industry research · Competitive analysis · Literature review |
+| **Optimize a deck** | Apply a brand system · Reference recreation / style transfer · Translate & localize · Restructure (compress / expand) |
+| **Specialized outputs** | Training & courseware · Keynote & launch story · Portfolio & case study · Template-driven batch |
+
+### 45 curated deck templates (15 categories × 3)
+
+Fundraising Pitch · Corporate Strategy · B2B Sales · Product Management · Design Craft ·
+Academic Research · Professional Training · Data & Finance · Marketing & GTM · Consulting ·
+Government & Policy · AI Literacy · Student Coursework · Career · Life & Story — each with an
+expert role, target audience, and its own visual grammar.
+
+### 73 community styles (12 groups)
+
+Curated from open prompt galleries and adapted into presentation-ready `<page_style>` systems,
+across **Business & Report · Infographic · Diagram · Data & Map · UI & Dashboard · Poster & Ad ·
+Product · Brand & Identity · Architecture & Space · Photo & Cinematic · Editorial ·
+Illustration**. A taste of the catalog:
+
+> Liquid Glass Bento · Summary Infographic · Engineering Blueprint Grid · Technical Cutaway ·
+> Watercolor Annotated Map · Visual Info Guide · UI Screenshot System · Retro CRT Interface ·
+> Bold Product Ad · Hyperreal Product Poster · Lifestyle Product Shot · Brand Identity Package ·
+> Cyberpunk Miniature City · 35mm Surreal Landscape · Golden Serif Quote · Neo-Parametric
+> Editorial · Fashion Magazine Cover · Hand-Drawn Infographic · Paper Pop-Up Story · Voxel Icon
+> System … and 53 more.
+
+Codex Slides ranks these against your topic and outline at the inspiration step, so you can
+lock a direction in one click, search the full library, or keep the default.
+
+### Fast mode → production-ready export
+
+- **Fast mode** renders **every page in parallel** (up to 4 in flight, overflow queued) instead
+  of one-by-one, while the outline and visual direction stay locked — a full deck lands in a
+  fraction of the time.
+- **Production export**: download a real **PPTX** and a print-ready **PDF**, with speaker notes
+  preserved, straight from the project.
+- **Render quality** 1K / 2K / 4K and **five aspect ratios** — 16:9, 4:3, 1:1, 9:16, 3:4.
 
 ## Install in Codex
 
@@ -362,7 +468,7 @@ Codex Slides exposes two equivalent automation transports:
 
 - `skills/codex-slides/scripts/codex-slides.mjs` — portable Node CLI using only built-in web
   APIs and the local HTTP service;
-- `mcp/server.mjs` — 34 typed MCP tools for Codex.
+- `mcp/server.mjs` — 38 typed MCP tools for Codex, including durable run start/status/wait/cancel.
 
 Discover the CLI surface:
 
@@ -390,12 +496,14 @@ Important tool groups:
 | Area | MCP tools |
 |---|---|
 | Open and discover | `open_codex_slides`, `start_project`, `get_capabilities`, `list_projects`, `get_project` |
+| Durable project runs | `start_project_run`, `get_project_run`, `wait_project_run`, `cancel_project_run` |
 | Scenarios and sources | `list_scenarios`, `upload_material`, `list_design_files`, `read_design_file`, `write_design_file`, `upload_design_file` |
 | Reusable templates | `list_templates`, `list_project_templates`, `save_project_as_template`, `delete_project_template` |
 | Research and planning | `get_onboarding_questions`, `deep_research`, `create_outline`, `revise_outline`, `rank_inspiration` |
 | Brand system | `get_brand_design_system`, `update_brand_design_system` |
 | Create and edit | `create_deck`, `render_deck`, `edit_deck`, `restyle_deck`, `manage_slide`, `regenerate_slide` |
 | Visual input and output | `upload_slide_image`, `mark_edit_slide`, `export_deck` |
+| Presenter notes | `get_speaker_notes`, `update_speaker_notes`, `generate_speaker_notes` |
 
 The full Browser/CLI/MCP parity contract lives in
 [CAPABILITY_MATRIX.md](skills/codex-slides/references/CAPABILITY_MATRIX.md).
@@ -496,7 +604,7 @@ a coding agent. Priorities are grouped by horizon and may shift with community f
 | ✅ Shipped | Durable projects, reusable project templates, and Design Files |
 | ✅ Shipped | Brand & Design System, mark-based editing, and dual-window Play mode |
 | ✅ Shipped | Immutable automatic version history with prompt inspection, playback, restore, and exact-version PDF/PPTX export |
-| ✅ Shipped | Portable Agent Skill, 34 typed MCP tools, and Electron desktop apps |
+| ✅ Shipped | Portable Agent Skills, 38 typed MCP tools, durable runs, exact Browser handoffs, and Electron desktop apps |
 | ✅ Shipped | Unified Codex Slides naming and icon assets across Web, desktop, and the Codex plugin |
 | 🚧 In progress | Sharper template gallery and one-click community-style previews |
 | 🔜 Next | Editable-shape PPTX export (native text and vector objects, not just full-slide images) |

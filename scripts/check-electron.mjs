@@ -59,6 +59,8 @@ assert.match(main, /app\.setAppUserModelId\(APP_ID\)/);
 assert.match(main, /contextIsolation:\s*true/);
 assert.match(main, /nodeIntegration:\s*false/);
 assert.match(main, /sandbox:\s*true/);
+assert.match(main, /frameName\.startsWith\("codex-slides-presenter-"\)/);
+assert.match(main, /presenterWindowOptions\(\)/);
 assert.match(main, /ipcMain\.handle\("codex-slides:copy-text"/);
 assert.match(main, /clipboard\.writeText\(value\)/);
 assert.match(preload, /ipcRenderer\.invoke\("codex-slides:copy-text"/);

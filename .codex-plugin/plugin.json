@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "Codex Slides",
     "shortDescription": "Build decks step by step in a live Codex Browser workspace.",
-    "longDescription": "Codex Slides gives Codex a Browser-first slide workflow plus a portable Agent Skill and 34 typed MCP tools. Codex opens the product before generation, creates a durable project, and keeps requirements, research, outline approval, visual direction, rendering, editing, speaker notes, project templates, dual-window presenting, and export visible and steerable in one live workspace. The same local-first workspace ships for web, macOS, Windows, and Linux.",
+    "longDescription": "Codex Slides gives Codex a Browser-first slide workflow plus portable Agent Skills and 38 typed MCP tools. Codex opens the product before generation, creates a durable project, tracks navigation-independent runs, and keeps requirements, research, outline approval, visual direction, rendering, editing, verification, speaker notes, project templates, dual-window presenting, and export visible and steerable through exact Browser handoffs. The same local-first workspace ships for web, macOS, Windows, and Linux.",
     "developerName": "Codex Slides",
     "category": "Productivity",
     "composerIcon": "./assets/codex-slides-composer-icon.png",
@@ -28,8 +28,11 @@
     "capabilities": [
       "In-editor Browser workspace",
       "Portable Agent Skill CLI",
-      "34 typed MCP tools",
+      "38 typed MCP tools",
       "Guided project checkpoints",
+      "Durable run start, status, wait, and cancel",
+      "Exact Browser slide, panel, version, mode, and run handoffs",
+      "Structured intake, verification, and error recovery skills",
       "24 scenario workflows",
       "Project Design Files",
       "Reusable project templates",

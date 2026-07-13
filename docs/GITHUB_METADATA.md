@@ -16,17 +16,17 @@ Use this copy when preparing the public GitHub repository.
 
 ## GitHub description
 
-Recommended short description (About box):
+Recommended short description (About box — leads with what users care about most: how many styles, how fast, and that the export is real):
 
-> 🎨 The open-source AI slide studio that lives inside your coding agent. 🖼️ Image-native decks — every slide a full visual canvas. 🔍 Watch the whole chain live: research → outline → style → render → edit → present → export PDF/PPTX. 🖥️ Browser-first · zero API keys · durable projects. 🤖 Runs in Codex.
+> 🎨 Open-source AI slide studio inside your coding agent. 118 ready visual systems (45 deck templates + 73 community styles) across 24 guided scenarios. ⚡ Fast mode renders every page in parallel → production-ready PPTX/PDF in about a minute. 🖥️ Browser-first · zero API keys · durable local projects. 🤖 Runs in Codex.
 
 Plain-text alternative:
 
-> The best way to make slides with a coding agent. Turn a prompt, a repo, or a pile of files into a beautiful, presentation-ready deck without leaving Codex.
+> The fastest way to make slides with a coding agent. 45 deck templates, 73 community styles, and 24 guided scenarios turn a prompt, a repo, or a pile of files into a production-ready PPTX/PDF — without leaving Codex.
 
 Short alternative:
 
-> Create, review, edit, present, and export image-native slide decks without leaving Codex.
+> 118 visual systems, 24 scenarios, Fast-mode parallel render, and real PPTX/PDF export — image-native slide decks without leaving Codex.
 
 ## Topics
 
@@ -67,7 +67,7 @@ open-design
 
 **Long description**
 
-> Codex Slides gives Codex a Browser-first slide workflow plus a portable Agent Skill and 34 typed MCP tools. Open the product before generation, create a durable project, and keep requirements, research, outline approval, visual direction, rendering, editing, presenting, and export visible and steerable in one workspace. Headless CLI and MCP automation remain available when explicitly requested.
+> Codex Slides gives Codex a Browser-first slide workflow plus portable Agent Skills and 38 typed MCP tools. Choose from 45 curated deck templates, 73 community styles, and 24 guided scenarios; open the product before generation, create a durable project, track navigation-independent runs, and keep requirements, research, outline approval, visual direction, rendering, editing, verification, presenting, and export visible and steerable through exact Browser handoffs. Fast mode renders every page in parallel into a production-ready PPTX/PDF. Headless CLI and MCP automation remain available when explicitly requested.
 
 **Category**
 
@@ -85,7 +85,8 @@ If regenerating:
 - Canvas: 1280 × 640 px.
 - Headline: **Make slides with your coding agent.**
 - Supporting line: **Codex Slides — the open-source AI slide studio inside Codex.**
-- Show a Codex / coding-agent terminal transforming into finished slides.
+- Show the **Codex desktop app driving its in-app Browser** on the Codex Slides workspace (an agent chat column beside a live browser panel rendering finished slides) — **not** a CLI/terminal. The product is operated visually in the browser inside Codex, not by typing commands.
+- Optional proof pills: `45 templates`, `73 styles`, `24 scenarios`, `Fast mode → PPTX/PDF`.
 - Include `Open source` and `Runs in Codex` pills.
 - Use the Codex Slides mark and the product's blue-violet accent (`#6D5EF8`).
 - Avoid tiny UI screenshots or more than two lines of text.

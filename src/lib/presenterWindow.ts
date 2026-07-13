@@ -19,6 +19,7 @@ export interface PresenterWindowLabels {
   empty: string;
   slide: string;
   save: string;
+  saving: string;
   saved: string;
   saveFailed: string;
 }
@@ -140,6 +141,7 @@ export function buildPresenterWindowHtml(options: {
       var pausedMs = 0;
       var timerId = 0;
       var editing = false;
+      var flushNoteEdit = null;
       var els = {
         timer: document.getElementById('timer'), pause: document.getElementById('pause'), reset: document.getElementById('reset'),
         counter: document.getElementById('counter'), current: document.getElementById('current'), previous: document.getElementById('previous'),
@@ -179,25 +181,36 @@ export function buildPresenterWindowHtml(options: {
           var save = document.createElement('button');
           save.type = 'button';
           save.textContent = labels.save || 'Save';
-          var didSave = false;
-          function saveAndClose(){
-            if (didSave) return;
-            didSave = true;
-            slide.speakerNotes = textarea.value;
-            editing = false;
-            send('codex-slides:presenter-notes-save', { index: slide.index, note: textarea.value });
-            renderNotes();
+          var saveTimer = 0;
+          var lastSent = note;
+          function saveNote(closeEditor){
+            window.clearTimeout(saveTimer);
+            var value = textarea.value;
+            if (value !== lastSent) {
+              lastSent = value;
+              slide.speakerNotes = value;
+              showStatus(labels.saving || 'Saving…', false);
+              send('codex-slides:presenter-notes-save', { index: slide.index, note: value });
+            }
+            if (closeEditor) { editing = false; flushNoteEdit = null; renderNotes(); }
           }
-          save.onclick = saveAndClose;
+          flushNoteEdit = function(){ saveNote(false); };
+          save.onclick = function(){ saveNote(true); };
+          textarea.addEventListener('input', function(){
+            window.clearTimeout(saveTimer);
+            saveTimer = window.setTimeout(function(){ saveNote(false); }, 700);
+          });
+          textarea.addEventListener('blur', function(){ saveNote(false); });
           textarea.addEventListener('keydown', function(event){
             if (event.key === 'Escape') { event.preventDefault(); editing = false; renderNotes(); }
-            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); saveAndClose(); }
+            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); saveNote(true); }
           });
           actions.appendChild(save);
           els.notesBody.appendChild(textarea);
           els.notesBody.appendChild(actions);
           textarea.focus();
         } else {
+          flushNoteEdit = null;
           var text = document.createElement('div');
           text.className = note.trim() ? 'note-text' : 'note-text empty';
           text.tabIndex = 0;
@@ -220,11 +233,12 @@ export function buildPresenterWindowHtml(options: {
       }
       function go(next, fromHost){
         var target = Math.max(0, Math.min(slides.length - 1, next));
-        if (target === index) { if (fromHost) renderNotes(); return; }
+        if (target === index) { if (fromHost && !editing) renderNotes(); return; }
+        if (flushNoteEdit) flushNoteEdit();
         index = target; editing = false; render();
         if (!fromHost) send('codex-slides:presenter-go', { position: index });
       }
-      function close(){ send('codex-slides:presenter-close', {}); try { window.close(); } catch (_) {} }
+      function close(){ if (flushNoteEdit) flushNoteEdit(); send('codex-slides:presenter-close', {}); try { window.close(); } catch (_) {} }
       els.pause.textContent = labels.pause || 'Pause'; els.reset.textContent = labels.reset || 'Reset';
       els.previousLabel.textContent = labels.previous || 'Previous'; els.nextLabel.textContent = labels.next || 'Next'; els.notesTitle.textContent = labels.notesTitle || 'Speaker notes';
       els.pause.onclick = function(){

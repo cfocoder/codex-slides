@@ -53,6 +53,10 @@ in the background without checkpoints.
 3. Do not treat MCP as a prerequisite. Both transports use the same API and
    return the same project URLs.
 
+Every Browser-capable response includes a `browserHandoff`. Follow its exact
+URL instead of rebuilding one, because it can focus a slide, panel, version,
+mode, checkpoint, conversation, or durable run.
+
 Run this to discover the portable command surface:
 
 ```bash
@@ -90,6 +94,10 @@ auditing a newly added product feature or changing the Browser/CLI/MCP contract.
   `inspiration`, and `render` operations are for CLI automation, recovery, and
   deterministic mutations. Keep the corresponding Browser project open when
   using them interactively.
+- For navigation-independent Deck Agent, outline, or render work, use
+  `start_project_run` / CLI `run-start`. Retain its `runId`; use
+  `get_project_run`, `wait_project_run`, or `cancel_project_run` (CLI
+  `run-status`, `run-wait`, `run-cancel`) after navigation or reconnect.
 - Preserve the Markdown research brief and its source links. Do not call a
   brief source-backed when it contains no source links.
 - Upload logos, screenshots, PDFs, or other references with `upload-material`
@@ -163,12 +171,26 @@ auditing a newly added product feature or changing the Browser/CLI/MCP contract.
 Keep durable edits scoped to the project the user named. If no project was
 named and multiple projects exist, inspect the recent list before choosing.
 
+## Route to focused workflow skills
+
+- Use the `codex-slides-structured-intake` sibling for ambiguous or
+  scenario-led new-deck requirements.
+- Use the `codex-slides-verification` sibling after creation, rendering,
+  editing, restyling, version restore, speaker-note changes, or export.
+- Use the `codex-slides-known-errors` sibling when the runtime, MCP, durable
+  run, Browser handoff, project resume, render, Design Files, or export fails.
+
 ## Open and verify in Codex Browser
 
 Open the Browser **before** creating a new deck and keep it open throughout the
 workflow. After any programmatic mutation, navigate or reload the project URL
 and inspect the visible result. Do not stop after printing the URL when the
 Browser capability is available.
+
+Preserve exact handoff query parameters: `slide`, `panel`, `version`, `mode`,
+`checkpoint`, `conversation`, and `run`. Presenter mode intentionally leaves
+one visible user click because browsers require a gesture to open its second
+window.
 
 Use Browser view `scenarios` for the workflow catalog, `design-files` for the
 file workspace, and `brand-system` for the visual-system editor. Use the normal

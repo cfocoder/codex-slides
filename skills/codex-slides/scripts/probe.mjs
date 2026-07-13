@@ -22,11 +22,11 @@ function call(command, input = {}) {
 }
 
 const capabilities = call("capabilities");
-if (capabilities.commands.length !== 30) {
-  throw new Error(`Expected 30 commands, got ${capabilities.commands.length}.`);
+if (capabilities.commands.length !== 34) {
+  throw new Error(`Expected 34 commands, got ${capabilities.commands.length}.`);
 }
-if (capabilities.capabilities.length < 32) {
-  throw new Error(`Expected at least 32 capability surfaces, got ${capabilities.capabilities.length}.`);
+if (capabilities.capabilities.length < 36) {
+  throw new Error(`Expected at least 36 capability surfaces, got ${capabilities.capabilities.length}.`);
 }
 
 const summary = {
@@ -52,6 +52,9 @@ if (live) {
   if (!opened.url?.startsWith("http://127.0.0.1:4311")) throw new Error("Browser URL is missing.");
   if (!opened.url.includes("view=scenarios") || !opened.url.includes("scenario=new-deck")) {
     throw new Error("Scenario Browser deep link is missing.");
+  }
+  if (!opened.browserHandoff?.required || opened.browserHandoff.url !== opened.url) {
+    throw new Error("Browser handoff contract is missing.");
   }
   Object.assign(summary, {
     live: true,

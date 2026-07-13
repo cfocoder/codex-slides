@@ -52,6 +52,8 @@ in the in-editor Browser whenever visual review helps.
   `designFilePaths` when revising an outline or editing a deck.
 - Use `get_brand_design_system` then `update_brand_design_system` for persistent
   project-wide brand/style rules. Redraw only when requested.
+- Use `start_project_run` for navigation-independent chat, outline, or render
+  work; retain the returned `runId` and track or cancel it explicitly.
 
 ## Show and verify
 
@@ -59,6 +61,9 @@ Open `open_codex_slides` / CLI `open` before a new creation and keep the live
 workspace visible. After a programmatic mutation, navigate or reload its
 resource link and inspect the changed slide or flow; do not make the user open
 the URL manually.
+
+Follow the exact `browserHandoff.url`; it can focus the changed slide, speaker
+notes, export, versions, Design Files, brand system, Play menu, or durable run.
 
 Use `export_deck` only after the requested visual result is ready. Browser-only
 controls such as Play from current/beginning, the synchronized audience and

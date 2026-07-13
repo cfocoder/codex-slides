@@ -9,6 +9,9 @@ CLI + MCP operation.
 |---|---|---|---|
 | Open create or project workspace | `open`, view `workspace` | `open` | `open_codex_slides` |
 | Start durable project before clarification | Home composer or `?resume=<id>` | `start-project` | `start_project` |
+| Start a navigation-independent Deck Agent, outline, or render job | Live project activity | `run-start` | `start_project_run` |
+| Read or wait for a durable job after navigation/reconnect | Live project activity | `run-status` / `run-wait` | `get_project_run` / `wait_project_run` |
+| Cancel an active durable job | Stop action in Deck Agent | `run-cancel` | `cancel_project_run` |
 | Browse 24 scenarios in 6 groups | `open`, view `scenarios` | `scenarios` | `list_scenarios` |
 | Preselect a scenario and apply its defaults | `scenarioId` deep link | `create` / `outline` with `scenarioId` | `create_deck` / `create_outline` with `scenarioId` |
 | Generate scenario-aware onboarding | Scenario composer | `onboard` with `scenarioId` | `get_onboarding_questions` with `scenarioId` |
@@ -41,6 +44,7 @@ CLI + MCP operation.
 | Whole-deck template/style restyle | Brand/template UI | `restyle` | `restyle_deck` |
 | Add, duplicate, move, delete, or transition slides | Slide controls | `slide` | `manage_slide` |
 | Generate or regenerate one slide | Slide/agent controls | `regenerate` | `regenerate_slide` |
+| Reopen the exact changed slide, panel, version, checkpoint, conversation, mode, or run | URL focus parameters | Every Browser-capable response returns `browserHandoff` | Every Browser-capable result returns `structuredContent.browserHandoff` |
 | Read per-slide speaker notes | Notes strip / presenter view | `speaker-notes`, `action:get` | `get_speaker_notes` |
 | Write or clear speaker notes | Inline notes editor | `speaker-notes`, `action:set` | `update_speaker_notes` |
 | Generate speaker notes with the project agent | Notes AI action | `speaker-notes`, `action:generate` | `generate_speaker_notes` |

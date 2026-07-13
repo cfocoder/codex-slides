@@ -32,6 +32,7 @@ import {
 import type {
   Project,
   ProjectRunInput,
+  ProjectRunRecord,
   ProjectRunState,
   SlidePage,
   StoredAgentTool,
@@ -52,6 +53,8 @@ interface StartRunResult {
   accepted: boolean;
   queued: boolean;
   project: Project;
+  run?: ProjectRunState;
+  queuedRequestId?: string;
 }
 
 const globalRuns = globalThis as typeof globalThis & {
@@ -326,6 +329,32 @@ function patchActiveRun(projectId: string, runId: string, patch: Partial<Project
   };
   saveProject(project);
   return project;
+}
+
+function archiveRun(
+  projectId: string,
+  run: ProjectRunState,
+  status: ProjectRunRecord["status"],
+  error?: string,
+) {
+  const project = loadProject(projectId);
+  if (!project) return null;
+  const completedAt = Date.now();
+  const latest = project.activeRun?.id === run.id ? project.activeRun : run;
+  const record: ProjectRunRecord = {
+    ...latest,
+    status,
+    updatedAt: completedAt,
+    completedAt,
+    ...(error ? { error } : {}),
+  };
+  project.runHistory = [
+    record,
+    ...(project.runHistory ?? []).filter((item) => item.id !== run.id),
+  ].slice(0, 40);
+  if (project.activeRun?.id === run.id) project.activeRun = undefined;
+  saveProject(project);
+  return record;
 }
 
 function throwIfStopped(projectId: string, runId: string, signal: AbortSignal) {
@@ -777,6 +806,8 @@ function settleStoppedProject(projectId: string, kind: ProjectRunInput["kind"]) 
 
 async function executeProjectRun(projectId: string, run: ProjectRunState, controller: AbortController) {
   let stopped = false;
+  let finalStatus: ProjectRunRecord["status"] = "complete";
+  let finalError = "";
   const before = loadProject(projectId);
   const beforeSignature = before ? currentDeckVersionSignature(before) : "";
   try {
@@ -808,13 +839,11 @@ async function executeProjectRun(projectId: string, run: ProjectRunState, contro
     stopped = controller.signal.aborted
       || (persistedRun?.id === run.id && persistedRun.status === "stopping");
     failTranscript(projectId, run, error, stopped);
+    finalStatus = stopped ? "cancelled" : "error";
+    finalError = stopped ? "Stopped manually" : String((error as any)?.message ?? error);
     if (stopped) settleStoppedProject(projectId, run.input.kind);
   } finally {
-    const current = loadProject(projectId);
-    if (current?.activeRun?.id === run.id) {
-      current.activeRun = undefined;
-      saveProject(current);
-    }
+    archiveRun(projectId, run, finalStatus, finalError || undefined);
     const job = jobs.get(projectId);
     if (job?.id === run.id) clearInterval(job.heartbeat);
     jobs.delete(projectId);
@@ -947,7 +976,7 @@ export function startProjectRun(projectId: string, input: ProjectRunInput): Star
         queuedRequests: [...currentQueue, queued].slice(-20),
       };
       saveProject(project);
-      return { accepted: true, queued: true, project };
+      return { accepted: true, queued: true, project, queuedRequestId: queued.id };
     }
     return { accepted: false, queued: false, project };
   }
@@ -971,7 +1000,7 @@ export function startProjectRun(projectId: string, input: ProjectRunInput): Star
   saveProject(project);
   launchRun(projectId, run, true);
   project = loadProject(projectId)!;
-  return { accepted: true, queued: false, project };
+  return { accepted: true, queued: false, project, run };
 }
 
 export function ensureProjectRun(projectId: string): Project | null {
@@ -983,11 +1012,7 @@ export function ensureProjectRun(projectId: string): Project | null {
     const run = project.activeRun;
     failTranscript(projectId, run, new Error("stopped manually"), true);
     settleStoppedProject(projectId, run.input.kind);
-    const latest = loadProject(projectId);
-    if (latest?.activeRun?.id === run.id) {
-      latest.activeRun = undefined;
-      saveProject(latest);
-    }
+    archiveRun(projectId, run, "cancelled", "Stopped manually");
     return loadProject(projectId);
   }
   // Route handlers can run in separate Next worker contexts. A fresh on-disk
@@ -999,10 +1024,11 @@ export function ensureProjectRun(projectId: string): Project | null {
   return loadProject(projectId);
 }
 
-export function stopProjectRun(projectId: string): Project | null {
+export function stopProjectRun(projectId: string, runId?: string): Project | null {
   const project = loadProject(projectId);
   if (!project?.activeRun) return project;
   const run = project.activeRun;
+  if (runId && run.id !== runId) return project;
   project.activeRun = { ...run, status: "stopping", updatedAt: Date.now() };
   project.workflow = {
     ...(project.workflow ?? { stage: "deck" }),
@@ -1018,4 +1044,10 @@ export function stopProjectRun(projectId: string): Project | null {
 
 export function hasProjectRun(projectId: string) {
   return jobs.has(projectId);
+}
+
+export function getProjectRun(project: Project, runId?: string) {
+  if (!runId) return project.activeRun ?? project.runHistory?.[0] ?? null;
+  if (project.activeRun?.id === runId) return project.activeRun;
+  return project.runHistory?.find((run) => run.id === runId) ?? null;
 }

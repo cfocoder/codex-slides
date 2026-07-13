@@ -5,7 +5,13 @@ import { loadProject } from "@/lib/store";
 export const dynamic = "force-dynamic";
 
 /** Project workspace: chat feed + live slide preview + filmstrip (per-page editing). */
-export default function ProjectPage({ params }: { params: { id: string } }) {
+export default function ProjectPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   // Next's page params can retain percent-encoding for non-ASCII slugs even
   // though route-handler params are decoded. Normalize here so decks created
   // with Chinese/Japanese/etc. titles can be reopened from their preview URL.
@@ -22,7 +28,14 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
     || project.workflow?.stage === "research"
     || project.workflow?.stage === "outlining"
   ) {
-    redirect(`/?resume=${encodeURIComponent(projectId)}`);
+    const query = new URLSearchParams();
+    query.set("resume", projectId);
+    for (const [key, value] of Object.entries(searchParams ?? {})) {
+      if (key === "resume") continue;
+      if (Array.isArray(value)) value.forEach((item) => query.append(key, item));
+      else if (typeof value === "string") query.set(key, value);
+    }
+    redirect(`/?${query.toString()}`);
   }
   return <DeckView key={project.id} projectId={projectId} initialProject={project} />;
 }

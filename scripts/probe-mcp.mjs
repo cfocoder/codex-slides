@@ -27,6 +27,10 @@ const expected = [
   "get_capabilities",
   "open_codex_slides",
   "start_project",
+  "start_project_run",
+  "get_project_run",
+  "wait_project_run",
+  "cancel_project_run",
   "get_onboarding_questions",
   "deep_research",
   "create_deck",
@@ -84,14 +88,19 @@ try {
   assert.ok(createDeck?.inputSchema?.properties?.projectTemplateId, "create_deck must expose projectTemplateId");
   const openTool = listed.tools.find((tool) => tool.name === "open_codex_slides");
   assert.ok(openTool?.inputSchema?.properties?.view, "open_codex_slides must expose Browser views");
+  assert.ok(openTool?.inputSchema?.properties?.slideIndex, "open_codex_slides must focus a slide");
+  assert.ok(openTool?.inputSchema?.properties?.panel, "open_codex_slides must focus a panel");
+  assert.ok(openTool?.inputSchema?.properties?.versionId, "open_codex_slides must focus a version");
+  assert.ok(openTool?.inputSchema?.properties?.mode, "open_codex_slides must expose play/presenter modes");
   const startProject = listed.tools.find((tool) => tool.name === "start_project");
   assert.ok(startProject?.inputSchema?.properties?.topic, "start_project must expose topic");
   assert.match(startProject?.description || "", /does not research|does not.*render/i, "start_project must remain a project-shell operation");
 
   const capabilities = await client.callTool({ name: "get_capabilities", arguments: {} });
   assert.equal(capabilities.isError, undefined);
-  assert.equal(capabilities.structuredContent?.capabilities?.length, 36);
+  assert.equal(capabilities.structuredContent?.capabilities?.length, 40);
   assert.ok(capabilities.content.some((item) => item.type === "resource_link"));
+  assert.equal(capabilities.structuredContent?.browserHandoff?.required, true);
 
   if (live) {
     const projects = await client.callTool({ name: "list_projects", arguments: {} });
@@ -110,6 +119,7 @@ try {
     });
     assert.ok(opened.content.some((item) => item.type === "resource_link"));
     assert.ok(opened.structuredContent?.url?.includes("view=scenarios"));
+    assert.equal(opened.structuredContent?.browserHandoff?.preferredMode, "codex-internal-browser");
   }
 
   process.stdout.write(`MCP probe passed: ${expected.length} tools${live ? ", live API and Browser link" : ""}.\n`);

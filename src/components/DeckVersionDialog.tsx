@@ -9,12 +9,11 @@ import {
   Check,
   ClockCounterClockwise,
   CopySimple,
-  FilePdf,
   MagnifyingGlass,
-  MicrosoftPowerpointLogo,
   Play,
   X,
 } from "@phosphor-icons/react";
+import ExportMenu from "@/components/ExportMenu";
 import PlayMode from "@/components/PlayMode";
 import {
   deckVersionExportUrl,
@@ -32,10 +31,14 @@ function sourceClass(version: DeckVersionSummary) {
 
 export default function DeckVersionDialog({
   projectId,
+  initialVersionId,
+  initialSlideIndex,
   onClose,
   onRestored,
 }: {
   projectId: string;
+  initialVersionId?: string;
+  initialSlideIndex?: number;
   onClose: () => void;
   onRestored: (project: Project) => void;
 }) {
@@ -106,7 +109,12 @@ export default function DeckVersionDialog({
       .then((items) => {
         if (cancelled) return;
         setVersions(items);
-        setSelectedId(items.find((version) => version.current)?.id ?? items[0]?.id ?? null);
+        setSelectedId(
+          items.find((version) => version.id === initialVersionId)?.id
+            ?? items.find((version) => version.current)?.id
+            ?? items[0]?.id
+            ?? null,
+        );
         setError("");
       })
       .catch((nextError) => {
@@ -117,10 +125,10 @@ export default function DeckVersionDialog({
       });
     requestAnimationFrame(() => closeRef.current?.focus());
     return () => { cancelled = true; };
-  }, [projectId]);
+  }, [initialVersionId, projectId]);
 
   useEffect(() => {
-    setSelectedSlide(0);
+    setSelectedSlide(Math.max(0, (initialSlideIndex ?? 1) - 1));
     setPromptOpen(false);
     setConfirmRestore(false);
     setCopied(false);
@@ -150,7 +158,7 @@ export default function DeckVersionDialog({
         if (!cancelled) setLoadingDetail(false);
       });
     return () => { cancelled = true; };
-  }, [primeDetail, selectedId]);
+  }, [initialSlideIndex, primeDetail, selectedId]);
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -305,24 +313,12 @@ export default function DeckVersionDialog({
                 <Play size={15} weight="fill" /> {t("versions.play")}
               </button>
               {selectedVersion ? (
-                <>
-                  <a
-                    className="version-action"
-                    href={deckVersionExportUrl(projectId, selectedVersion.id, "pdf")}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <FilePdf size={15} /> PDF
-                  </a>
-                  <a
-                    className="version-action"
-                    href={deckVersionExportUrl(projectId, selectedVersion.id, "pptx")}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <MicrosoftPowerpointLogo size={15} /> PPTX
-                  </a>
-                </>
+                <ExportMenu
+                  pdfUrl={deckVersionExportUrl(projectId, selectedVersion.id, "pdf")}
+                  pptxUrl={deckVersionExportUrl(projectId, selectedVersion.id, "pptx")}
+                  buttonClassName="version-action"
+                  wrapperClassName="version-export-menu"
+                />
               ) : null}
               {!selectedVersion?.current && selectedVersion ? (
                 <button

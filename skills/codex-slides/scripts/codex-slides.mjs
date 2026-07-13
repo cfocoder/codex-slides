@@ -23,11 +23,16 @@ const COMMANDS = [
   "read-design-file", "write-design-file", "upload-design-file",
   "get-brand-system", "set-brand-system",
   "speaker-notes",
+  "run-start", "run-status", "run-wait", "run-cancel",
 ];
 
 const CAPABILITIES = [
   ["Open the full workspace", "open", "Browser"],
   ["Start a durable guided project before generation", "start-project", "script + Browser"],
+  ["Start a navigation-independent project job", "run-start", "script + Browser"],
+  ["Read durable project-job state", "run-status", "script + Browser"],
+  ["Wait for a project job without hiding the Browser", "run-wait", "script + Browser"],
+  ["Cancel a project job after navigation or reconnect", "run-cancel", "script + Browser"],
   ["Generate tailored onboarding questions", "onboard", "script"],
   ["Run source-backed deep research", "research", "script"],
   ["Create and render a complete deck", "create", "script + Browser"],
@@ -68,12 +73,58 @@ function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
-function browserUrl(projectId, { view, filePath, scenarioId } = {}) {
+function browserUrl(projectId, {
+  view,
+  filePath,
+  scenarioId,
+  slideIndex,
+  panel,
+  versionId,
+  mode,
+  checkpoint,
+  conversationId,
+  runId,
+} = {}) {
   const url = new URL(projectId ? `${BASE}/project/${encodeURIComponent(projectId)}` : BASE);
   if (view && view !== "workspace") url.searchParams.set("view", view);
   if (filePath) url.searchParams.set("file", filePath);
   if (scenarioId) url.searchParams.set("scenario", scenarioId);
+  if (Number.isInteger(slideIndex) && slideIndex > 0) url.searchParams.set("slide", String(slideIndex));
+  if (panel) url.searchParams.set("panel", panel);
+  if (versionId) url.searchParams.set("version", versionId);
+  if (mode) url.searchParams.set("mode", mode);
+  if (checkpoint) url.searchParams.set("checkpoint", checkpoint);
+  if (conversationId) url.searchParams.set("conversation", conversationId);
+  if (runId) url.searchParams.set("run", runId);
   return url.toString();
+}
+
+function withBrowserHandoff(result) {
+  const url = result.browserUrl || result.previewUrl || result.url;
+  if (!url) return result;
+  const parsed = new URL(url, BASE);
+  const slideIndex = Number(parsed.searchParams.get("slide"));
+  const focus = {
+    ...(Number.isInteger(slideIndex) && slideIndex > 0 ? { slideIndex } : {}),
+    ...(parsed.searchParams.get("panel") ? { panel: parsed.searchParams.get("panel") } : {}),
+    ...(parsed.searchParams.get("file") ? { filePath: parsed.searchParams.get("file") } : {}),
+    ...(parsed.searchParams.get("version") ? { versionId: parsed.searchParams.get("version") } : {}),
+    ...(parsed.searchParams.get("mode") ? { mode: parsed.searchParams.get("mode") } : {}),
+    ...(parsed.searchParams.get("conversation") ? { conversationId: parsed.searchParams.get("conversation") } : {}),
+    ...(parsed.searchParams.get("run") ? { runId: parsed.searchParams.get("run") } : {}),
+  };
+  return {
+    ...result,
+    browserHandoff: {
+      required: true,
+      url: parsed.toString(),
+      preferredMode: "codex-internal-browser",
+      browserAction: "navigate",
+      projectId: result.projectId || result.project?.id || null,
+      stage: result.workflowStage || parsed.searchParams.get("checkpoint") || undefined,
+      focus,
+    },
+  };
 }
 
 function interactiveProjectUrl(projectId) {
@@ -228,6 +279,62 @@ async function postSse(path, body, onEvent) {
   await consumeSse(response, onEvent);
 }
 
+function runApiPath(projectId, runId) {
+  const path = `/api/projects/${encodeURIComponent(projectId)}/runs`;
+  return runId ? `${path}?runId=${encodeURIComponent(runId)}` : path;
+}
+
+async function waitForProjectRun(projectId, runId, timeoutSeconds = 120, pollIntervalMs = 750) {
+  const deadline = Date.now() + timeoutSeconds * 1000;
+  for (;;) {
+    const snapshot = await apiJson(runApiPath(projectId, runId));
+    if (!snapshot.run) throw new Error(`Project run not found: ${runId}`);
+    if (["complete", "error", "cancelled"].includes(snapshot.run.status)) return snapshot;
+    if (Date.now() >= deadline) return { ...snapshot, timedOut: true };
+    await sleep(pollIntervalMs);
+  }
+}
+
+async function projectRunInput(input) {
+  if (input.kind === "render") {
+    return { kind: "render", conversationId: input.conversationId, locale: input.locale };
+  }
+  if (!input.instruction) throw new Error(`${input.kind || "run"} requires instruction.`);
+  const project = await apiJson(`/api/projects/${encodeURIComponent(input.projectId)}`);
+  const contextPage = input.slideIndex
+    ? project.pages?.find((page) => page.index === input.slideIndex)
+    : undefined;
+  const materialById = new Map((project.materials || []).map((item) => [item.id, item]));
+  const attachments = (input.materialIds || []).flatMap((id) => {
+    const item = materialById.get(id);
+    if (!item) return [];
+    return [{
+      id,
+      name: item.name,
+      url: `/api/projects/${encodeURIComponent(input.projectId)}/materials/${encodeURIComponent(item.file)}`,
+      kind: item.kind === "image" ? "image" : "file",
+      mimeType: item.mimeType || "application/octet-stream",
+      size: item.size || 0,
+    }];
+  });
+  return {
+    kind: input.kind,
+    conversationId: input.conversationId,
+    locale: input.locale,
+    request: {
+      message: input.instruction,
+      context: contextPage ? { slideIndex: input.slideIndex, title: contextPage.title } : undefined,
+      attachments,
+      designFiles: (input.designFilePaths || []).map((filePath) => ({
+        path: filePath,
+        relativePath: filePath,
+        name: basename(filePath),
+        kind: "other",
+      })),
+    },
+  };
+}
+
 function mimeFor(path) {
   return {
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -327,6 +434,13 @@ async function run(command, input) {
         view,
         filePath: input.filePath,
         scenarioId: input.scenarioId,
+        slideIndex: input.slideIndex,
+        panel: input.panel,
+        versionId: input.versionId,
+        mode: input.mode,
+        checkpoint: input.checkpoint,
+        conversationId: input.conversationId,
+        runId: input.runId,
       }),
       projectId: targetProjectId || null,
       view,
@@ -346,6 +460,69 @@ async function run(command, input) {
       url: interactiveProjectUrl(project.id),
       browserAction: "navigate",
       interactionMode: "browser-guided",
+    };
+  }
+  if (command === "run-start") {
+    if (!input.projectId || !["chat", "outline", "render"].includes(input.kind)) {
+      throw new Error("projectId and kind (chat, outline, or render) are required.");
+    }
+    const data = await postJson(runApiPath(input.projectId), await projectRunInput(input));
+    const runId = data.queued ? null : (data.run?.id || data.activeRun?.id || null);
+    return {
+      projectId: input.projectId,
+      runId,
+      run: data.run || data.activeRun || null,
+      queued: Boolean(data.queued),
+      queuedRequestId: data.queuedRequestId || null,
+      queue: data.queue || [],
+      browserUrl: browserUrl(input.projectId, {
+        slideIndex: input.slideIndex,
+        conversationId: input.conversationId,
+        runId,
+        checkpoint: input.kind === "outline" ? "outline" : input.kind === "render" ? "render" : "deck",
+      }),
+    };
+  }
+  if (command === "run-status") {
+    if (!input.projectId) throw new Error("projectId is required.");
+    const data = await apiJson(runApiPath(input.projectId, input.runId));
+    if (input.runId && !data.run) throw new Error(`Project run not found: ${input.runId}`);
+    return {
+      projectId: input.projectId,
+      run: data.run || null,
+      activeRun: data.activeRun || null,
+      browserUrl: browserUrl(input.projectId, {
+        slideIndex: data.run?.targetSlide,
+        runId: data.run?.id || input.runId,
+      }),
+    };
+  }
+  if (command === "run-wait") {
+    if (!input.projectId || !input.runId) throw new Error("projectId and runId are required.");
+    const data = await waitForProjectRun(
+      input.projectId,
+      input.runId,
+      Math.max(1, Math.min(300, Number(input.timeoutSeconds) || 120)),
+      Math.max(250, Math.min(5000, Number(input.pollIntervalMs) || 750)),
+    );
+    return {
+      projectId: input.projectId,
+      run: data.run,
+      timedOut: Boolean(data.timedOut),
+      browserUrl: browserUrl(input.projectId, {
+        slideIndex: data.run?.targetSlide,
+        runId: input.runId,
+      }),
+    };
+  }
+  if (command === "run-cancel") {
+    if (!input.projectId) throw new Error("projectId is required.");
+    const data = await apiJson(runApiPath(input.projectId, input.runId), { method: "DELETE" });
+    return {
+      projectId: input.projectId,
+      run: data.run || data.activeRun || null,
+      activeRun: data.activeRun || null,
+      browserUrl: browserUrl(input.projectId, { runId: data.run?.id || input.runId }),
     };
   }
   if (command === "onboard") {
@@ -393,7 +570,7 @@ async function run(command, input) {
       if (event.type === "page_error") errored += 1;
     });
     if (!projectId) throw new Error("Generation finished without creating a project.");
-    return { projectId, title, rendered, errored, previewUrl: browserUrl(projectId) };
+    return { projectId, title, rendered, errored, previewUrl: browserUrl(projectId, { checkpoint: "deck" }) };
   }
   if (command === "outline") {
     if (!input.topic) throw new Error("topic is required.");
@@ -412,7 +589,7 @@ async function run(command, input) {
       if (event.type === "research" && event.markdown) researchDoc = event.markdown;
     });
     if (!projectId) throw new Error("Outline generation finished without creating a draft.");
-    return { projectId, title, outline, researchDoc, previewUrl: browserUrl(projectId) };
+    return { projectId, title, outline, researchDoc, previewUrl: browserUrl(projectId, { checkpoint: "outline" }) };
   }
   if (command === "revise-outline") {
     if (!input.projectId) throw new Error("projectId is required.");
@@ -434,7 +611,7 @@ async function run(command, input) {
       if (event.type === "page_rendered") rendered += 1;
       if (event.type === "page_error") errored += 1;
     });
-    return { projectId: input.projectId, rendered, errored, previewUrl: browserUrl(input.projectId) };
+    return { projectId: input.projectId, rendered, errored, previewUrl: browserUrl(input.projectId, { checkpoint: "render" }) };
   }
   if (command === "list") {
     const data = await apiJson("/api/projects");
@@ -452,7 +629,7 @@ async function run(command, input) {
     const path = `/api/projects/${encodeURIComponent(input.projectId)}/speaker-notes`;
     if (action === "get") {
       const data = await apiJson(`${path}${input.index ? `?index=${input.index}` : ""}`);
-      return { ...data, previewUrl: browserUrl(input.projectId) };
+      return { ...data, projectId: input.projectId, previewUrl: browserUrl(input.projectId, { slideIndex: input.index, panel: "speaker-notes" }) };
     }
     if (action === "set") {
       if (!(input.index && typeof input.note === "string") && !input.notes?.length) {
@@ -463,7 +640,7 @@ async function run(command, input) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ index: input.index, note: input.note, notes: input.notes }),
       });
-      return { ...data, previewUrl: browserUrl(input.projectId) };
+      return { ...data, projectId: input.projectId, previewUrl: browserUrl(input.projectId, { slideIndex: input.index, panel: "speaker-notes" }) };
     }
     if (action === "generate") {
       const data = await postJson(path, {
@@ -471,7 +648,7 @@ async function run(command, input) {
         overwrite: input.overwrite === true,
         instruction: input.instruction,
       });
-      return { ...data, previewUrl: browserUrl(input.projectId) };
+      return { ...data, projectId: input.projectId, previewUrl: browserUrl(input.projectId, { slideIndex: input.index, panel: "speaker-notes" }) };
     }
     throw new Error("speaker-notes action must be get, set, or generate.");
   }
@@ -682,7 +859,7 @@ async function run(command, input) {
         changed.push(slideSummary(generated.page));
       }
     }
-    return { projectId: input.projectId, plan, changed, previewUrl: browserUrl(input.projectId) };
+    return { projectId: input.projectId, plan, changed, previewUrl: browserUrl(input.projectId, { slideIndex: changed[0]?.index }) };
   }
   if (command === "restyle") {
     if (!input.projectId) throw new Error("projectId is required.");
@@ -714,7 +891,7 @@ async function run(command, input) {
         }
       }
     }
-    return { projectId: input.projectId, template: updated.config?.template, style: updated.config?.style, changed, previewUrl: browserUrl(input.projectId) };
+    return { projectId: input.projectId, template: updated.config?.template, style: updated.config?.style, changed, previewUrl: browserUrl(input.projectId, { slideIndex: changed[0]?.index }) };
   }
   if (command === "slide") {
     if (!input.projectId || !input.action) throw new Error("projectId and action are required.");
@@ -723,12 +900,17 @@ async function run(command, input) {
     const data = input.action === "delete"
       ? await apiJson(path, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ index: input.index }) })
       : await postJson(path, { action: input.action, index: input.index, toIndex: input.toIndex, afterIndex: input.afterIndex, transition: input.transition });
-    return { projectId: input.projectId, action: input.action, pages: (data.pages || []).map(slideSummary), previewUrl: browserUrl(input.projectId) };
+    const focusIndex = input.action === "move"
+      ? input.toIndex
+      : input.action === "add"
+        ? Math.max(1, (input.afterIndex ?? data.pages?.length ?? 1) + 1)
+        : input.index;
+    return { projectId: input.projectId, action: input.action, pages: (data.pages || []).map(slideSummary), previewUrl: browserUrl(input.projectId, { slideIndex: focusIndex }) };
   }
   if (command === "regenerate") {
     if (!input.projectId || !input.index) throw new Error("projectId and index are required.");
     const data = await postJson(`/api/projects/${encodeURIComponent(input.projectId)}/regenerate`, { index: input.index, instruction: input.instruction });
-    return { projectId: input.projectId, page: slideSummary(data.page), previewUrl: browserUrl(input.projectId) };
+    return { projectId: input.projectId, page: slideSummary(data.page), previewUrl: browserUrl(input.projectId, { slideIndex: input.index }) };
   }
   if (command === "upload-material") {
     if (!input.filePath) throw new Error("filePath is required.");
@@ -747,7 +929,7 @@ async function run(command, input) {
     const response = await apiFetch(`/api/projects/${encodeURIComponent(input.projectId)}/slides/${input.index}/image`, { method: "POST", body: form });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-    return { projectId: input.projectId, page: slideSummary(data.page), previewUrl: browserUrl(input.projectId) };
+    return { projectId: input.projectId, page: slideSummary(data.page), previewUrl: browserUrl(input.projectId, { slideIndex: input.index }) };
   }
   if (command === "mark-edit") {
     if (!input.projectId || !input.index || !input.annotatedImagePath) throw new Error("projectId, index, and annotatedImagePath are required.");
@@ -765,13 +947,18 @@ async function run(command, input) {
     const editResponse = await apiFetch(`/api/projects/${encodeURIComponent(input.projectId)}/mark`, { method: "POST", body: editForm });
     const edited = await editResponse.json().catch(() => ({}));
     if (!editResponse.ok) throw new Error(edited.error || `HTTP ${editResponse.status}`);
-    return { projectId: input.projectId, markedSource: source.image, page: slideSummary(edited.page), previewUrl: browserUrl(input.projectId) };
+    return { projectId: input.projectId, markedSource: source.image, page: slideSummary(edited.page), previewUrl: browserUrl(input.projectId, { slideIndex: input.index }) };
   }
   if (command === "export") {
     if (!input.projectId) throw new Error("projectId is required.");
     await apiJson(`/api/projects/${encodeURIComponent(input.projectId)}`);
     const format = input.format === "pptx" ? "pptx" : "pdf";
-    return { projectId: input.projectId, format, downloadUrl: `${BASE}/api/projects/${encodeURIComponent(input.projectId)}/export?format=${format}` };
+    return {
+      projectId: input.projectId,
+      format,
+      downloadUrl: `${BASE}/api/projects/${encodeURIComponent(input.projectId)}/export?format=${format}`,
+      browserUrl: browserUrl(input.projectId, { panel: "export" }),
+    };
   }
   throw new Error(`Unknown command '${command}'. Run 'help' for the command list.`);
 }
@@ -780,7 +967,7 @@ const command = process.argv[2] || "help";
 try {
   const input = await parseInput(process.argv.slice(3));
   const result = await run(command, input);
-  writeJson({ ok: true, command, ...result });
+  writeJson({ ok: true, command, ...withBrowserHandoff(result) });
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   writeJson({ ok: false, command, error: message });

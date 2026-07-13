@@ -330,6 +330,14 @@ export interface ProjectRunState {
   input: ProjectRunInput;
 }
 
+/** Terminal project-owned task retained for MCP/CLI status checks after the
+ * active worker has completed, failed, or been cancelled. */
+export interface ProjectRunRecord extends Omit<ProjectRunState, "status"> {
+  status: "complete" | "error" | "cancelled";
+  completedAt: number;
+  error?: string;
+}
+
 /** A non-file choice attached to a user turn, displayed like other context. */
 export interface ContextOptionItem {
   id: string;
@@ -455,6 +463,9 @@ export interface Project {
   activeConversationId?: string;
   /** The only project mutation currently executing in the server background. */
   activeRun?: ProjectRunState;
+  /** Recent terminal jobs. This makes run ids durable across navigation,
+   * MCP reconnects, and local server restarts. */
+  runHistory?: ProjectRunRecord[];
 }
 
 /** Immutable deck snapshots shown in version management. Restoring a snapshot

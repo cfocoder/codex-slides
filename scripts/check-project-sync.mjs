@@ -21,11 +21,15 @@ assert.match(deckView, /latest\.conversations/);
 const runRoute = read("src/app/api/projects/[id]/runs/route.ts");
 assert.match(runRoute, /ensureProjectRun\(params\.id\)/);
 assert.match(runRoute, /activeRun: project\.activeRun \?\? null/);
+assert.match(runRoute, /getProjectRun\(project, runId\)/);
+assert.match(runRoute, /queuedRequestId/);
 assert.match(runRoute, /status: 304/);
 
 const projectRuns = read("src/lib/projectRuns.ts");
 assert.match(projectRuns, /__codexSlidesProjectRuns/);
 assert.match(projectRuns, /project\.activeRun = run/);
+assert.match(projectRuns, /project\.runHistory =/);
+assert.match(projectRuns, /archiveRun\(projectId, run, finalStatus/);
 assert.match(projectRuns, /saveProject\(project\)/);
 
 const live = process.argv.includes("--live");
