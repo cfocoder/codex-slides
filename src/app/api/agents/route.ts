@@ -8,17 +8,19 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const agents = detectAgents();
   const codexReady = hasCodexToken();
+  const codexCli = agents.find((a) => a.id === "codex");
   return NextResponse.json({
     codexReady,
     agents,
-    // "codex" engine = the zero-config Responses backend; available iff token present.
-    engines: [
-      { engine: "codex", label: "Codex (zero-config backend)", available: codexReady },
-      ...agents.map((a) => ({
-        engine: `${a.id}-cli`,
-        label: `${a.label} (local CLI)`,
-        available: a.available,
-      })),
-    ],
+    // Detection summary consumed by the Codex setup dialog: the zero-config
+    // Responses backend needs the ChatGPT token; the CLI on PATH is a bonus.
+    codex: {
+      tokenPresent: codexReady,
+      cliAvailable: Boolean(codexCli?.available),
+      cliPath: codexCli?.path ?? null,
+    },
+    // Codex is the only orchestration engine (zero-config Responses backend).
+    // The local-CLI variants (claude/gemini) are intentionally not surfaced.
+    engines: [{ engine: "codex", label: "Codex", available: codexReady }],
   });
 }

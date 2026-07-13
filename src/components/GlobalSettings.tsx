@@ -1,12 +1,14 @@
 "use client";
 
-import { Check, GearSix, Translate, X } from "@phosphor-icons/react";
+import { CaretRight, Check, GearSix, Terminal, Translate, X } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
+import { useCodexSetup } from "@/components/CodexSetupProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALES, LOCALE_LABEL } from "@/i18n/messages";
 
 export default function GlobalSettings() {
   const { locale, setLocale, t } = useI18n();
+  const { openSetup } = useCodexSetup();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -50,6 +52,23 @@ export default function GlobalSettings() {
               <X size={16} />
             </button>
           </div>
+          <button
+            type="button"
+            className="global-settings-codex"
+            onClick={() => {
+              setOpen(false);
+              openSetup();
+            }}
+          >
+            <span className="global-settings-codex-icon" aria-hidden="true">
+              <Terminal size={16} weight="bold" />
+            </span>
+            <span className="global-settings-codex-copy">
+              <b>{t("settings.codex")}</b>
+              <small>{t("settings.codexHelp")}</small>
+            </span>
+            <CaretRight size={15} aria-hidden="true" />
+          </button>
           <div className="global-settings-copy">
             <Translate size={18} aria-hidden="true" />
             <span>{t("settings.languageHelp")}</span>

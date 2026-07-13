@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import CodexSetupProvider from "@/components/CodexSetupProvider";
 import GlobalSettings from "@/components/GlobalSettings";
 import { I18nProvider } from "@/i18n";
 import "./globals.css";
@@ -14,8 +15,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="zh-CN" suppressHydrationWarning>
       <body>
         <I18nProvider>
-          <GlobalSettings />
-          {children}
+          <CodexSetupProvider>
+            <GlobalSettings />
+            {children}
+          </CodexSetupProvider>
         </I18nProvider>
       </body>
     </html>

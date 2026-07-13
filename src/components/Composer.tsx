@@ -2,6 +2,7 @@
 
 import { Check, Paperclip, Plus, UploadSimple } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, type DragEvent } from "react";
+import { useCodexSetup } from "@/components/CodexSetupProvider";
 import ContextItems from "@/components/ContextItems";
 import ContextOptionItems from "@/components/ContextOptionItems";
 import ProjectTemplatePicker from "@/components/ProjectTemplatePicker";
@@ -112,8 +113,9 @@ export default function Composer({
   ) => void;
 }) {
   const { locale, t } = useI18n();
+  const { openSetup } = useCodexSetup();
   const [focus, setFocus] = useState(false);
-  const [menu, setMenu] = useState<null | "add" | "model" | "settings">(null);
+  const [menu, setMenu] = useState<null | "add" | "settings">(null);
   const [quality, setQuality] = useState<QualityId>("auto");
   const [aspectSel, setAspectSel] = useState<PptConfig["aspect"] | "auto">("auto");
   const [uploading, setUploading] = useState(false);
@@ -125,12 +127,10 @@ export default function Composer({
   const slotFileRef = useRef<HTMLInputElement>(null);
   const activeSlotRef = useRef<string | null>(null);
   const addRef = useRef<HTMLDivElement>(null);
-  const modelRef = useRef<HTMLDivElement>(null);
   const setRef = useRef<HTMLDivElement>(null);
   const dragDepthRef = useRef(0);
 
   useOutside(addRef, () => setMenu((m) => (m === "add" ? null : m)), menu === "add");
-  useOutside(modelRef, () => setMenu((m) => (m === "model" ? null : m)), menu === "model");
   useOutside(setRef, () => setMenu((m) => (m === "settings" ? null : m)), menu === "settings");
 
   const engine = engines.find((e) => e.engine === config.engine);
@@ -476,33 +476,14 @@ export default function Composer({
           onClear={() => onClearProjectTemplate?.()}
         />
 
-        {/* model */}
-        <div ref={modelRef} style={{ position: "relative" }}>
-          <button className="cbtn" onClick={() => setMenu(menu === "model" ? null : "model")}>
-            ◍ {modelLabel} <span className="caret">▾</span>
-          </button>
-          {menu === "model" && (
-            <div className="pop up">
-              <div className="pop-title">{t("composer.engine")}</div>
-              {engines.map((e) => (
-                <button
-                  key={e.engine}
-                  className="pop-item"
-                  disabled={!e.available}
-                  onClick={() => {
-                    if (!e.available) return;
-                    setConfig({ engine: e.engine as PptConfig["engine"] });
-                    setMenu(null);
-                  }}
-                >
-                  <span className="ic">{config.engine === e.engine ? "●" : "○"}</span>
-                  <span className="grow">{e.label.replace(/\s*\(.*\)$/, "")}</span>
-                  {!e.available && <span style={{ fontSize: 11, color: "var(--muted)" }}>{t("composer.unavailable")}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* engine — Codex is the only orchestrator; opens the setup dialog */}
+        <button
+          className="cbtn"
+          onClick={() => openSetup()}
+          title={t("codexSetup.openEntry")}
+        >
+          ◍ {modelLabel} <span className="caret">▾</span>
+        </button>
 
         {/* settings: quality · aspect */}
         <div ref={setRef} style={{ position: "relative" }}>
