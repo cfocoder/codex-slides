@@ -120,6 +120,13 @@ assert.match(nextConfig, /entry\.name !== activeDistDir/);
 assert.match(release, /macos-latest/);
 assert.match(release, /windows-latest/);
 assert.match(release, /ubuntu-latest/);
+// Both release paths must stay wired: tag push and Actions-UI dispatch (which
+// bumps versions via set-version.mjs, pushes the tag itself, and gates every
+// upload/publish step on the resolved release context).
+assert.match(release, /workflow_dispatch/);
+assert.match(release, /set-version\.mjs/);
+assert.match(release, /is_release/);
+assert.match(release, /smoke-server\.mjs --packaged/);
 assert.equal(icon.readUInt32BE(16), 1024);
 assert.equal(icon.readUInt32BE(20), 1024);
 assert.equal(icon.readUInt8(25), 6);

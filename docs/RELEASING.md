@@ -7,6 +7,25 @@ installers that ship.
 
 ## TL;DR — ship a release
 
+There are two equivalent ways; both end in the same automated pipeline.
+
+### Option A: from the GitHub UI (no local setup at all)
+
+1. Open **Actions → Release desktop apps → Run workflow**.
+2. Enter the version, e.g. `0.2.0`, and run.
+
+The workflow validates the version, bumps `package.json` and
+`electron/package.json` on the branch if needed (committing `release: v0.2.0`
+as `github-actions[bot]`), pushes the `v0.2.0` tag itself, and then continues
+into the build/publish pipeline below. Leaving the version empty runs a
+build-only rehearsal that publishes nothing.
+
+> Note: this path needs the default branch to accept pushes from GitHub
+> Actions. If you later protect `master`, either allow the Actions bot to
+> bypass the rule or use Option B.
+
+### Option B: from your terminal
+
 ```bash
 pnpm release 0.2.0
 ```
@@ -29,7 +48,7 @@ any git state.
 
 | Stage | What happens | Fails when |
 |---|---|---|
-| **Prepare draft release** | Checks the tag matches `package.json`, then creates a **draft** GitHub Release with auto-generated changelog plus download/install instructions | Tag and package version disagree |
+| **Prepare release** | Tag push: checks the tag matches `package.json`. UI dispatch: bumps versions, pushes the commit + tag. Then creates a **draft** GitHub Release with auto-generated changelog plus download/install instructions | Tag and package version disagree, or the tag already exists |
 | **Build mac / windows / linux** | `electron:check` → `build:desktop` (which boots the built server and requires HTTP 200 from `/` and `/api/agents`) → `electron-builder` → boots the server **again from inside the packaged app** → uploads assets to the draft | Any contract check, build, or smoke probe fails |
 | **Publish** | Writes `SHA256SUMS.txt` (must cover exactly 7 assets), then flips the draft to a published release marked **Latest** | An asset is missing |
 

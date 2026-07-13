@@ -9,7 +9,7 @@
 // git state.
 
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -55,12 +55,8 @@ if (run("git", ["tag", "--list", `v${version}`], { capture: true }) !== "") {
   fail(`tag v${version} already exists.`);
 }
 
-for (const file of packageFiles) {
-  const pkg = JSON.parse(readFileSync(file, "utf8"));
-  pkg.version = version;
-  if (!dryRun) writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
-}
-process.stdout.write(`Bumped ${current} -> ${version}\n`);
+run(process.execPath, [join(root, "scripts", "set-version.mjs"), version], { mutates: true });
+process.stdout.write(`${dryRun ? "Would bump" : "Bumped"} ${current} -> ${version}\n`);
 
 // Fast local gates; the workflow re-runs the full set on every platform.
 run("pnpm", ["electron:check"]);

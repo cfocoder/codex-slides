@@ -615,8 +615,10 @@ stops only the Web process that command owns, so a separately launched Web sessi
 Desktop builds use an isolated `.next-desktop` output so a concurrent web/dev build cannot
 overwrite the runtime being packaged.
 
-Releases are one command: `pnpm release 0.2.0` bumps versions, runs the local gates, and
-pushes a `v0.2.0` tag. The tag runs
+Releases are one action: run **Actions → Release desktop apps → Run workflow** with a version
+number (the workflow bumps versions, commits, and tags by itself), or locally run
+`pnpm release 0.2.0`, which bumps versions, runs the local gates, and pushes a `v0.2.0` tag.
+Either path runs
 [`release-desktop.yml`](.github/workflows/release-desktop.yml), which creates a draft GitHub
 Release, builds on native macOS, Windows, and Linux runners, **boots the packaged server on
 every platform and requires HTTP 200 from core routes**, uploads the `.dmg`, `.zip`, `.exe`,
