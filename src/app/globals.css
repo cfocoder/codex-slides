@@ -7887,8 +7887,11 @@ button:disabled {
   display: block;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   max-width: 100%;
   max-height: 100%;
+  place-self: stretch;
   object-fit: contain;
   /* No border/ring: object-fit: contain letterboxes, so any outline would draw
      a frame in the empty margin around the slide rather than hugging it. */
