@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { ArrowUpRight, CaretDown } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
@@ -18,7 +17,13 @@ export default function TopBar({ workspace = "Codex Slides" }: { workspace?: str
   return (
     <header className={`appbar${scrolled ? " scrolled" : ""}`}>
       <div className="brand-lockup">
-        <Link href="/" className="product-lockup" aria-label={`${workspace} home`}>
+        <a
+          className="product-lockup"
+          href="https://github.com/nexu-io/codex-slides"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`${workspace} on GitHub (opens in a new tab)`}
+        >
           <span className="brand-mark-shell" aria-hidden="true">
             <Image
               className="brand-mark"
@@ -33,7 +38,7 @@ export default function TopBar({ workspace = "Codex Slides" }: { workspace?: str
             {workspace}
             <CaretDown className="product-caret" size={11} weight="bold" aria-hidden="true" />
           </span>
-        </Link>
+        </a>
 
         <span className="brand-lockup-divider" aria-hidden="true" />
 

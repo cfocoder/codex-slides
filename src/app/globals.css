@@ -7050,7 +7050,7 @@ button.doc-card:focus-visible {
   line-height: 1.55;
 }
 .speaker-notes-editor textarea:focus {
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 34%, transparent);
+  box-shadow: none;
 }
 .speaker-notes-saving {
   position: absolute;
@@ -10937,6 +10937,26 @@ a {
     height: 100%;
     max-height: 100%;
   }
+  /* Keep the editing toolbar, full contained slide, and speaker notes visible
+     together. The middle row absorbs the available height and scales the
+     aspect-ratio canvas instead of scrolling either edge out of view. */
+  .project-ws .stage-main {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    align-items: center;
+    justify-items: center;
+    justify-content: stretch;
+    overflow: hidden;
+  }
+  .project-ws .slide-toolbar { grid-row: 1; }
+  .project-ws .preview {
+    grid-row: 2;
+    width: auto;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+  }
+  .project-ws .speaker-notes-panel { grid-row: 3; }
   @supports (height: 100dvh) {
     body:has(.project-ws),
     .ws.project-ws {

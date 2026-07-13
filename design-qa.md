@@ -62,4 +62,51 @@
 
 - 浏览器恢复后补测 760px 与 480px 断点，确认首页 88px 输入区和移动端 16px 防缩放规则不会互相覆盖。
 
-final result: blocked
+previous result: blocked
+
+---
+
+# Design QA — 项目默认预览封面
+
+## 视觉真值与实现证据
+
+- 参考图：`.qa/default-preview/reference.png`，重点参考 Recent projects 中的柔和色块、项目首字与简洁封面结构。
+- 桌面实现：`.qa/default-preview/implementation-desktop.png`，1600 × 1000，首页项目库，35 个项目中 7 个无真实封面。
+- 平板实现：`.qa/default-preview/implementation-tablet.png`，760 × 900，双列项目网格。
+- 手机实现：`.qa/default-preview/implementation-mobile.png`，390 × 844，单列项目网格。
+- 同图对照：`.qa/default-preview/comparison.png`，左侧为参考图局部，右侧为桌面实现局部。
+
+![默认预览参考与实现并排对照](.qa/default-preview/comparison.png)
+
+## 实现状态
+
+- 无真实 `cover` 的项目使用标题中的第一个 Unicode 字母或数字作为封面主字符，中文、日文和拉丁字符均可稳定显示。
+- 六组低饱和色板由 `project.id + title` 的稳定哈希选择；刷新、轮询和重新打开后不会跳色。
+- 封面保留现有 16:9 比例、圆角、边框、打开态、运行态和链接语义，不伪装成一张已经生成的幻灯片。
+- `role="img"` 和本地化的“暂无预览”标签保留空状态语义；主字符仅作视觉呈现。
+
+## 对照检查
+
+- 字体与排版：参考图的大号衬线首字已映射为 44–68px 响应式字号；项目标题和状态排版沿用现有卡片层级，无截断或密度回退。
+- 间距与布局：桌面四列、平板双列、手机单列均保持 16:9；`scrollWidth === clientWidth`，没有横向溢出、重叠或裁切。
+- 色彩与视觉 token：使用六组柔和实色背景，不使用渐变或伪造预览图；文字与背景对比清晰，并保留 Codex Slides 的蓝紫主调。
+- 图像与资产：已有真实封面完全不变；默认封面只在 `cover === null` 时出现，不会覆盖生成结果。
+- 图标与交互：hover/focus 打开箭头、运行徽标和加载状态继续位于原层级；移动端保持可见的打开入口。
+- 无障碍：项目卡仍是带完整项目标题的链接；空封面有本地化可访问名称，装饰首字不会重复朗读。
+
+## Findings 与迭代历史
+
+1. 首轮把灰色“暂无预览”替换为确定性色块与首字封面，并加入低对比度 `CODEX SLIDES` 角标。
+2. 在 1600px 视口对照参考图后，封面比例、信息密度和视觉层级达到目标，没有 P0、P1 或 P2 偏差。
+3. 在 760px 和 390px 视口复测，网格分别稳定为双列与单列；没有溢出、错位、不可点击或文字碰撞。
+
+## 功能与运行验证
+
+- 浏览器：开发服务与打包服务均加载成功，无 Next.js 错误遮罩、页面错误或控制台错误。
+- 静态合同：TypeScript、57 个 Node 测试、三语言 i18n、项目同步、Skill、38-tool MCP 和 Electron 合同全部通过。
+- 实时合同：Skill live、MCP live 和 project-sync live 全部通过。
+- 构建：`pnpm build` 与 `pnpm electron:pack` 均成功。
+- 打包应用：`dist/mac-arm64/Codex Slides.app` 通过深度签名校验；独立启动后本地服务在 `127.0.0.1:50353` 就绪，首页与 `/api/agents` 均正常。
+- macOS 图标：打包源为 1024 × 1024 RGBA，非透明主体为精确的 `784:784:120:120`，即主体占 76.56%，四边各 120px 安全区。
+
+final result: passed
