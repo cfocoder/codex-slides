@@ -28,6 +28,14 @@ export const AGENTS: AgentDef[] = [
   { id: "gemini", label: "Gemini CLI", bin: "gemini", envOverride: "GEMINI_BIN", vendor: "Google", engine: "gemini-cli" },
 ];
 
+// Agent executables are runtime inputs, not application dependencies. Resolve
+// existsSync indirectly so Next's standalone tracer does not try to copy every
+// build-runner toolchain directory (which also breaks across Windows drives).
+const existsAtRuntime = (candidate: string): boolean => {
+  const existsSync = Reflect.get(fs, "existsSync") as (path: fs.PathLike) => boolean;
+  return existsSync(candidate);
+};
+
 function userToolchainDirs(): string[] {
   const home = os.homedir();
   const dirs = [
@@ -57,7 +65,7 @@ export function resolveOnPath(bin: string): string | null {
     for (const ext of exts) {
       const candidate = path.join(dir, bin + ext);
       try {
-        if (fs.existsSync(candidate)) return candidate;
+        if (existsAtRuntime(candidate)) return candidate;
       } catch {
         /* ignore */
       }
@@ -69,7 +77,7 @@ export function resolveOnPath(bin: string): string | null {
 function resolveAgent(def: AgentDef): { path: string | null } {
   if (def.envOverride && process.env[def.envOverride]) {
     const override = process.env[def.envOverride]!;
-    if (fs.existsSync(override)) return { path: override };
+    if (existsAtRuntime(override)) return { path: override };
     const r = resolveOnPath(override);
     if (r) return { path: r };
   }
