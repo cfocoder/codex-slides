@@ -31,7 +31,7 @@ writeFileSync(standalonePackageFile, `${JSON.stringify(standalonePackage, null, 
 // pnpm to fetch a missing store tarball on clean or partially-pruned builders.
 rmSync(join(standalone, "node_modules"), { recursive: true, force: true });
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-const install = spawnSync(pnpm, [
+const installArgs = [
   "install",
   "--dir", standalone,
   "--prod",
@@ -39,7 +39,13 @@ const install = spawnSync(pnpm, [
   "--ignore-scripts",
   "--ignore-workspace",
   "--no-lockfile",
-], { cwd: root, stdio: "inherit" });
+];
+const pnpmCli = process.env.npm_execpath;
+const install = spawnSync(
+  pnpmCli ? process.execPath : pnpm,
+  pnpmCli ? [pnpmCli, ...installArgs] : installArgs,
+  { cwd: root, stdio: "inherit", shell: process.platform === "win32" && !pnpmCli },
+);
 if (install.status !== 0) throw new Error(`Standalone production install failed (${install.status ?? "unknown"}).`);
 
 const destinationNext = realpathSync(join(standalone, "node_modules", "next"));
