@@ -217,252 +217,234 @@ through questions, research, outline, generation, editing, presenting, and expor
 
 ## Examples
 
-Every slide below is a single image-native canvas produced through the same workflow — a
-brief, an outline, a visual direction, and progressive rendering.
-
-<table>
-  <tr>
-    <td width="50%"><img src="docs/assets/readme/case-market-report.png" alt="Business and market report deck" /></td>
-    <td width="50%"><img src="docs/assets/readme/case-data.png" alt="Data visualization dashboard deck" /></td>
-  </tr>
-  <tr>
-    <td><strong>Business &amp; market report</strong> — charts, KPI callouts, and a tidy grid for consulting-grade decks.</td>
-    <td><strong>Data &amp; dashboards</strong> — maps, donut and trend charts, and metric tiles for analytical stories.</td>
-  </tr>
-  <tr>
-    <td><img src="docs/assets/readme/case-keynote.png" alt="Product keynote deck" /></td>
-    <td><img src="docs/assets/readme/case-editorial.png" alt="Editorial magazine-style deck" /></td>
-  </tr>
-  <tr>
-    <td><strong>Product keynote</strong> — cinematic, high-contrast title moments for launches and pitches.</td>
-    <td><strong>Editorial</strong> — refined typography and a print-quality grid for narrative decks.</td>
-  </tr>
-</table>
-
-### 16 more decks — the image is the style, the prompt is how you ask for it
-
-Each card below is a real **visual system that ships with Codex Slides**, paired with the exact
-prompt that turns it into a finished deck. Every prompt opens a **durable project**, stops for
+Every card below is a real **visual system that ships with Codex Slides**, paired with the exact
+prompt that turns it into a finished deck. Each prompt opens a **durable project**, stops for
 outline and visual-direction approval, then renders in the Browser where you watch it happen —
 swap in your own topic, audience, or files and go.
 
-#### 🎯 Create from scratch
-
-<p align="center">
-  <img src="public/community/foryou-pitch-midnight-traction.jpg" alt="Midnight investor pitch title slide" width="720" />
-</p>
-
-**Seed pitch — midnight & traction** · a confident dark title system with one electric-blue accent.
-
-```text
-Open Codex Slides in the Codex Browser and build a 10-slide seed pitch for a
-developer-tools startup — problem, insight, product, demo, traction, market,
-model, moat, team, ask. Use a confident dark "midnight" title system with one
-electric-blue accent. Stop at the outline, then render in Fast mode.
-```
-
-<p align="center">
-  <img src="public/community/foryou-pitch-clean-daylight.jpg" alt="Clean daylight product keynote with 3D diagram nodes" width="720" />
-</p>
-
-**Product keynote — clean daylight** · a bright, airy layout with soft 3D diagram nodes.
-
-```text
-Open Codex Slides and create a 14-slide product keynote for an agent-native
-platform. Bright, airy "daylight" layout with soft 3D diagram nodes and one
-indigo accent, one idea per slide. Show me the visual-direction options, then
-generate at 4K.
-```
-
-#### 📊 Data &amp; insights
-
-<p align="center">
-  <img src="public/community/foryou-data-answer-first.jpg" alt="Answer-first data slide with a national map and KPI callouts" width="720" />
-</p>
-
-**Answer-first data story** · leads with the headline, then a map, trends, and a recommendation.
-
-```text
-Open Codex Slides in the Browser and turn the attached dataset into a 9-slide
-data story that leads with the answer: a headline metric, a national map of
-where it's happening, trend and regional breakdowns, and a recommendation.
-Analytical and uncluttered. Confirm the outline first.
-```
-
-<p align="center">
-  <img src="public/community/nb-liquid-glass-bento.jpg" alt="Liquid glass bento grid dashboard" width="720" />
-</p>
-
-**Liquid Glass bento dashboard** · transparent glass cards over a soft blurred ground.
-
-```text
-Open Codex Slides and build a 6-slide product overview in the Liquid Glass
-Bento style — an asymmetric bento grid of transparent glass cards over a soft
-blurred ground, one hero cell plus titled metric tiles. Use my attached specs
-as the facts. Approve the outline before rendering.
-```
-
-<p align="center">
-  <img src="public/community/nb-visual-info-guide.jpg" alt="Clean visual information guide layout" width="720" />
-</p>
-
-**Visual info guide** · a tidy, icon-led explainer for a research readout.
-
-```text
-Open Codex Slides and turn the attached survey export into a 10-slide research
-readout as a clean visual info guide: method, three headline findings with
-supporting charts, verbatim quotes, and recommendations. Neutral, evidence-first.
-Outline first.
-```
-
-#### 📄 Turn sources into slides
-
-<p align="center">
-  <img src="public/community/foryou-craft-editorial-ink.jpg" alt="Editorial ink-and-paper report title slide" width="720" />
-</p>
-
-**Editorial report** · refined serif headlines and a strict print grid.
-
-```text
-Open Codex Slides. Use the attached PDF as the content source and rebuild it as
-a 12-slide editorial report — refined serif headlines, an ink-and-paper craft
-palette, and a strict print grid. Keep every fact, add nothing. Stop for outline
-approval, then export PPTX and PDF.
-```
-
-<p align="center">
-  <img src="public/community/nb-summary-infographic.jpg" alt="Dense one-page summary infographic" width="720" />
-</p>
-
-**One-page summary infographic** · a whole story compressed into one dense, sectioned page.
-
-```text
-Open Codex Slides and use the attached transcript as the source. Distill the
-whole meeting into a single dense "summary infographic" slide plus 4 supporting
-pages — decisions, owners, next steps, and risks, with icons and tidy sections.
-Show me the outline first.
-```
-
-<p align="center">
-  <img src="public/community/nb-technical-cutaway.jpg" alt="Labeled technical cutaway diagram" width="720" />
-</p>
-
-**Technical cutaway** · a labeled cross-section that formalizes a rough sketch.
-
-```text
-Open Codex Slides. Use the attached whiteboard photo as a visual source and
-reconstruct the system as a 5-slide "technical cutaway" — a labeled cross-section
-hero, data flow, components, tradeoffs, and rollout. Keep my labels, formalize
-the sketch. Pause at the outline.
-```
-
-#### 🔬 Research &amp; decisions
-
-<p align="center">
-  <img src="public/community/nb-engineering-blueprint-grid.jpg" alt="Engineering blueprint grid with annotated diagrams" width="720" />
-</p>
-
-**Engineering blueprint teardown** · annotated diagrams on a precise technical grid.
-
-```text
-Open Codex Slides and build a 9-slide competitive teardown of us vs. three named
-rivals in an engineering blueprint grid — annotated diagrams, a feature matrix,
-pricing, and where we win. Fair and specific, no strawmen. Show the outline
-before rendering.
-```
-
-<p align="center">
-  <img src="public/community/nb-watercolor-map.jpg" alt="Watercolor annotated regional map" width="720" />
-</p>
-
-**Watercolor annotated map** · a hand-painted map anchoring a market-entry story.
-
-```text
-Open Codex Slides and create an 8-slide market-entry brief centered on a
-watercolor annotated map of our target regions, with a ranked opportunity table
-and a phased plan. Run quick research first and keep the sources in Design Files.
-Approve the outline before rendering.
-```
-
-#### 🎨 Optimize a deck
-
-<p align="center">
-  <img src="public/community/nb-golden-serif-quote.jpg" alt="Warm golden serif quote slide" width="720" />
-</p>
-
-**Golden serif quote moment** · a warm canvas with one oversized light-gold line.
-
-```text
-Open my finished deck and add three "golden serif quote" interstitials — a warm
-brown canvas with one oversized light-gold serif line and a soft portrait fade —
-between the major sections. Keep the rest of the visual system intact. Show me
-the result in Play mode.
-```
-
-<p align="center">
-  <img src="public/community/nb-bold-product-ad.jpg" alt="Bold high-contrast product ad slide" width="720" />
-</p>
-
-**Bold product ad** · a hero shot, one giant claim per page, and a closing CTA.
-
-```text
-Open Codex Slides and turn our launch one-pager into a 5-slide "bold product ad"
-sequence — a hero shot, one giant claim per page, high-contrast type, and a
-closing CTA. Punchy and confident. Confirm the visual direction, then render at 4K.
-```
-
-<p align="center">
-  <img src="public/community/nb-vintage-patent.jpg" alt="Vintage patent filing style technical page" width="720" />
-</p>
-
-**Vintage patent filing** · aged paper, fine linework, and numbered figure callouts.
-
-```text
-Open Codex Slides and present our hardware concept as a 7-slide "vintage patent
-filing" — aged paper, fine technical linework, numbered callouts, and a formal
-figure caption on every page. Use the attached CAD notes as the source. Outline
-first.
-```
-
-#### 🎓 Specialized outputs
-
-<p align="center">
-  <img src="public/community/nb-chalkboard-lesson.jpg" alt="Warm chalkboard lesson layout with hand-drawn diagrams" width="720" />
-</p>
-
-**Chalkboard lesson** · hand-drawn diagrams and boxed definitions for teaching.
-
-```text
-Open Codex Slides and build a 12-slide training module on "Reading a Flame Graph"
-in a warm chalkboard-lesson style — hand-drawn diagrams, boxed definitions, a
-worked example, and a short quiz. Write full speaker notes on every slide. Approve
-the outline before rendering.
-```
-
-<p align="center">
-  <img src="public/community/nb-retro-industrial-concept.jpg" alt="Retro industrial product concept render" width="720" />
-</p>
-
-**Retro industrial concept** · moody studio renders with utilitarian type and spec callouts.
-
-```text
-Open Codex Slides and create a 6-slide product concept deck in a retro-industrial
-style — moody studio renders, utilitarian type, and spec callouts — for a piece
-of hardware described in the attached brief. Show the visual direction, then
-generate.
-```
-
-<p align="center">
-  <img src="public/community/nb-exploded-layers.jpg" alt="Exploded layer stack diagram" width="720" />
-</p>
-
-**Exploded layer stack** · a hero exploded diagram plus one slide per layer.
-
-```text
-Open Codex Slides and explain our architecture as a 5-slide "exploded layer
-stack" — a hero exploded diagram plus one slide per layer with its role and
-interfaces. Use the attached design doc as the source. Pause at the outline.
-```
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/assets/readme/case-market-report.png" alt="Business and market report deck" width="100%" /><br />
+      <strong>Business &amp; market report</strong> — charts, KPI callouts, and a tidy consulting-grade grid.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides in the Codex Browser and build a 12-slide market
+report on the 2026 humanoid-robotics market — size, CAGR, average
+selling price, and key takeaways — in a consulting-grade chart-and-KPI
+grid. Research first, then stop at the outline before rendering.</pre>
+      </details>
+    </td>
+    <td width="50%">
+      <img src="docs/assets/readme/case-data.png" alt="Data visualization dashboard deck" width="100%" /><br />
+      <strong>Data &amp; dashboards</strong> — maps, donut and trend charts, and metric tiles.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides and turn the attached dataset into a data dashboard
+on global EV-charging infrastructure — a world map of charging points,
+a regional donut, a growth trend line, and metric tiles. Analytical and
+dense. Confirm the outline first.</pre>
+      </details>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/assets/readme/case-keynote.png" alt="Product keynote deck" width="100%" /><br />
+      <strong>Product keynote</strong> — cinematic, high-contrast title moments for launches.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides and create a cinematic product keynote — big
+high-contrast title moments, near-black slides with one glowing product
+hero and a single bold line per page. 16:9 at 4K. Show me the visual
+direction before generating.</pre>
+      </details>
+    </td>
+    <td width="50%">
+      <img src="docs/assets/readme/case-editorial.png" alt="Editorial magazine-style deck" width="100%" /><br />
+      <strong>Editorial</strong> — refined typography and a print-quality grid.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides and design an editorial, magazine-style deck — a
+refined serif masthead, a strict multi-column print grid, warm
+photography, and generous white space. Use my essay as the source.
+Approve the outline, then export PDF.</pre>
+      </details>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="public/community/foryou-pitch-midnight-traction.jpg" alt="Midnight investor pitch title slide" width="100%" /><br />
+      <strong>Seed pitch — midnight &amp; traction</strong> — a confident dark title system, one electric-blue accent.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides in the Codex Browser and build a 10-slide seed pitch
+for a developer-tools startup — problem, insight, product, demo,
+traction, market, model, moat, team, ask. Use a confident dark
+"midnight" title system with one electric-blue accent. Stop at the
+outline, then render in Fast mode.</pre>
+      </details>
+    </td>
+    <td width="50%">
+      <img src="public/community/foryou-pitch-clean-daylight.jpg" alt="Clean daylight product keynote with 3D diagram nodes" width="100%" /><br />
+      <strong>Product keynote — clean daylight</strong> — a bright, airy layout with soft 3D diagram nodes.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides and create a 14-slide product keynote for an
+agent-native platform. Bright, airy "daylight" layout with soft 3D
+diagram nodes and one indigo accent, one idea per slide. Show me the
+visual-direction options, then generate at 4K.</pre>
+      </details>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="public/community/foryou-data-answer-first.jpg" alt="Answer-first data slide with a national map and KPI callouts" width="100%" /><br />
+      <strong>Answer-first data story</strong> — leads with the headline, then a map and trends.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides in the Browser and turn the attached dataset into a
+9-slide data story that leads with the answer: a headline metric, a
+national map of where it's happening, trend and regional breakdowns, and
+a recommendation. Analytical and uncluttered. Confirm the outline first.</pre>
+      </details>
+    </td>
+    <td width="50%">
+      <img src="public/community/foryou-craft-editorial-ink.jpg" alt="Editorial ink-and-paper report title slide" width="100%" /><br />
+      <strong>Editorial report</strong> — refined serif headlines and a strict print grid.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides. Use the attached PDF as the content source and
+rebuild it as a 12-slide editorial report — refined serif headlines, an
+ink-and-paper craft palette, and a strict print grid. Keep every fact,
+add nothing. Stop for outline approval, then export PPTX and PDF.</pre>
+      </details>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="public/community/nb-liquid-glass-bento.jpg" alt="Liquid glass bento grid dashboard" width="100%" /><br />
+      <strong>Liquid Glass bento dashboard</strong> — transparent glass cards over a soft blurred ground.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides and build a 6-slide product overview in the Liquid
+Glass Bento style — an asymmetric bento grid of transparent glass cards
+over a soft blurred ground, one hero cell plus titled metric tiles. Use
+my attached specs as the facts. Approve the outline before rendering.</pre>
+      </details>
+    </td>
+    <td width="50%">
+      <img src="public/community/nb-summary-infographic.jpg" alt="Dense one-page summary infographic" width="100%" /><br />
+      <strong>One-page summary infographic</strong> — a whole story in one dense, sectioned page.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides and use the attached transcript as the source.
+Distill the whole meeting into a single dense "summary infographic"
+slide plus 4 supporting pages — decisions, owners, next steps, and
+risks, with icons and tidy sections. Show me the outline first.</pre>
+      </details>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="public/community/nb-technical-cutaway.jpg" alt="Labeled technical cutaway diagram" width="100%" /><br />
+      <strong>Technical cutaway</strong> — a labeled cross-section that formalizes a rough sketch.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides. Use the attached whiteboard photo as a visual source
+and reconstruct the system as a 5-slide "technical cutaway" — a labeled
+cross-section hero, data flow, components, tradeoffs, and rollout. Keep
+my labels, formalize the sketch. Pause at the outline.</pre>
+      </details>
+    </td>
+    <td width="50%">
+      <img src="public/community/nb-bold-product-ad.jpg" alt="Bold high-contrast product ad slide" width="100%" /><br />
+      <strong>Bold product ad</strong> — a hero shot, one giant claim per page, a closing CTA.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides and turn our launch one-pager into a 5-slide "bold
+product ad" sequence — a hero shot, one giant claim per page,
+high-contrast type, and a closing CTA. Punchy and confident. Confirm the
+visual direction, then render at 4K.</pre>
+      </details>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="public/community/nb-golden-serif-quote.jpg" alt="Warm golden serif quote slide" width="100%" /><br />
+      <strong>Golden serif quote moment</strong> — a warm canvas with one oversized light-gold line.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open my finished deck and add three "golden serif quote" interstitials
+— a warm brown canvas with one oversized light-gold serif line and a
+soft portrait fade — between the major sections. Keep the rest of the
+visual system intact. Show me the result in Play mode.</pre>
+      </details>
+    </td>
+    <td width="50%">
+      <img src="public/community/nb-watercolor-map.jpg" alt="Watercolor annotated regional map" width="100%" /><br />
+      <strong>Watercolor annotated map</strong> — a hand-painted map anchoring a market story.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides and create an 8-slide market-entry brief centered on
+a watercolor annotated map of our target regions, with a ranked
+opportunity table and a phased plan. Run quick research first and keep
+the sources in Design Files. Approve the outline before rendering.</pre>
+      </details>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="public/community/nb-retro-industrial-concept.jpg" alt="Retro industrial product concept render" width="100%" /><br />
+      <strong>Retro industrial concept</strong> — moody studio renders with utilitarian type.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides and create a 6-slide product concept deck in a
+retro-industrial style — moody studio renders, utilitarian type, and
+spec callouts — for a piece of hardware described in the attached brief.
+Show the visual direction, then generate.</pre>
+      </details>
+    </td>
+    <td width="50%">
+      <img src="public/community/nb-vintage-patent.jpg" alt="Vintage patent filing style technical page" width="100%" /><br />
+      <strong>Vintage patent filing</strong> — aged paper, fine linework, numbered figure callouts.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides and present our hardware concept as a 7-slide
+"vintage patent filing" — aged paper, fine technical linework, numbered
+callouts, and a formal figure caption on every page. Use the attached
+CAD notes as the source. Outline first.</pre>
+      </details>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="public/community/nb-engineering-blueprint-grid.jpg" alt="Engineering blueprint grid with annotated diagrams" width="100%" /><br />
+      <strong>Engineering blueprint teardown</strong> — annotated diagrams on a precise technical grid.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides and build a 9-slide competitive teardown of us vs.
+three named rivals in an engineering blueprint grid — annotated
+diagrams, a feature matrix, pricing, and where we win. Fair and
+specific, no strawmen. Show the outline before rendering.</pre>
+      </details>
+    </td>
+    <td width="50%">
+      <img src="public/community/nb-chalkboard-lesson.jpg" alt="Warm chalkboard lesson layout with hand-drawn diagrams" width="100%" /><br />
+      <strong>Chalkboard lesson</strong> — hand-drawn diagrams and boxed definitions for teaching.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides and build a 12-slide training module on "Reading a
+Flame Graph" in a warm chalkboard-lesson style — hand-drawn diagrams,
+boxed definitions, a worked example, and a short quiz. Write full
+speaker notes on every slide. Approve the outline before rendering.</pre>
+      </details>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="public/community/nb-visual-info-guide.jpg" alt="Clean visual information guide layout" width="100%" /><br />
+      <strong>Visual info guide</strong> — a tidy, icon-led explainer for a research readout.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides and turn the attached survey export into a 10-slide
+research readout as a clean visual info guide: method, three headline
+findings with supporting charts, verbatim quotes, and recommendations.
+Neutral, evidence-first. Outline first.</pre>
+      </details>
+    </td>
+    <td width="50%">
+      <img src="public/community/nb-exploded-layers.jpg" alt="Exploded layer stack diagram" width="100%" /><br />
+      <strong>Exploded layer stack</strong> — a hero exploded diagram plus one slide per layer.
+      <details><summary>📋 Copy the prompt</summary>
+      <pre>Open Codex Slides and explain our architecture as a 5-slide "exploded
+layer stack" — a hero exploded diagram plus one slide per layer with its
+role and interfaces. Use the attached design doc as the source. Pause at
+the outline.</pre>
+      </details>
+    </td>
+  </tr>
+</table>
 
 > The preview images above are visual systems that ship with Codex Slides — a few are real
 > Codex Slides renders, the rest are community-contributed style references the model matches on
