@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <strong>45 deck templates · 73 community styles · 24 guided scenarios</strong><br />
-  ⚡ Fast mode renders every page in parallel → production-ready <strong>PPTX / PDF</strong> in about a minute · Browser-first · zero separate API keys · web &amp; desktop
+  <strong>⚡ 10+ high-quality slides in ~4–5 minutes</strong> — Fast mode renders every page in parallel, not one by one<br />
+  45 deck templates · 73 community styles · 24 guided scenarios → production-ready <strong>PPTX / PDF</strong> · Browser-first · zero separate API keys · web &amp; desktop
 </p>
 
 <p align="center">
@@ -42,8 +42,8 @@ extra API keys, and keeps every project on your own disk.
   illustration).
 - **24 guided scenarios** in 6 groups — zero-to-one decks, source-to-slides, data stories,
   deep research, redesign, localization, training, keynotes, and more.
-- **⚡ Fast mode** — renders every page **in parallel** (not one-by-one), so a full deck lands
-  in a fraction of the time while the outline and visual direction stay locked.
+- **⚡ Fast mode** — renders every page **in parallel** (not one-by-one), so a **10+ slide deck
+  lands in ~4–5 minutes** while the outline and visual direction stay locked.
 - **Production export** — real, presentation-ready **PPTX** and print-ready **PDF** with
   speaker notes preserved; 1K/2K/4K render quality and five aspect ratios (16:9, 4:3, 1:1,
   9:16, 3:4).
@@ -278,8 +278,8 @@ lock a direction in one click, search the full library, or keep the default.
 ### Fast mode → production-ready export
 
 - **Fast mode** renders **every page in parallel** (up to 4 in flight, overflow queued) instead
-  of one-by-one, while the outline and visual direction stay locked — a full deck lands in a
-  fraction of the time.
+  of one-by-one, while the outline and visual direction stay locked — a **10+ slide deck lands
+  in ~4–5 minutes**.
 - **Production export**: download a real **PPTX** and a print-ready **PDF**, with speaker notes
   preserved, straight from the project.
 - **Render quality** 1K / 2K / 4K and **five aspect ratios** — 16:9, 4:3, 1:1, 9:16, 3:4.

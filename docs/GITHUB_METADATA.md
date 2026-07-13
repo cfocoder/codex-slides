@@ -18,15 +18,15 @@ Use this copy when preparing the public GitHub repository.
 
 Recommended short description (About box — leads with what users care about most: how many styles, how fast, and that the export is real):
 
-> 🎨 Open-source AI slide studio inside your coding agent. 118 ready visual systems (45 deck templates + 73 community styles) across 24 guided scenarios. ⚡ Fast mode renders every page in parallel → production-ready PPTX/PDF in about a minute. 🖥️ Browser-first · zero API keys · durable local projects. 🤖 Runs in Codex.
+> ⚡ 10+ high-quality slides in ~4–5 minutes — Fast mode renders every page in parallel. 🎨 Open-source AI slide studio inside your coding agent: 118 ready visual systems (45 deck templates + 73 community styles) across 24 guided scenarios → production-ready PPTX/PDF. 🖥️ Browser-first · zero API keys · durable local projects. 🤖 Runs in Codex.
 
 Plain-text alternative:
 
-> The fastest way to make slides with a coding agent. 45 deck templates, 73 community styles, and 24 guided scenarios turn a prompt, a repo, or a pile of files into a production-ready PPTX/PDF — without leaving Codex.
+> The fastest way to make slides with a coding agent — 10+ high-quality slides in ~4–5 minutes. 45 deck templates, 73 community styles, and 24 guided scenarios turn a prompt, a repo, or a pile of files into a production-ready PPTX/PDF — without leaving Codex.
 
 Short alternative:
 
-> 118 visual systems, 24 scenarios, Fast-mode parallel render, and real PPTX/PDF export — image-native slide decks without leaving Codex.
+> 10+ high-quality slides in ~4–5 minutes — 118 visual systems, 24 scenarios, Fast-mode parallel render, and real PPTX/PDF export, image-native and without leaving Codex.
 
 ## Topics
 
