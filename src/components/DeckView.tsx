@@ -39,7 +39,6 @@ import {
   saveProjectCheckpoint,
   startProjectRun as startDetachedProjectRun,
   stopProjectRun as stopDetachedProjectRun,
-  streamRender,
   type ChatRequest,
   type GenStatus,
   type ProjectCheckpointPatch,
@@ -653,6 +652,35 @@ export default function DeckView({ projectId, initialProject }: { projectId: str
       setLaunchingRun(false);
     }
   }
+
+  useEffect(() => {
+    if (resumeRenderRef.current || activeRun || launchingRun) return;
+    const hasUnfinishedPages = project.pages.some((page) => page.status !== "rendered");
+    const wasInterrupted = project.status === "rendering"
+      || project.workflow?.stage === "rendering";
+    if (!wasInterrupted || !hasUnfinishedPages) return;
+
+    // Older/client-owned renders could leave a durable page checkpoint without
+    // an active run when their tab closed. Adopt that orphan once and let the
+    // normal render pipeline skip every page that was already persisted.
+    resumeRenderRef.current = true;
+    void startBackgroundRun({
+      kind: "render",
+      conversationId: conversationState.activeConversationId,
+      locale,
+    });
+    // startBackgroundRun intentionally stays outside the dependency list: this
+    // recovery effect is keyed only by durable project/run state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeRun?.id,
+    launchingRun,
+    locale,
+    project.id,
+    project.pages,
+    project.status,
+    project.workflow?.stage,
+  ]);
 
   /** Every project turn is server-owned. Route changes only detach this view;
    * they never own or cancel the underlying work. */

@@ -33,6 +33,9 @@ export async function startProjectRun(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
+    // The enqueue payload is small and must survive a route change that happens
+    // immediately after the user starts generation.
+    keepalive: true,
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);

@@ -34,9 +34,9 @@ import {
   saveConversations,
   saveOutline,
   saveProjectCheckpoint,
+  startProjectRun as startDetachedProjectRun,
   streamOnboard,
   streamOutline,
-  streamRender,
   type ChatRequest,
   type GenStatus,
   type ProjectCheckpointPatch,
@@ -1030,100 +1030,46 @@ export default function Home({ searchParams }: { searchParams?: HomeSearchParams
 
   async function renderNow() {
     if (!projectId) return;
-    const runId = createAgentRunId("render-deck");
-    const startedAt = Date.now();
-    const startContent = config.fast
-      ? t("flow.fastRender", { count: outline.length })
-      : t("flow.render", { count: outline.length });
     setRunning(true);
     setWorkspaceMode("canvas");
-    say({
-      id: runId,
-      role: "assistant",
-      content: startContent,
-      process: {
-        state: "running",
-        title: config.fast ? t("flow.fastRenderingTitle") : t("flow.renderingTitle"),
-        notes: [config.fast ? t("flow.fastRenderingNote") : t("flow.renderingNote")],
-        tools: [{
-          id: "render",
-          name: "render_deck",
-          label: config.fast ? t("flow.fastRenderTool") : t("flow.renderTool"),
-          detail: `0 / ${outline.length}`,
-          state: "running",
-        }],
-      },
-    });
+    setSlides(outline.map((o, i) => ({ index: i + 1, title: o.title, status: "pending" })));
+    setStage("deck");
     try {
-      setSlides(outline.map((o, i) => ({ index: i + 1, title: o.title, status: "pending" })));
-      setStage("deck");
-      let rendered = 0;
-      let failed = 0;
-      await streamRender(projectId, (ev) => {
-        if (ev.type === "page_rendered") rendered++;
-        if (ev.type === "page_error") failed++;
-        // The verify sweep recomputes counts from ground truth, correcting the
-        // running tally after retried pages flip from failed back to rendered.
-        if (ev.type === "verify") {
-          rendered = ev.rendered;
-          failed = ev.pending;
-        }
-        if (
-          ev.type === "page_rendered" ||
-          ev.type === "page_error" ||
-          ev.type === "page_start" ||
-          ev.type === "page_retry" ||
-          ev.type === "verify"
-        ) {
-          updateChatMessage(runId, (current) => ({
-            ...current,
-            process: patchAgentTool(current.process!, "render", {
-              state: "running",
-              detail:
-                ev.type === "page_retry"
-                  ? t("flow.retrying", { index: ev.index, attempt: ev.attempt + 1, total: ev.maxAttempts })
-                  : ev.type === "verify"
-                    ? ev.phase === "done"
-                      ? t("flow.verifyDone", { rendered: ev.rendered, total: ev.total })
-                      : t("flow.verifying", { pending: ev.pending, total: ev.total })
-                    : ev.type === "page_start"
-                      ? `${rendered} / ${outline.length} · ${t("flow.renderingSlide", { index: ev.index })}`
-                      : `${rendered} / ${outline.length}${failed ? ` · ${t("flow.failedCount", { count: failed })}` : ""}`,
-            }),
-          }));
-        }
-        handleEvent(ev);
+      // Flush the latest conversation and workflow state before handing the
+      // render to the server. From this point on the project-owned run, rather
+      // than this React component or its fetch request, owns generation.
+      await saveConversations(
+        projectId,
+        conversationState.conversations,
+        conversationState.activeConversationId,
+      );
+      await saveProjectCheckpoint(projectId, {
+        config,
+        title,
+        researchDoc,
+        workflow: {
+          stage: "deck",
+          researchMode,
+          questions,
+          clarifyForm: clarifyFormState,
+          clarifyAnswerSummary,
+          workspaceMode: "canvas",
+          selectedDesignFileId,
+          inspirationSkipped,
+          inspirationSelection: inspireSelection,
+          queuedRequests: queue,
+        },
       });
-      updateChatMessage(runId, (current) => ({
-        ...current,
-        content: `${current.content}\n\n${t("flow.renderDone", { count: rendered })}`,
-        ran: elapsedRunLabel(startedAt, locale),
-        suggestions: rendered > 0 ? [
-          t("flow.suggestionSummary"),
-          t("flow.suggestionBusiness"),
-          t("flow.suggestionCover"),
-          t("flow.suggestionSpecific"),
-        ] : undefined,
-        process: {
-          ...patchAgentTool(current.process!, "render", {
-            state: failed ? "error" : "complete",
-            detail: `${rendered} / ${outline.length}${failed ? ` · ${t("flow.failedCount", { count: failed })}` : ""}`,
-          }),
-          state: failed ? "error" : "complete",
-          title: failed ? t("flow.renderFinishedWithErrors") : t("flow.renderFinished"),
-        },
-      }));
+      await startDetachedProjectRun(projectId, {
+        kind: "render",
+        conversationId: conversationState.activeConversationId,
+        locale,
+      });
+      // The project workspace polls the persisted run. Navigating there also
+      // proves the task is no longer coupled to the home page lifecycle.
+      window.location.assign(`/project/${encodeURIComponent(projectId)}`);
     } catch (e: any) {
-      updateChatMessage(runId, (current) => ({
-        ...current,
-        content: `${current.content}\n\n⚠ ${e?.message ?? e}`,
-        ran: elapsedRunLabel(startedAt, locale),
-        process: {
-          ...patchAgentTool(current.process!, "render", { state: "error", detail: String(e?.message ?? e) }),
-          state: "error",
-          title: t("flow.renderStopped"),
-        },
-      }));
+      say({ role: "assistant", content: `⚠ ${e?.message ?? e}` });
     } finally {
       setRunning(false);
     }
