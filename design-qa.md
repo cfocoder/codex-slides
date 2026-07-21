@@ -1,112 +1,63 @@
-# Design QA — 会话 Markdown 预览与输入框尺寸
+# Design QA — Inspiration style lightbox
 
-## 视觉真值
+- Source visual truth: `/var/folders/5j/fb63hyxj11nblszkmd3vfcjm0000gn/T/codex-clipboard-e6def914-5c0b-45ff-abed-0275f71a3fd0.png`
+- Desktop implementation screenshot: `/Users/pftom/Projects/personal-work/experiments/ppt-anything/scratchpad/inspiration-lightbox-desktop-final.png`
+- Mobile implementation screenshot: `/Users/pftom/Projects/personal-work/experiments/ppt-anything/scratchpad/inspiration-lightbox-mobile-final.png`
+- Viewports: 1280 × 720 desktop; 390 × 844 mobile
+- State: full-page inspiration picker with one style opened in the new image-browser layer
 
-- 助手消息 Markdown 原始状态：`/var/folders/5j/fb63hyxj11nblszkmd3vfcjm0000gn/T/codex-clipboard-5Vr1QB.png`（1192 × 1732，约 596 × 866 CSS px 的局部裁切）。
-- 首页输入框原始状态：`/var/folders/5j/fb63hyxj11nblszkmd3vfcjm0000gn/T/codex-clipboard-FYW5oW.png`（3024 × 1896，约 1512 × 948 CSS px）。
-- 项目页输入框原始状态：`/var/folders/5j/fb63hyxj11nblszkmd3vfcjm0000gn/T/codex-clipboard-MzYRUf.png`（3024 × 1896，约 1512 × 948 CSS px）。
+## Comparison scope
 
-## 实现目标
+The supplied screenshot shows the existing project workspace and the entry point for browsing visual references, while the requested expanded-image state is net-new and therefore is not present in the source. The full-view comparison used the source to preserve the surrounding product language and density, then evaluated the new lightbox against the explicit behavior target: maximize one style, browse with buttons and keyboard, and retain a clear selection action.
 
-- 首页：`http://localhost:4311/`
-- 项目页：`http://localhost:4311/project/20260711152839-为-vibe-design-workspace-制作一份面向-受众-的演示文稿--5krk`
-- 目标视口：1512 × 948 CSS px；Markdown 局部对照使用约 596 × 866 CSS px 的左栏裁切。
-- 状态：已有 10 页成品的 `vibe design workspace` 项目；滚动到 `## 总结` 助手消息；底部项目输入框可见；首页输入框包含多行需求。
-- 实现截图路径：不可用。Chrome 窗口已按用户授权打开，但浏览器控制连接在重试后仍不可用，无法生成实现截图。
-
-## 对照证据与历史
-
-1. 三张视觉真值已按原始分辨率重新打开并核对；Markdown 局部清楚显示原始 `##`、`**`、反引号和编号列表未被渲染，首页和项目页清楚标出输入区域尺寸问题。
-2. 本轮已打开新的 Chrome 窗口并按规定重试连接；Chrome、本地服务与目标路由均可用，但浏览器控制后端仍未建立会话。
-3. 因缺少浏览器渲染后的实现截图，无法完成要求的同视口并排比较，也无法检查控制台错误。
-4. 本轮没有视觉迭代历史：截图采集在第一次实现对照前即被浏览器连接阻断。
-
-## 功能验证
-
-- `npm run typecheck`：通过。
-- `npm run check:i18n`：通过，3 个语言包、782 个源键。
-- `npm run build`：通过；首页、项目页和相关 API 路由完成生产构建。
-- HTTP：`/` 返回 200；目标 `/project/[id]` 返回 200。
-- 真实会话 fixture 渲染：8 项断言全部通过，包括标题、粗体、行内代码、编号保持、嵌套项目、隐藏 Markdown 符号、转义原始 HTML 和阻断不安全链接。
-- `git diff --check`：通过。
-
-## 必查视觉面
-
-- 字体与排版：实现值已落到助手正文 14px、项目输入框 14px；Markdown 标题、正文、列表、引用、链接和代码存在独立层级。缺少实现截图，无法认证实际字体栅格化、换行和视觉密度。
-- 间距与布局：首页输入区最小高度为 108px，窄屏为 88px；项目输入区保持 72px 高度并收紧字距与内边距。缺少实现截图，无法认证折行数量、底部工具栏间距和左栏滚动位置。
-- 色彩与视觉 token：复用现有 `--text`、`--text-2`、`--muted`、`--accent`、`--border` 与 `--bg-soft`，未引入新的色彩体系。缺少实现截图，无法认证实际对比度观感。
-- 图像与资产：本次改动不新增或替换图像、图标、品牌资产；该面无资产漂移。
-- 文案与内容：真实 `## 总结` 消息已证明语法标记会转换为语义元素，编号 1–8 不重置，原内容不改写。
+The desktop implementation and source screenshot were opened together in the same comparison pass. A focused-region comparison was not needed beyond the implementation screenshot because the new lightbox intentionally covers the full viewport; its image, controls, metadata, and action are all clearly readable at the captured scale.
 
 ## Findings
 
-- **[P1] 浏览器渲染后的视觉签收被阻断。**
-  - Location：助手 Markdown 长消息、首页输入框、项目页底部输入框。
-  - Evidence：Chrome 窗口打开并重试后仍无法建立浏览器控制会话，因此没有实现截图、并排比较或控制台记录。
-  - Impact：无法从代码、构建和静态渲染断言中认证最终字号、折行、间距、滚动与响应式视觉是否达到截图目标。
-  - Fix：从 ChatGPT 插件界面重新安装或恢复 Chrome 插件连接；随后在 1512 × 948 视口捕获首页和项目页，并对 Markdown 左栏做同尺寸局部对照。
+No actionable P0, P1, or P2 issues remain.
 
-## Open Questions
+- Fonts and typography: the lightbox keeps the product's existing system font, compact UI sizing, medium-to-semibold hierarchy, and restrained metadata weights. Labels remain readable without competing with the reference image.
+- Spacing and layout rhythm: the reference image is the dominant region, previous/next controls remain symmetric, metadata and selection action align on one baseline, and persistent controls stay inside both tested viewports.
+- Colors and visual tokens: the near-black translucent viewer surface gives varied reference images a neutral ground; white and muted-white controls preserve adequate contrast and match the existing restrained product chrome.
+- Image quality and asset fidelity: the implementation uses each catalog's real source cover with `object-fit: contain`, no stretching or placeholder assets, and a viewport-bounded maximum height.
+- Copy and content: counter, keyboard hint, navigation labels, close action, selected state, source attribution, and selection CTA are localized in Chinese, English, and Japanese.
+- Accessibility and interaction: the viewer is an `aria-modal` dialog with an accessible title, focused close control, trapped Tab navigation, disabled boundary buttons, restored focus on close, and keyboard handling for Escape and both arrow keys.
 
-- Chrome 插件连接恢复后，是否仍有 P0/P1/P2 视觉偏差，必须以浏览器截图和控制台检查为准。
+## Comparison history
 
-## Implementation Checklist
+1. Initial desktop pass
+   - P2: async style ranking could reorder the underlying catalog while the viewer was open, making the counter and adjacent styles jump.
+   - Fix: freeze the visible browse order when the lightbox opens; apply a newer ranking only after closing and reopening.
+   - Post-fix evidence: desktop screenshot holds a stable `2 / 73` state after button navigation.
 
-1. 恢复 Chrome 浏览器控制连接。
-2. 捕获首页 1512 × 948 实现截图，确认输入区默认可见约四行。
-3. 捕获项目页 1512 × 948 实现截图，确认项目输入框字号与工具栏比例。
-4. 滚动到 `## 总结`，捕获约 596 × 866 的左栏局部截图，确认标题、强调、代码、编号和嵌套列表。
-5. 将实现截图与三张视觉真值放在同一比较输入中，并检查控制台；修复所有 P0/P1/P2 后再改为通过。
+2. Initial mobile pass
+   - P2: reserved grid columns for previous/next buttons reduced the 16:9 image to roughly 290 px on a 390 px viewport.
+   - Fix: overlay the navigation buttons on mobile and let the image occupy the full content width.
+   - Post-fix evidence: `/Users/pftom/Projects/personal-work/experiments/ppt-anything/scratchpad/inspiration-lightbox-mobile-final.png` shows the image expanded to the available width with controls still reachable.
 
-## Follow-up Polish
+## Primary interactions tested
 
-- 浏览器恢复后补测 760px 与 480px 断点，确认首页 88px 输入区和移动端 16px 防缩放规则不会互相覆盖。
+- Click a style card to open the viewer.
+- Click the right-side button to advance from item 1 to item 2.
+- Press ArrowRight to advance to the next style.
+- Select a style inside the viewer and confirm the CTA changes to a disabled selected state.
+- Press Escape to close only the viewer and retain the selected style in the parent picker.
+- Verify the first item's previous button is disabled.
+- Verify the mobile layout at 390 × 844.
+- Check browser console output; no feature-related errors were present. One pre-existing Next.js parallel-route warning originated from an earlier navigation to a missing project URL.
 
-previous result: blocked
+## Implementation checklist
 
----
+- [x] Full-viewport image viewer
+- [x] Previous/next buttons with boundary states
+- [x] ArrowLeft/ArrowRight keyboard navigation
+- [x] Escape close and focus restoration
+- [x] Select-from-preview behavior
+- [x] Desktop and mobile responsive layouts
+- [x] Localized accessible labels
 
-# Design QA — 项目默认预览封面
+## Follow-up polish
 
-## 视觉真值与实现证据
-
-- 参考图：`.qa/default-preview/reference.png`，重点参考 Recent projects 中的柔和色块、项目首字与简洁封面结构。
-- 桌面实现：`.qa/default-preview/implementation-desktop.png`，1600 × 1000，首页项目库，35 个项目中 7 个无真实封面。
-- 平板实现：`.qa/default-preview/implementation-tablet.png`，760 × 900，双列项目网格。
-- 手机实现：`.qa/default-preview/implementation-mobile.png`，390 × 844，单列项目网格。
-- 同图对照：`.qa/default-preview/comparison.png`，左侧为参考图局部，右侧为桌面实现局部。
-
-![默认预览参考与实现并排对照](.qa/default-preview/comparison.png)
-
-## 实现状态
-
-- 无真实 `cover` 的项目使用标题中的第一个 Unicode 字母或数字作为封面主字符，中文、日文和拉丁字符均可稳定显示。
-- 六组低饱和色板由 `project.id + title` 的稳定哈希选择；刷新、轮询和重新打开后不会跳色。
-- 封面保留现有 16:9 比例、圆角、边框、打开态、运行态和链接语义，不伪装成一张已经生成的幻灯片。
-- `role="img"` 和本地化的“暂无预览”标签保留空状态语义；主字符仅作视觉呈现。
-
-## 对照检查
-
-- 字体与排版：参考图的大号衬线首字已映射为 44–68px 响应式字号；项目标题和状态排版沿用现有卡片层级，无截断或密度回退。
-- 间距与布局：桌面四列、平板双列、手机单列均保持 16:9；`scrollWidth === clientWidth`，没有横向溢出、重叠或裁切。
-- 色彩与视觉 token：使用六组柔和实色背景，不使用渐变或伪造预览图；文字与背景对比清晰，并保留 Codex Slides 的蓝紫主调。
-- 图像与资产：已有真实封面完全不变；默认封面只在 `cover === null` 时出现，不会覆盖生成结果。
-- 图标与交互：hover/focus 打开箭头、运行徽标和加载状态继续位于原层级；移动端保持可见的打开入口。
-- 无障碍：项目卡仍是带完整项目标题的链接；空封面有本地化可访问名称，装饰首字不会重复朗读。
-
-## Findings 与迭代历史
-
-1. 首轮把灰色“暂无预览”替换为确定性色块与首字封面，并加入低对比度 `CODEX SLIDES` 角标。
-2. 在 1600px 视口对照参考图后，封面比例、信息密度和视觉层级达到目标，没有 P0、P1 或 P2 偏差。
-3. 在 760px 和 390px 视口复测，网格分别稳定为双列与单列；没有溢出、错位、不可点击或文字碰撞。
-
-## 功能与运行验证
-
-- 浏览器：开发服务与打包服务均加载成功，无 Next.js 错误遮罩、页面错误或控制台错误。
-- 静态合同：TypeScript、57 个 Node 测试、三语言 i18n、项目同步、Skill、38-tool MCP 和 Electron 合同全部通过。
-- 实时合同：Skill live、MCP live 和 project-sync live 全部通过。
-- 构建：`pnpm build` 与 `pnpm electron:pack` 均成功。
-- 打包应用：`dist/mac-arm64/Codex Slides.app` 通过深度签名校验；独立启动后本地服务在 `127.0.0.1:50353` 就绪，首页与 `/api/agents` 均正常。
-- macOS 图标：打包源为 1024 × 1024 RGBA，非透明主体为精确的 `784:784:120:120`，即主体占 76.56%，四边各 120px 安全区。
+No P3 follow-up is required for this scope.
 
 final result: passed

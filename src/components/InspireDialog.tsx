@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { MagnifyingGlass, X } from "@phosphor-icons/react";
+import { MagnifyingGlass, MagnifyingGlassPlus, X } from "@phosphor-icons/react";
 import {
   COMMUNITY_GROUPS,
   COMMUNITY_TEMPLATES,
@@ -16,6 +16,7 @@ import {
 import { rankInspire } from "@/lib/deckEdit";
 import { useI18n } from "@/i18n/I18nProvider";
 import { COMMUNITY_GROUP_KEYS, COMMUNITY_QUERY_KEYS } from "@/i18n/community";
+import InspirationLightbox from "@/components/InspirationLightbox";
 
 function lum(hex: string): number {
   const h = hex.replace("#", "");
@@ -65,19 +66,20 @@ export default function InspireDialog({
   const [group, setGroup] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<string | undefined>(selected);
+  const [previewId, setPreviewId] = useState<string>();
   const chips = useMemo(() => inspireChips(matchQuery), [matchQuery]);
   const ranReq = useRef(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
-  // Esc closes; focus the close button on open.
+  // Esc closes this dialog unless its image-browser layer is open.
   useEffect(() => {
     closeRef.current?.focus();
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !previewId) onClose();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, previewId]);
 
   // Codex re-rank (best effort — the offline order stays if it fails).
   useEffect(() => {
@@ -254,14 +256,17 @@ export default function InspireDialog({
                 key={t.id}
                 type="button"
                 className={`tpl-card inspire-card ${picked === t.id ? "on" : ""}`}
-                onClick={() => setPicked(picked === t.id ? undefined : t.id)}
+                onClick={() => setPreviewId(t.id)}
                 title={t.description}
-                aria-pressed={picked === t.id}
+                aria-label={tr("inspire.previewNamed", { name: t.name })}
               >
                 <div className="tpl-cover" style={{ background: ground }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={t.cover} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />
                   {recommended && <span className="inspire-badge">{tr("inspire.recommended")}</span>}
+                  <span className="inspire-card-expand" aria-hidden="true">
+                    <MagnifyingGlassPlus size={17} weight="bold" />
+                  </span>
                   <span className="tpl-selected" aria-hidden="true">
                     ✓
                   </span>
@@ -320,6 +325,17 @@ export default function InspireDialog({
             </button>
           </div>
         </footer>
+
+        {previewId ? (
+          <InspirationLightbox
+            templates={visible}
+            activeId={previewId}
+            selectedId={picked}
+            onNavigate={setPreviewId}
+            onSelect={(templateId) => setPicked(templateId)}
+            onClose={() => setPreviewId(undefined)}
+          />
+        ) : null}
       </section>
     </div>,
     document.body,
