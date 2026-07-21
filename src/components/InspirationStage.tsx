@@ -1,6 +1,6 @@
 "use client";
 
-import { MagnifyingGlass } from "@phosphor-icons/react";
+import { MagnifyingGlass, MagnifyingGlassPlus } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   COMMUNITY_GROUPS,
@@ -14,6 +14,7 @@ import {
 import { rankInspire } from "@/lib/deckEdit";
 import { COMMUNITY_GROUP_KEYS } from "@/i18n/community";
 import { useI18n } from "@/i18n/I18nProvider";
+import InspirationLightbox from "@/components/InspirationLightbox";
 
 function luminance(hex: string): number {
   const raw = hex.replace("#", "");
@@ -65,6 +66,7 @@ export default function InspirationStage({
   const [ranking, setRanking] = useState(Boolean(matchQuery.trim()));
   const [group, setGroup] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [previewId, setPreviewId] = useState<string>();
   const rankingRequest = useRef(0);
 
   useEffect(() => {
@@ -197,9 +199,9 @@ export default function InspirationStage({
                 key={template.id}
                 type="button"
                 className={`tpl-card inspire-card ${active ? "on" : ""}`}
-                onClick={() => onSelect(active ? undefined : template.id)}
+                onClick={() => setPreviewId(template.id)}
                 title={template.description}
-                aria-pressed={active}
+                aria-label={t("inspire.previewNamed", { name: template.name })}
               >
                 <div className="tpl-cover" style={{ background: ground }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -210,6 +212,9 @@ export default function InspirationStage({
                     onError={(event) => { event.currentTarget.hidden = true; }}
                   />
                   {recommended ? <span className="inspire-badge">{t("inspire.recommended")}</span> : null}
+                  <span className="inspire-card-expand" aria-hidden="true">
+                    <MagnifyingGlassPlus size={17} weight="bold" />
+                  </span>
                   <span className="tpl-selected" aria-hidden="true">✓</span>
                 </div>
                 <div className="tpl-info">
@@ -260,6 +265,17 @@ export default function InspirationStage({
               : t("inspire.choose")}
         </button>
       </footer>
+
+      {previewId ? (
+        <InspirationLightbox
+          templates={visible}
+          activeId={previewId}
+          selectedId={selected}
+          onNavigate={setPreviewId}
+          onSelect={onSelect}
+          onClose={() => setPreviewId(undefined)}
+        />
+      ) : null}
     </section>
   );
 }
