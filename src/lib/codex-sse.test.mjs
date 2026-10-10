@@ -5,11 +5,11 @@ import { sseEvents } from "./responseStream.ts";
 
 test("Codex Responses model can be overridden, with a supported default", () => {
   assert.equal(
-    getCodexResponsesModel({ CODEX_SLIDES_CODEX_MODEL: "gpt-6.1-sol" }),
-    "gpt-6.1-sol",
+    getCodexResponsesModel({ CODEX_SLIDES_CODEX_MODEL: "gpt-6-luna" }),
+    "gpt-6-luna",
   );
-  assert.equal(getCodexResponsesModel({}), "gpt-6.1-sol");
-  assert.equal(getCodexResponsesModel({ CODEX_SLIDES_CODEX_MODEL: "  " }), "gpt-6.1-sol");
+  assert.equal(getCodexResponsesModel({}), "gpt-6-luna");
+  assert.equal(getCodexResponsesModel({ CODEX_SLIDES_CODEX_MODEL: "  " }), "gpt-6-luna");
 });
 
 test("an active Responses stream is cancelled when its project run is stopped", async () => {
